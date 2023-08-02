@@ -1,0 +1,32 @@
+{
+    "$schema": "./boot.config.schema.json",
+    "package": "services",
+    "protoDirs": [
+        "./services"
+    ],
+    "protoOptions": {
+        "keepCase": true,
+        "longs": "String",
+        "enums": "String",
+        "defaults": true,
+        "oneofs": true
+    },
+    "apps": [
+        {
+            "name": "user-server",
+            "uri": "grpc://localhost:4001",
+            "serve": false,
+            "services": [
+                "services.UserService"
+            ]
+        },
+        {
+            "name": "post-server",
+            "uri": "grpc://localhost:4002",
+            "serve": true,
+            "services": [
+                "services.PostService"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option go_package = "./services";
+
+package services;
+
+import "services/struct.proto";
+
+message UserQuery {
+    optional string id = 1;
+    optional string email = 2;
+}
+
+message PostQueryResult {
+    repeated Post posts = 1;
+}
+
+service UserService {
+    rpc GetUser(UserQuery) returns (User) {}
+    rpc GetMyPosts(UserQuery) returns (PostQueryResult) {}
+}

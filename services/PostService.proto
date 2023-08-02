@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+option go_package = "./services";
+
+package services;
+
+import "services/struct.proto";
+
+message PostQuery {
+    int32 id = 1;
+}
+
+message PostsQuery {
+    optional string author = 1;
+    optional string keyword = 2;
+}
+
+message PostSearchResult {
+    repeated Post posts = 1;
+}
+
+service PostService {
+    rpc GetPost(PostQuery) returns (Post) {}
+    rpc SearchPosts(PostsQuery) returns (PostSearchResult) {}
+}

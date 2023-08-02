@@ -1,0 +1,130 @@
+{
+    "$schema": "http://json-schema.org/schema",
+    "$id": "https://github.com/hyurl/grpc-boot/blob/main/boot.config.schema.json",
+    "title": "Boot Config",
+    "description": "The configuration for @hyurl/grpc-boot",
+    "type": "object",
+    "properties": {
+        "package": {
+            "type": "string",
+            "description": "The same package name as in the `.proto` files."
+        },
+        "protoDirs": {
+            "type": "array",
+            "description": "The directories that contains `.proto` files.",
+            "items": {
+                "type": "string"
+            }
+        },
+        "protoOptions": {
+            "type": "object",
+            "properties": {
+                "keepCase": {
+                    "type": "boolean",
+                    "description": "Preserve field names. The default is to change them to camel case."
+                },
+                "longs": {
+                    "type": "string",
+                    "description": "The type to use to represent long values. Defaults to a Long object type.",
+                    "enum": ["String", "Number"]
+                },
+                "enums": {
+                    "type": "string",
+                    "description": "The type to use to represent enum values. Defaults to the numeric value.",
+                    "enum": ["String"]
+                },
+                "bytes": {
+                    "type": "string",
+                    "description": "The type to use to represent bytes values. Defaults to Buffer.",
+                    "enum": ["Array", "String"]
+                },
+                "defaults": {
+                    "type": "boolean",
+                    "description": "Set default values on output objects. Defaults to false."
+                },
+                "arrays": {
+                    "type": "boolean",
+                    "description": "Set empty arrays for missing array values even if defaults is false Defaults to false."
+                },
+                "objects": {
+                    "type": "boolean",
+                    "description": "Set empty objects for missing object values even if defaults is false Defaults to false."
+                },
+                "oneofs": {
+                    "type": "boolean",
+                    "description": "Set virtual oneof properties to the present field's name. Defaults to false."
+                },
+                "json": {
+                    "type": "boolean",
+                    "description": "Represent Infinity and NaN as strings in float fields, and automatically decode google.protobuf.Any values. Defaults to false"
+                },
+                "includeDirs": {
+                    "type": "array",
+                    "description": "A list of search paths for imported .proto files.",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "apps": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of this app."
+                    },
+                    "uri": {
+                        "type": "string",
+                        "description": "The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:` or `xds:`.",
+                        "pattern": "^(grpc|grpcs|xds)://*"
+                    },
+                    "serve": {
+                        "type": "boolean",
+                        "description": "If this app is served by the grpc-boot server.",
+                        "default": false
+                    },
+                    "services": {
+                        "type": "array",
+                        "description": "The services served by this app.",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "cert": {
+                        "type": "string",
+                        "description": "The certificate filename when using SSL/TLS."
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "The private key filename when using SSL/TLS."
+                    },
+                    "connectTimeout": {
+                        "type": "integer",
+                        "description": "Connection timeout is milliseconds."
+                    },
+                    "options": {
+                        "type": "object",
+                        "description": "Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details."
+                    }
+                },
+                "required": [
+                    "name",
+                    "uri",
+                    "services"
+                ]
+            }
+        },
+        "sockFile": {
+            "type": "string",
+            "description": "The `.sock` file is used to host communications between apps."
+        }
+    },
+    "required": [
+        "package",
+        "protoDirs",
+        "apps"
+    ]
+}

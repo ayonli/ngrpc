@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option go_package = "./services";
+
+package services;
+
+enum Gender {
+    FEMALE = 0;
+    MALE = 1;
+    UNKNOWN = 2;
+}
+
+message User {
+    string id = 1;
+    string name = 2;
+    Gender gender = 3;
+    int32 age = 4;
+    string email = 5;
+}
+
+message Post {
+    int32 id = 1;
+    string title = 2;
+    optional string description = 3;
+    string content = 4;
+    optional User author = 5;
+}
