@@ -1,6 +1,5 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as FRON from "fron";
 import { Options as ProtoOptions, loadSync } from "@grpc/proto-loader";
 import {
     ChannelCredentials,
@@ -44,15 +43,13 @@ export type Config = {
 };
 
 /**
- * This type represents an interface that supports lifecycle events on the gRPC
- * app. If a service implements this interface, when the app starts and the
- * service is loaded (or reloaded), the `init()` method will be automatically
- * called, we can add some async logic inside it, for example, establishing
- * database connection, which is normally not possible in the default
- * `constructor()` method since it doesn't support asynchronous codes. And when
- * the app is about to stop, or the service is about to be reloaded, the
- * `destroy()` method will be called, which gives the ability to clean up and
- * release resource.
+ * This type represents an interface that supports lifecycle events on the gRPC app. If a service
+ * implements this interface, when the app starts and the service is loaded (or reloaded), the
+ * `init()` method will be automatically called, we can add some async logic inside it, for example,
+ * establishing database connection, which is normally not possible in the default `constructor()`
+ * method since it doesn't support asynchronous codes. And when the app is about to stop, or the
+ * service is about to be reloaded, the `destroy()` method will be called, which gives the ability
+ * to clean up and release resource.
  */
 export interface LifecycleSupportInterface {
     init(): Promise<void>;
@@ -60,17 +57,15 @@ export interface LifecycleSupportInterface {
 }
 
 /**
- * This type represents a struct of message that contains a `route` key that can
- * be used in the internal client load balancer. When the client sending a
- * request which implements this interface, the program will automatically route
- * the traffic to a certain server evaluated by the `route` key, which can be
- * set in the following forms:
+ * This type represents a struct of message that contains a `route` key that can be used in the 
+ * internal client load balancer. When the client sending a request which implements this interface,
+ * the program will automatically route the traffic to a certain server evaluated by the `route` key,
+ * which can be set in the following forms:
  * 
  * - a URI or address that corresponds to the ones that set in the config file;
  * - an app's name that corresponds to the ones that set in the config file;
  * - if none of the above matches, use the hash algorithm on the `route` value;
- * - if `route` value is set, then the default round-robin algorithm is used for
- *      routing.
+ * - if `route` value is set, then the default round-robin algorithm is used for routing.
  */
 export interface RoutableMessageStruct {
     route: string;
@@ -92,20 +87,17 @@ export class App {
     protected rootNsp: string;
     protected clientRegistry = new Map<string, Config["apps"]>();
 
-    // The Host-Guest model is a mechanism used to hold communication between
-    // all apps running on the same machine.
+    // The Host-Guest model is a mechanism used to hold communication between all apps running on
+    // the same machine.
     //
-    // When a app starts, regarding serves as a server or just pure clients, it
-    // joins the party and tries to gain the host-ship. If succeeds, it becomes
-    // the host app and others become guests. The host app starts a guest client
-    // that connects to itself as well. Through the host app, guests can talk to
-    // each other.
+    // When a app starts, regarding serves as a server or just pure clients, it joins the party and
+    // tries to gain the host-ship. If succeeds, it becomes the host app and others become guests.
+    // The host app starts a guest client that connects to itself as well. Through the host app,
+    // guests can talk to each other.
     //
-    // This mechanism is primarily used for the CLI tool sending control
-    // commands to the apps. When the CLI tool starts, it becomes one of the
-    // member of the party (it starts a pure clients app), and use this 
-    // communication channel to send commands like `reload` and `stop` to other
-    // apps.
+    // This mechanism is primarily used for the CLI tool sending control commands to the apps. When
+    // the CLI tool starts, it becomes one of the member of the party (it starts a pure clients app),
+    // and use this communication channel to send commands like `reload` and `stop` to other apps.
     protected host: net.Server = null;
     protected hostClients: { socket: net.Socket, app?: string; }[] = [];
     protected hostCallbacks = new Map<string, (result: any) => void>();
@@ -122,12 +114,11 @@ export class App {
     static loadConfig(config: string = "") {
         config = absPath(config || "boot.config.json");
         const fileContent = fs.readFileSync(config, "utf8");
-        const conf: Config = FRON.parse(fileContent, config);
+        const conf: Config = JSON.parse(fileContent);
 
         if (conf.protoOptions) {
-            // In the config file, we set the following properties in string
-            // format, whereas they needs to be the corresponding constructor,
-            // so we convert them before using them.
+            // In the config file, we set the following properties in string format, whereas they
+            // needs to be the corresponding constructor, so we convert them before using them.
             if ((conf.protoOptions.longs as any) === "String") {
                 conf.protoOptions.longs = String;
             } else if ((conf.protoOptions.longs as any) === "Number") {
@@ -252,13 +243,11 @@ export class App {
         }
 
         if (reload && this.server) {
-            // Unserve old service instance and possibly call the `destroy()`
-            // lifecycle method.
+            // Unserve old service instance and possibly call the `destroy()` lifecycle method.
             // 
-            // This part of code resides here instead of inside the `_reload()`
-            // method is because if there is something wrong with the
-            // configuration and we fail to reload the app, the old service
-            // instances can still work.
+            // This part of code resides here instead of inside the `_reload()` method is because if
+            // there is something wrong with the configuration and we fail to reload the app, the
+            // old service instances can still work.
             for (const [_, { ctor, ins }] of this.serverRegistry) {
                 if (typeof ins.destroy === "function") {
                     await (ins as LifecycleSupportInterface).destroy();
@@ -267,8 +256,8 @@ export class App {
                 unserve(this.server, ctor);
             }
 
-            // Remove cached files and their dependencies so, when reloading,
-            // they could be reimported and use any changes inside them.
+            // Remove cached files and their dependencies so, when reloading, they could be
+            // reimported and use any changes inside them.
             const filenames = [...this.serverRegistry.keys()].map(serviceName => {
                 return path.join(process.cwd(), serviceName.split(".").join(path.sep));
             });
@@ -292,8 +281,8 @@ export class App {
             let ctor: (new () => any) & { getInstance(): any; };
             let ins: any;
 
-            // The service class file must be implemented as a module that has a
-            // default export which is the very service class itself.
+            // The service class file must be implemented as a module that has a default export
+            // which is the very service class itself.
             if (typeof exports.default === "function") {
                 ctor = exports.default;
             } else {
@@ -302,14 +291,14 @@ export class App {
             }
 
             if (typeof ctor.getInstance === "function") {
-                // Support explicit singleton designed, in case the service
-                // should used in another place without RPC tunneling.
+                // Support explicit singleton designed, in case the service should used in another
+                // place without RPC tunneling.
                 ins = ctor.getInstance();
             } else {
                 ins = new ctor();
             }
 
-            const protoCtor = get(this.pkgDef as object, serviceName);
+            const protoCtor: ServiceClientConstructor = get(this.pkgDef as object, serviceName);
             serve(this.server, protoCtor, ins);
             this.serverRegistry.set(serviceName, { ctor: protoCtor, ins });
         }
@@ -318,8 +307,8 @@ export class App {
             await new Promise<void>(async (resolve, reject) => {
                 let cred: ServerCredentials;
 
-                // Create different knd of server credentials according to
-                // whether the `cert` and `key` are set.
+                // Create different knd of server credentials according to whether the `cert` and
+                // `key` are set.
                 if (cert && key) {
                     cred = ServerCredentials.createSsl(cert, [{
                         private_key: key,
@@ -354,8 +343,8 @@ export class App {
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
 
-        // Preload `cert`s and `key`s so in the "connection" phase, there would
-        // be no latency for loading resources asynchronously.
+        // Preload `cert`s and `key`s so in the "connection" phase, there would be no latency for
+        // loading resources asynchronously.
         for (const app of this.conf.apps) {
             if (app.cert) {
                 const filename = absPath(app.cert);
@@ -370,8 +359,8 @@ export class App {
             }
         }
 
-        // Reorganize client-side configuration based on the service name since
-        // the gRPC clients are created based on the service.
+        // Reorganize client-side configuration based on the service name since the gRPC clients are
+        // created based on the service.
         const clientRegistry = this.conf.apps.reduce((registry, app) => {
             for (const serviceName of app.services) {
                 const apps = registry.get(serviceName);
@@ -436,14 +425,12 @@ export class App {
             if (reload && this.clientRegistry.has(serviceName)) {
                 // Remove old service client or load balancer.
                 // 
-                // We remove the connection just before it is reloaded, so that
-                // if for some reason we fail to reload it, that old connection
-                // can still be available.
+                // We remove the connection just before it is reloaded, so that if for some reason
+                // we fail to reload it, that old connection can still be available.
                 // 
-                // Unlike the server-side, client-side doesn't have lifecycle
-                // logic and the connection doesn't happen immediately, and we
-                // preloaded the `cert`s and `key`s, so there would be no real
-                // delay for re-register.
+                // Unlike the server-side, client-side doesn't have lifecycle logic and the
+                // connection doesn't happen immediately, and we preloaded the `cert`s and `key`s,
+                // so there would be no real delay for re-register.
                 this.manager.deregister(serviceName, true);
             }
 
@@ -458,8 +445,8 @@ export class App {
 
                 this.manager.register(client);
             } else {
-                // If there are multiple apps that serve the same service, use
-                // the client-side load-balancer to hold the connections.
+                // If there are multiple apps that serve the same service, use the client-side
+                // load-balancer to hold the connections.
                 const servers: ServerConfig[] = apps.map(app => {
                     const { address, credentials: cred } = getConnectConfig(app);
                     return {
@@ -472,7 +459,7 @@ export class App {
                     } satisfies ServerConfig;
                 });
                 const balancer = new LoadBalancer(
-                    get(this.pkgDef as object, serviceName),
+                    get(this.pkgDef as object, serviceName) as ServiceClientConstructor,
                     servers,
                     (ctx) => {
                         const addresses: string[] = ctx.servers
@@ -527,24 +514,49 @@ export class App {
     /**
      * Starts the app programmatically.
      * 
-     * @param app The app's name that should be started as a server. If not
-     *  provided, the app only connects to other servers but not serves as one.
+     * @param app The app's name that should be started as a server. If not provided, the app only
+     *  connects to other servers but not serves as one.
      */
     async start(app = "") {
+        return this._start(app, true);
+    }
+
+    protected async _start(app = "", tryHost = false) {
         if (app) {
             await this.initServer(app);
         }
 
         await this.initClients();
-        await this.tryHost();
 
-        // Only run the lifecycle `init()` functions when all the necessary
-        // procedure are done, so that any logic, for example, calling another
-        // service's methods in the `init()` method, is valid since the
-        // connection has been established.
-        for (const [, { ins }] of this.serverRegistry) {
-            if (typeof ins.init === "function") {
-                await ins.init();
+        if (tryHost) {
+            await this.tryHost();
+        } else {
+            const _sockFile = absPath(this.conf.sockFile || "boot.sock");
+            const sockFile = absPath(this.conf.sockFile || "boot.sock", true);
+
+            if (fs.existsSync(_sockFile)) {
+                // If the socket file already exists, there either be the host app already exists or
+                // the socket file is left there because an unclean shutdown of the previous host
+                // app. We need to first try to connect to it, if not succeeded, delete it and try
+                // to gain the host-ship.
+                try {
+                    await new Promise<void>((resolve, reject) => {
+                        this.tryConnect(sockFile, resolve, reject);
+                    });
+                } catch {
+                    fs.unlinkSync(_sockFile);
+                }
+            }
+        }
+
+        if (this.server) {
+            // Only run the lifecycle `init()` functions when all the necessary procedure are done,
+            // so that any logic, for example, calling another service's methods in the `init()`
+            // method, is valid since the connection has been established.
+            for (const [, { ins }] of this.serverRegistry) {
+                if (typeof ins.init === "function") {
+                    await ins.init();
+                }
             }
         }
     }
@@ -566,10 +578,9 @@ export class App {
         this.isStopped = true;
 
         if (msgId) {
-            // If `msgId` is provided, that means the stop event is issued by
-            // a guest app, for example, the CLI tool, in this case, we need
-            // to send feedback to acknowledge the sender that the process has
-            // finished.
+            // If `msgId` is provided, that means the stop event is issued by a guest app, for
+            // example, the CLI tool, in this case, we need to send feedback to acknowledge the
+            // sender that the process has finished.
             let result: string;
 
             if (this.serverName) {
@@ -583,19 +594,18 @@ export class App {
                 msgId: msgId,
                 result
             }));
+        }
 
-            if (this.host) {
-                this.hostClients.forEach(({ socket }) => {
-                    if (socket !== this.guest) {
-                        socket.end();
-                    }
-                });
-                this.host.close(() => {
-                    this._onStop?.();
-                });
-            } else {
+        if (this.host) {
+            this.guest?.destroy();
+            this.hostClients.forEach(({ socket }) => {
+                if (socket !== this.guest) {
+                    socket.end();
+                }
+            });
+            this.host.close(() => {
                 this._onStop?.();
-            }
+            });
         } else {
             this.guest?.destroy();
             this._onStop?.();
@@ -611,8 +621,8 @@ export class App {
         this.oldConf = this.conf;
         this.conf = App.loadConfig(this.config);
 
-        // Pre-reload `.proto` files so they won't be duplicated reloaded in the
-        // `initServer()` or `initClients()` functions.
+        // Pre-reload `.proto` files so they won't be duplicated reloaded in the `initServer()` or
+        // `initClients()` functions.
         await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions, true);
 
         if (this.server) {
@@ -621,10 +631,10 @@ export class App {
 
         await this.initClients(true);
 
-        // Same as in the `start()` function, we only run the lifecycle `init()`
-        // functions when all the necessary procedure are done, so that any
-        // logic, for example, calling another service's methods in the `init()`
-        // method, is valid since the connection has been established.
+        // Same as in the `start()` function, we only run the lifecycle `init()` functions when all
+        // the necessary procedure are done, so that any logic, for example, calling another
+        // service's methods in the `init()`  method, is valid since the connection has been
+        // established.
         for (const [, { ins }] of this.serverRegistry) {
             if (typeof ins.init === "function") {
                 await ins.init();
@@ -632,10 +642,9 @@ export class App {
         }
 
         if (msgId) {
-            // If `msgId` is provided, that means the stop event is issued by
-            // a guest app, for example, the CLI tool, in this case, we need
-            // to send feedback to acknowledge the sender that the process has
-            // finished.
+            // If `msgId` is provided, that means the stop event is issued by a guest app, for
+            // example, the CLI tool, in this case, we need to send feedback to acknowledge the
+            // sender that the process has finished.
             let result: string;
 
             if (this.serverName) {
@@ -670,10 +679,9 @@ export class App {
         await ensureDir(path.dirname(_sockFile));
 
         if (fs.existsSync(_sockFile)) {
-            // If the socket file already exists, there either be the host app
-            // already exists or the socket file is left there because an
-            // unclean shutdown of the previous host app. We need to first try
-            // to connect to it, if not succeeded, delete it and try to gain the
+            // If the socket file already exists, there either be the host app already exists or the
+            // socket file is left there because an unclean shutdown of the previous host app. We
+            // need to first try to connect to it, if not succeeded, delete it and try to gain the
             // host-ship.
             try {
                 await new Promise<void>((resolve, reject) => {
@@ -882,8 +890,8 @@ export class App {
      * Sends control command to the gRPC apps.
      * 
      * @param cmd 
-     * @param app The app's name that should received the command. If not provided,
-     *  the command is sent to all apps.
+     * @param app The app's name that should received the command. If not provided, the command is
+     *  sent to all apps.
      * @param config Use a custom config file.
      */
     static async sendCommand(cmd: "reload" | "stop" | "list", app = "", config = "") {
@@ -939,10 +947,9 @@ export class App {
     /**
      * Runs a snippet inside the gRPC apps context.
      * 
-     * This function is for temporary scripting usage, it starts a temporary
-     * pure-clients app so we can use the services as we normally do in our
-     * program, and after the main `fn` function is run, the app is
-     * automatically stopped.
+     * This function is for temporary scripting usage, it starts a temporary pure-clients app so we
+     * can use the services as we normally do in our program, and after the main `fn` function is
+     * run, the app is automatically stopped.
      * 
      * @param fn The function needs to be run.
      * @param config Use a custom config file.
@@ -951,7 +958,7 @@ export class App {
         try {
             const app = new App(config);
 
-            await app.start();
+            await app._start();
             await fn();
             await app.stop();
         } catch (err) {

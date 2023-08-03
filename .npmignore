@@ -1,10 +1,15 @@
 node_modules
 test
-examples
+services
 .*
 *.tgz
 *.ts
 !*.d.ts
 tsconfig.json
 go.*
+*.go
 *.log
+*.config.json
+*.config.schema.json
+postpublish.js
+main.*
