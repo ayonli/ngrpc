@@ -9,6 +9,7 @@ import {
     Server,
     ServerCredentials,
     ServiceClientConstructor,
+    connectivityState,
     credentials,
     loadPackageDefinition
 } from "@grpc/grpc-js";
@@ -36,9 +37,13 @@ export type Config = {
     sockFile?: string;
 };
 
-export interface BootLifecycleSupport {
+export interface LifecycleSupportInterface {
     init(): Promise<void>;
     destroy(): Promise<void>;
+}
+
+export interface RoutableMessageStruct {
+    route: string;
 }
 
 export class BootApp {
@@ -367,14 +372,27 @@ export class BootApp {
                     get(this.pkgDef as object, serviceName),
                     servers,
                     (ctx) => {
-                        const addresses: string[] = ctx.servers.map(item => item.address);
+                        const addresses: string[] = ctx.servers
+                            .filter(item => item.state !== connectivityState.SHUTDOWN)
+                            .map(item => item.address);
+                        let route: string;
 
                         if (typeof ctx.params === "string") {
-                            if (addresses.includes(ctx.params)) {
-                                return ctx.params; // explicitly use a server instance
+                            route = ctx.params;
+                        } else if (ctx.params &&
+                            typeof ctx.params === "object" &&
+                            !Array.isArray(ctx.params) &&
+                            typeof ctx.params.route === "string"
+                        ) {
+                            route = ctx.params.route;
+                        }
+
+                        if (route) {
+                            if (addresses.includes(route)) {
+                                return route; // explicitly use a server instance
                             } else {
                                 const app = apps.find(
-                                    app => app.name === ctx.params || app.uri === ctx.params
+                                    app => app.name === route || app.uri === route
                                 );
 
                                 if (app) {
@@ -384,22 +402,15 @@ export class BootApp {
                                         return address;
                                     }
                                 }
-
-                                // route by hash
-                                const id: number = hash(ctx.params);
-                                return addresses[id % addresses.length];
                             }
-                        } else if (typeof ctx.params === "number") {
-                            return addresses[ctx.params % addresses.length];
-                        } else if (typeof ctx.params === "object" && !Array.isArray(ctx.params)) {
-                            // This algorithm guarantees the same param structure passed to the
-                            // `getInstance()` returns the same service instance.
-                            const id: number = hash(String(Object.keys(ctx.params ?? {}).sort()));
+
+                            // use hash
+                            const id = hash(route);
                             return addresses[id % addresses.length];
-                        } else {
-                            // use round-robin
-                            return addresses[ctx.acc % addresses.length];
                         }
+
+                        // use round-robin
+                        return addresses[ctx.acc % addresses.length];
                     }
                 );
 

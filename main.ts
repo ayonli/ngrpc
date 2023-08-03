@@ -9,20 +9,6 @@ if (require.main?.filename === __filename) {
         await app.start("post-server");
 
         try {
-            const user = await services.UserService.getUser({ id: "ayon.li" });
-            console.log(user);
-        } catch (err) {
-            console.error(err);
-        }
-
-        try {
-            const result = await services.UserService.getMyPosts({ id: "ayon.li" });
-            console.log(result);
-        } catch (err) {
-            console.error(err);
-        }
-
-        try {
             const post = await services.PostService.getPost({ id: 2 });
             console.log(post);
         } catch (err) {
