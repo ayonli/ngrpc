@@ -20,7 +20,9 @@ import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
 import { absPath, ensureDir } from "./util";
+import { findDependencies } from "require-chain";
 
+/** These type represents the structures and properties set in the config file. */
 export type Config = {
     $schema?: string;
     package: string;
@@ -39,15 +41,42 @@ export type Config = {
     sockFile?: string;
 };
 
+/**
+ * This type represents an interface that supports lifecycle events on the gRPC
+ * app. If a service implements this interface, when the app starts and the
+ * service is loaded (or reloaded), the `init()` method will be automatically
+ * called, we can add some async logic inside it, for example, establishing
+ * database connection, which is normally not possible in the default
+ * `constructor()` method since it doesn't support asynchronous codes. And when
+ * the app is about to stop, or the service is about to be reloaded, the
+ * `destroy()` method will be called, which gives the ability to clean up and
+ * release resource.
+ */
 export interface LifecycleSupportInterface {
     init(): Promise<void>;
     destroy(): Promise<void>;
 }
 
+/**
+ * This type represents a struct of message that contains a `route` key that can
+ * be used in the internal client load balancer. When the client sending a
+ * request which implements this interface, the program will automatically route
+ * the traffic to a certain server evaluated by the `route` key, which can be
+ * set in the following forms:
+ * 
+ * - a URI or address that corresponds to the ones that set in the config file;
+ * - an app's name that corresponds to the ones that set in the config file;
+ * - if none of the above matches, use the hash algorithm on the `route` value;
+ * - if `route` value is set, then the default round-robin algorithm is used for
+ *      routing.
+ */
 export interface RoutableMessageStruct {
     route: string;
 }
 
+/**
+ * The very gRPC app constructor of the gRPC Boot package.
+ */
 export class App {
     protected conf: Config = null;
     protected oldConf: Config = null;
@@ -60,13 +89,29 @@ export class App {
     protected serverOptions: ChannelOptions = null;
     protected rootNsp: string;
     protected clientRegistry = new Map<string, Config["apps"]>();
+
+    // The Host-Guest model is a mechanism used to hold communication between
+    // all apps running on the same machine.
+    //
+    // When a app starts, regarding serves as a server or just pure clients, it
+    // joins the party and tries to gain the host-ship. If succeeds, it becomes
+    // the host app and others become guests. The host app starts a guest client
+    // that connects to itself as well. Through the host app, guests can talk to
+    // each other.
+    //
+    // This mechanism is primarily used for the CLI tool sending control
+    // commands to the apps. When the CLI tool starts, it becomes one of the
+    // member of the party (it starts a pure clients app), and use this 
+    // communication channel to send commands like `reload` and `stop` to other
+    // apps.
     protected host: net.Server = null;
-    protected hostClients = new Map<string, net.Socket>();
+    protected hostClients: { socket: net.Socket, app?: string; }[] = [];
     protected hostCallbacks = new Map<string, (result: any) => void>();
-    protected socket: net.Socket = null;
+    protected guest: net.Socket = null;
+
+    protected isStopped = false;
     protected _onReload: () => void = null;
     protected _onStop: () => void = null;
-    protected isStopped = false;
 
     constructor(protected config: string = "") {
         this.conf = App.loadConfig(config);
@@ -78,6 +123,9 @@ export class App {
         const conf: Config = FRON.parse(fileContent, config);
 
         if (conf.protoOptions) {
+            // In the config file, we set the following properties in string
+            // format, whereas they needs to be the corresponding constructor,
+            // so we convert them before using them.
             if ((conf.protoOptions.longs as any) === "String") {
                 conf.protoOptions.longs = String;
             } else if ((conf.protoOptions.longs as any) === "Number") {
@@ -102,6 +150,7 @@ export class App {
         if (!reload && this.pkgDef)
             return;
 
+        // recursively scan for `.proto` files
         const filenames: string[] = await (async function scan(dirs: string[]) {
             const filenames: string[] = [];
 
@@ -128,6 +177,7 @@ export class App {
             return filenames;
         })(dirs);
 
+        // `load()` method is currently buggy, so we use `loadSync()` instead.
         this.pkgDef = loadPackageDefinition(loadSync(filenames, options));
     }
 
@@ -135,9 +185,9 @@ export class App {
         const app = this.conf.apps.find(app => app.name === appName);
 
         if (!app) {
-            throw new Error(`gRPC app '${appName}' is not configured in the config file`);
+            throw new Error(`gRPC app [${appName}] doesn't exist in the config file`);
         } else if (!app.serve) {
-            throw new Error(`gRPC app '${appName}' is not intended to be served`);
+            throw new Error(`gRPC app [${appName}] is not intended to be served`);
         }
 
         const { protocol, hostname, port } = new URL(app.uri);
@@ -148,12 +198,12 @@ export class App {
         let key: Buffer;
 
         if (protocol === "xds:") {
-            throw new Error(`gRPC app '${app.name}' cannot be served since it uses 'xds:' protocol`);
+            throw new Error(`gRPC app [${app.name}] cannot be served since it uses 'xds:' protocol`);
         } else if (protocol === "grpcs:" || protocol === "https:") {
             if (!app.cert) {
-                throw new Error(`Missing 'cert' config for app '${app.name}'`);
+                throw new Error(`Missing 'cert' config for app [${app.name}]`);
             } else if (!app.key) {
-                throw new Error(`Missing 'key' config for app '${app.name}'`);
+                throw new Error(`Missing 'key' config for app [${app.name}]`);
             } else if (!port) {
                 address += ":443";
             }
@@ -193,53 +243,68 @@ export class App {
                 const oldApp = this.oldConf.apps.find(app => app.name === appName);
 
                 if (!oldApp || oldApp.uri !== app.uri || !isEqual(oldApp.options, app.options)) {
+                    // server configurations changed
                     newServer = true;
                 }
             }
         }
 
+        if (reload && this.server) {
+            // Unserve old service instance and possibly call the `destroy()`
+            // lifecycle method.
+            // 
+            // This part of code resides here instead of inside the `_reload()`
+            // method is because if there is something wrong with the
+            // configuration and we fail to reload the app, the old service
+            // instances can still work.
+            for (const [_, { ctor, ins }] of this.serverRegistry) {
+                if (typeof ins.destroy === "function") {
+                    await (ins as LifecycleSupportInterface).destroy();
+                }
+
+                unserve(this.server, ctor);
+            }
+
+            // Remove cached files and their dependencies so, when reloading,
+            // they could be reimported and use any changes inside them.
+            const filenames = [...this.serverRegistry.keys()].map(serviceName => {
+                return path.join(process.cwd(), serviceName.split(".").join(path.sep));
+            });
+            const dependencies = findDependencies(filenames);
+
+            [...filenames, ...dependencies].forEach(filename => {
+                delete require.cache[filename];
+            });
+        }
+
         if (newServer || !this.server) {
+            await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions);
             this.server?.forceShutdown();
             this.server = new Server(app.options);
             this.serverName = app.name;
-            await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions);
         }
 
         for (const serviceName of app.services) {
-            const className = serviceName.split(".").slice(-1).toString();
             const filename = path.join(process.cwd(), serviceName.split(".").join(path.sep));
-
-            if (reload) {
-                delete require.cache[filename];
-            }
-
             const exports = await import(filename);
             let ctor: (new () => any) & { getInstance(): any; };
             let ins: any;
 
+            // The service class file must be implemented as a module that has a
+            // default export which is the very service class itself.
             if (typeof exports.default === "function") {
                 ctor = exports.default;
-            } else if (typeof exports[className] === "function") {
-                ctor = exports[className];
             } else {
-                console.error(`service '${serviceName}' is not a valid service class`);
+                console.error(`service '${serviceName}' is not correctly implemented`);
                 continue;
             }
 
             if (typeof ctor.getInstance === "function") {
+                // Support explicit singleton designed, in case the service
+                // should used in another place without RPC tunneling.
                 ins = ctor.getInstance();
             } else {
                 ins = new ctor();
-            }
-
-            if (reload && this.serverRegistry.has(serviceName)) {
-                const target = this.serverRegistry.get(serviceName);
-
-                if (typeof target.ins.destroy === "function") {
-                    await target.ins.destroy();
-                }
-
-                unserve(this.server, target.ctor);
             }
 
             const protoCtor = get(this.pkgDef as object, serviceName);
@@ -251,7 +316,9 @@ export class App {
             await new Promise<void>(async (resolve, reject) => {
                 let cred: ServerCredentials;
 
-                if (useSSL) {
+                // Create different knd of server credentials according to
+                // whether the `cert` and `key` are set.
+                if (cert && key) {
                     cred = ServerCredentials.createSsl(cert, [{
                         private_key: key,
                         cert_chain: cert,
@@ -266,7 +333,7 @@ export class App {
                     if (err) {
                         reject(err);
                     } else {
-                        console.info(`gRPC app [${app.name}] started`);
+                        console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
                         resolve();
                     }
                 });
@@ -282,6 +349,27 @@ export class App {
         // @ts-ignore
         global[rootNsp] ||= this.manager.useChainingSyntax(rootNsp);
 
+        const certs = new Map<string, Buffer>();
+        const keys = new Map<string, Buffer>();
+
+        // Preload `cert`s and `key`s so in the "connection" phase, there would
+        // be no latency for loading resources asynchronously.
+        for (const app of this.conf.apps) {
+            if (app.cert) {
+                const filename = absPath(app.cert);
+                const cert = await fs.promises.readFile(filename);
+                certs.set(filename, cert);
+            }
+
+            if (app.key) {
+                const filename = absPath(app.key);
+                const key = await fs.promises.readFile(filename);
+                keys.set(filename, key);
+            }
+        }
+
+        // Reorganize client-side configuration based on the service name since
+        // the gRPC clients are created based on the service.
         const clientRegistry = this.conf.apps.reduce((registry, app) => {
             for (const serviceName of app.services) {
                 const apps = registry.get(serviceName);
@@ -299,57 +387,67 @@ export class App {
         if (reload) {
             this.clientRegistry.forEach((_, serviceName) => {
                 if (!clientRegistry.has(serviceName)) {
+                    // Remove redundant service client or load balancer.
                     this.manager.deregister(serviceName, true);
                 }
             });
         }
 
+        const getAddress = (app: Config["apps"][0]) => {
+            const { protocol, hostname, port } = new URL(app.uri);
+            let address = hostname;
 
-        for (const [serviceName, apps] of clientRegistry) {
-            const getAddress = (app: Config["apps"][0]) => {
-                const { protocol, hostname, port } = new URL(app.uri);
-                let address = hostname;
-
-                if (protocol === "xds:") {
-                    address = app.uri;
-                } else if (protocol === "grpcs:" || protocol === "https:") {
-                    if (!app.cert) {
-                        throw new Error(`Missing 'cert' config for app '${app.name}'`);
-                    } else if (!app.key) {
-                        throw new Error(`Missing 'key' config for app '${app.name}'`);
-                    } else if (!port) {
-                        address += ":443";
-                    }
-                } else if ((protocol === "grpc:" || protocol === "http:") && !port) {
-                    address += ":80";
-                } else if (port) {
-                    address += ":" + port;
+            if (protocol === "xds:") {
+                address = app.uri;
+            } else if (protocol === "grpcs:" || protocol === "https:") {
+                if (!app.cert) {
+                    throw new Error(`Missing 'cert' config for app [${app.name}]`);
+                } else if (!app.key) {
+                    throw new Error(`Missing 'key' config for app [${app.name}]`);
+                } else if (!port) {
+                    address += ":443";
                 }
+            } else if ((protocol === "grpc:" || protocol === "http:") && !port) {
+                address += ":80";
+            } else if (port) {
+                address += ":" + port;
+            }
 
-                return address;
-            };
-            const getConnectConfig = async (app: Config["apps"][0]) => {
-                const address = getAddress(app);
-                let cred: ChannelCredentials;
+            return address;
+        };
+        const getConnectConfig = (app: Config["apps"][0]) => {
+            const address = getAddress(app);
+            let cred: ChannelCredentials;
 
-                if (app.uri.startsWith("grpcs:")) {
-                    const cert = await fs.promises.readFile(app.cert);
-                    const key = await fs.promises.readFile(app.key);
-                    cred = credentials.createSsl(cert, key, cert);
-                } else {
-                    cred = credentials.createInsecure();
-                }
+            if (app.uri.startsWith("grpcs:") || app.uri.startsWith("https:")) {
+                const cert = certs.get(absPath(app.cert));
+                const key = keys.get(absPath(app.key));
+                cred = credentials.createSsl(cert, key, cert);
+            } else {
+                cred = credentials.createInsecure();
+            }
 
-                return { address, credentials: cred };
-            };
+            return { address, credentials: cred };
+        };
 
-            if (reload) {
+        clientRegistry.forEach((apps, serviceName) => {
+            if (reload && this.clientRegistry.has(serviceName)) {
+                // Remove old service client or load balancer.
+                // 
+                // We remove the connection just before it is reloaded, so that
+                // if for some reason we fail to reload it, that old connection
+                // can still be available.
+                // 
+                // Unlike the server-side, client-side doesn't have lifecycle
+                // logic and the connection doesn't happen immediately, and we
+                // preloaded the `cert`s and `key`s, so there would be no real
+                // delay for re-register.
                 this.manager.deregister(serviceName, true);
             }
 
             if (apps.length === 1) {
                 const [app] = apps;
-                const { address, credentials: cred } = await getConnectConfig(app);
+                const { address, credentials: cred } = getConnectConfig(app);
 
                 const client = connect(get(this.pkgDef as object, serviceName), address, cred, {
                     ...(app.options ?? null),
@@ -358,20 +456,19 @@ export class App {
 
                 this.manager.register(client);
             } else {
-                const servers: ServerConfig[] = [];
-
-                for (const app of apps) {
-                    const { address, credentials: cred } = await getConnectConfig(app);
-                    servers.push({
+                // If there are multiple apps that serve the same service, use
+                // the client-side load-balancer to hold the connections.
+                const servers: ServerConfig[] = apps.map(app => {
+                    const { address, credentials: cred } = getConnectConfig(app);
+                    return {
                         address,
                         credentials: cred,
                         options: {
                             ...(app.options ?? null),
                             connectTimeout: app.connectTimeout || 120_000,
                         },
-                    });
-                }
-
+                    } satisfies ServerConfig;
+                });
                 const balancer = new LoadBalancer(
                     get(this.pkgDef as object, serviceName),
                     servers,
@@ -420,7 +517,7 @@ export class App {
 
                 this.manager.register(balancer);
             }
-        }
+        });
 
         this.clientRegistry = clientRegistry;
     }
@@ -439,6 +536,10 @@ export class App {
         await this.initClients();
         await this.tryHost();
 
+        // Only run the lifecycle `init()` functions when all the necessary
+        // procedure are done, so that any logic, for example, calling another
+        // service's methods in the `init()` method, is valid since the
+        // connection has been established.
         for (const [, { ins }] of this.serverRegistry) {
             if (typeof ins.init === "function") {
                 await ins.init();
@@ -454,7 +555,7 @@ export class App {
     protected async _stop(msgId: string = "") {
         for (const [_, { ins }] of this.serverRegistry) {
             if (typeof ins.destroy === "function") {
-                await ins.destroy();
+                await (ins as LifecycleSupportInterface).destroy();
             }
         }
 
@@ -463,6 +564,10 @@ export class App {
         this.isStopped = true;
 
         if (msgId) {
+            // If `msgId` is provided, that means the stop event is issued by
+            // a guest app, for example, the CLI tool, in this case, we need
+            // to send feedback to acknowledge the sender that the process has
+            // finished.
             let result: string;
 
             if (this.serverName) {
@@ -471,16 +576,16 @@ export class App {
                 result = "gRPC clients stopped";
             }
 
-            this.socket.end(JSON.stringify({
+            this.guest?.end(JSON.stringify({
                 cmd: "reply",
-                replyId: msgId,
+                msgId: msgId,
                 result
             }));
 
             if (this.host) {
-                this.hostClients.forEach((_client) => {
-                    if (_client !== this.socket) {
-                        _client.end();
+                this.hostClients.forEach(({ socket }) => {
+                    if (socket !== this.guest) {
+                        socket.end();
                     }
                 });
                 this.host.close(() => {
@@ -490,7 +595,7 @@ export class App {
                 this._onStop?.();
             }
         } else {
-            this.socket?.destroy();
+            this.guest?.destroy();
             this._onStop?.();
         }
     }
@@ -503,6 +608,9 @@ export class App {
     protected async _reload(msgId: string = "") {
         this.oldConf = this.conf;
         this.conf = App.loadConfig(this.config);
+
+        // Pre-reload `.proto` files so they won't be duplicated reloaded in the
+        // `initServer()` or `initClients()` functions.
         await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions, true);
 
         if (this.server) {
@@ -511,6 +619,10 @@ export class App {
 
         await this.initClients(true);
 
+        // Same as in the `start()` function, we only run the lifecycle `init()`
+        // functions when all the necessary procedure are done, so that any
+        // logic, for example, calling another service's methods in the `init()`
+        // method, is valid since the connection has been established.
         for (const [, { ins }] of this.serverRegistry) {
             if (typeof ins.init === "function") {
                 await ins.init();
@@ -518,6 +630,10 @@ export class App {
         }
 
         if (msgId) {
+            // If `msgId` is provided, that means the stop event is issued by
+            // a guest app, for example, the CLI tool, in this case, we need
+            // to send feedback to acknowledge the sender that the process has
+            // finished.
             let result: string;
 
             if (this.serverName) {
@@ -526,7 +642,7 @@ export class App {
                 result = `gRPC clients reloaded`;
             }
 
-            this.socket?.write(JSON.stringify({ cmd: "reply", replyId: msgId, result }));
+            this.guest?.write(JSON.stringify({ cmd: "reply", msgId: msgId, result }));
         }
 
         this._onReload?.();
@@ -543,7 +659,7 @@ export class App {
     }
 
     /**
-     * Try to serve the current app as the host server for app control.
+     * Try to make the current app as the host app for communications.
      */
     protected async tryHost() {
         const _sockFile = absPath(this.conf.sockFile || "boot.sock");
@@ -552,6 +668,11 @@ export class App {
         await ensureDir(path.dirname(_sockFile));
 
         if (fs.existsSync(_sockFile)) {
+            // If the socket file already exists, there either be the host app
+            // already exists or the socket file is left there because an
+            // unclean shutdown of the previous host app. We need to first try
+            // to connect to it, if not succeeded, delete it and try to gain the
+            // host-ship.
             try {
                 await new Promise<void>((resolve, reject) => {
                     this.tryConnect(sockFile, resolve, reject);
@@ -565,69 +686,57 @@ export class App {
         await new Promise<void>((resolve, reject) => {
             const host = net.createServer(client => {
                 client.on("data", (buf) => {
+                    const json = buf.toString();
+
                     try {
-                        const msg = JSON.parse(buf.toString()) as {
-                            cmd: string,
+                        const msg = JSON.parse(json) as {
+                            cmd: "connect" | "reload" | "stop" | "reply",
                             app?: string,
-                            replyId?: string;
+                            msgId?: string;
                         };
 
                         if (msg.cmd === "connect") {
+                            // After a guest establish the socket connection, it sends a `connect`
+                            // command indicates a signing-in, we then store the client in the
+                            // `hostClients` property for broadcast purposes.
+
                             if (msg.app) {
                                 if (!this.conf.apps.some(app => app.name === msg.app)) {
-                                    client.destroy(new Error(`Invalid app name ${msg.app}`));
+                                    client.destroy(new Error(`Invalid app name '${msg.app}'`));
+                                } else if (this.hostClients.some(item => item.app === msg.app)) {
+                                    client.destroy(new Error(`gRPC app [${msg}] is already running`));
                                 } else {
-                                    this.hostClients.set(msg.app, client);
+                                    this.hostClients.push({ socket: client, app: msg.app });
                                 }
+                            } else {
+                                this.hostClients.push({ socket: client });
                             }
-                        } else if (msg.cmd === "reload") {
+                        } else if (msg.cmd === "reload" || msg.cmd == "stop") {
+                            // When the host app receives a control command, it distribute the
+                            // command to the target app or all apps if the app is not specified.
+
                             if (msg.app) {
-                                const _client = this.hostClients.get(msg.app);
+                                const _client = this.hostClients.find(item => item.app === msg.app);
 
                                 if (_client) {
-                                    const replyId = Math.random().toString(16).slice(2);
-                                    _client.write(JSON.stringify({ cmd: "reload", replyId }));
-                                    this.hostCallbacks.set(replyId, (reply) => {
+                                    const msgId = Math.random().toString(16).slice(2);
+
+                                    _client.socket.write(JSON.stringify({ cmd: msg.cmd, msgId }));
+                                    this.hostCallbacks.set(msgId, (reply) => {
                                         client.end(JSON.stringify(reply));
                                     });
                                 } else {
-                                    client.destroy(new Error(`gRPC app ${msg.app} is not running`));
+                                    client.destroy(new Error(`gRPC app [${msg.app}] is not running`));
                                 }
                             } else {
                                 let count = 0;
-                                let limit = this.hostClients.size;
-                                this.hostClients.forEach(_client => {
-                                    const replyId = Math.random().toString(16).slice(2);
-                                    _client.write(JSON.stringify({ cmd: "reload", replyId }));
-                                    this.hostCallbacks.set(replyId, (reply) => {
-                                        client.write(JSON.stringify(reply));
+                                let limit = this.hostClients.length;
 
-                                        if (++count === limit) {
-                                            client.end();
-                                        }
-                                    });
-                                });
-                            }
-                        } else if (msg.cmd === "stop") {
-                            if (msg.app) {
-                                const _client = this.hostClients.get(msg.app);
-
-                                if (_client) {
-                                    const replyId = Math.random().toString(16).slice(2);
-                                    _client.write(JSON.stringify({ cmd: "stop", replyId }));
-                                    this.hostCallbacks.set(replyId, (reply) => {
-                                        client.end(JSON.stringify(reply));
-                                    });
-                                } else {
-                                    client.destroy(new Error(`gRPC app ${msg.app} is not running`));
-                                }
-                            } else {
-                                let count = 0;
-                                let limit = this.hostClients.size;
                                 this.hostClients.forEach(_client => {
-                                    const replyId = Math.random().toString(16).slice(2);
-                                    _client.write(JSON.stringify({ cmd: "stop", replyId }));
-                                    this.hostCallbacks.set(replyId, (reply) => {
+                                    const msgId = Math.random().toString(16).slice(2);
+
+                                    _client.socket.write(JSON.stringify({ cmd: msg.cmd, msgId }));
+                                    this.hostCallbacks.set(msgId, (reply) => {
                                         client.write(JSON.stringify(reply));
 
                                         if (++count === limit) {
@@ -637,41 +746,34 @@ export class App {
                                 });
                             }
                         } else if (msg.cmd === "reply") {
-                            if (msg.replyId) {
-                                const callback = this.hostCallbacks.get(msg.replyId);
+                            // When a guest app finishes a control command, it send feedback via the
+                            // `reply` command, we use the `msgId` to retrieve the callback, run it
+                            // and remove it.
+
+                            if (msg.msgId) {
+                                const callback = this.hostCallbacks.get(msg.msgId);
 
                                 if (callback) {
                                     callback(msg);
-                                    this.hostCallbacks.delete(msg.replyId);
+                                    this.hostCallbacks.delete(msg.msgId);
                                 }
                             }
                         } else {
-                            console.log(msg);
-                            client.destroy(new Error("Invalid message"));
+                            client.destroy(new Error(`Invalid message: ${json}`));
                         }
                     } catch (err) {
-                        console.error(err);
-                        client.destroy(new Error("Invalid message"));
+                        client.destroy(new Error(`Invalid message: ${json}`));
                     }
                 }).on("close", () => {
-                    let appName: string;
-
-                    this.hostClients.forEach((_client, name) => {
-                        if (_client === client) {
-                            appName ||= name;
-                        }
-                    });
-
-                    if (appName) {
-                        this.hostClients.delete(appName);
-                    }
+                    // Remove the client from the list if it has been stopped.
+                    this.hostClients = this.hostClients.filter(item => item.socket !== client);
                 });
             });
 
-            host.on("error", () => this.tryConnect(sockFile, resolve, reject));
-
             host.listen(sockFile, () => {
                 this.host = host;
+
+                // Connect to self so that we can use the same control logic.
                 this.tryConnect(sockFile, resolve, reject);
 
                 if (this.serverName) {
@@ -693,27 +795,39 @@ export class App {
     protected tryConnect(sockFile: string, resolve: () => void, reject: (err: Error) => void) {
         const client = net.createConnection(sockFile, () => {
             client.write(JSON.stringify({ cmd: "connect", app: this.serverName }));
-            this.socket = client;
+            this.guest = client;
             resolve();
         });
+
         client.on("data", (buf) => {
             try {
-                const msg = JSON.parse(buf.toString()) as { cmd: string; replyId: string; };
+                const msg = JSON.parse(buf.toString()) as {
+                    cmd: "reload" | "stop";
+                    msgId: string;
+                };
 
                 if (msg.cmd === "reload") {
-                    this._reload(msg.replyId).catch(console.error);
+                    this._reload(msg.msgId).catch(console.error);
                 } else if (msg.cmd === "stop") {
-                    this._stop(msg.replyId).catch(console.error);
+                    this._stop(msg.msgId).catch(console.error);
+                } else {
+                    // ignore other messages
                 }
             } catch {
-                // ...
+                // ignore other messages
             }
         }).on("end", () => {
             if (!this.host && !this.isStopped) {
+                // If the connection is closed by the host server and the client is not marked
+                // closed, it indicates that the server is closed by a guest app (mainly the CLI
+                // tool), the client now is able to retry gaining the host-ship.
                 this.tryHost().catch(console.error);
             }
         }).on("error", err => {
-            if (isSocketResetError(err) && !this.host) {
+            if (isSocketResetError(err) && !this.host && !this.isStopped) {
+                // if the connection is interrupted, for example, force terminated by `ctrl + C`,
+                // and the client is not marked closed, the client now is able to retry gaining the
+                // host-ship.
                 this.tryHost().catch(console.error);
             } else {
                 reject(err);
@@ -751,16 +865,17 @@ export class App {
                 } catch (err) {
                     console.error(err);
                 }
-            }).on("end", () => {
-                resolve();
-            }).once("error", reject);
+            }).on("end", resolve).once("error", reject);
         });
     }
 
     /**
-     * Runs a snippet inside the gRPC apps context. The function is called
-     * after the necessary connections are established, so we can use any
-     * services inside the function as we want.
+     * Runs a snippet inside the gRPC apps context.
+     * 
+     * This function is for temporary scripting usage, it starts a temporary
+     * pure-clients app so we can use the services as we normally do in our
+     * program, and after the main `fn` function is run, the app is
+     * automatically stopped.
      * 
      * @param fn The function needs to be run.
      * @param config Use a custom config file.
