@@ -37,6 +37,8 @@ export type Config = {
         key?: string;
         connectTimeout?: number;
         options?: ChannelOptions;
+        stdout?: string;
+        stderr?: string;
     }[];
     sockFile?: string;
 };
@@ -117,7 +119,7 @@ export class App {
         this.conf = App.loadConfig(config);
     }
 
-    protected static loadConfig(config: string = "") {
+    static loadConfig(config: string = "") {
         config = absPath(config || "boot.config.json");
         const fileContent = fs.readFileSync(config, "utf8");
         const conf: Config = FRON.parse(fileContent, config);
@@ -691,7 +693,7 @@ export class App {
 
                     try {
                         const msg = JSON.parse(json) as {
-                            cmd: "connect" | "reload" | "stop" | "reply",
+                            cmd: "connect" | "reload" | "stop" | "list" | "reply",
                             app?: string,
                             msgId?: string;
                         };
@@ -746,6 +748,39 @@ export class App {
                                     });
                                 });
                             }
+                        } else if (msg.cmd === "list") {
+                            // When the host app receives a `list` command, we list all the clients
+                            // with names and collect some information about them.
+                            const clients = this.hostClients.filter(item => !!item.app);
+                            const stats = new Map<string, { memory: number; }>();
+
+                            clients.forEach(_client => {
+                                const msgId = Math.random().toString(16).slice(2);
+
+                                _client.socket.write(JSON.stringify({ cmd: "stat", msgId }));
+                                this.hostCallbacks.set(msgId, (reply: {
+                                    result: { memory: number; };
+                                }) => {
+                                    stats.set(_client.app, { memory: reply.result.memory });
+
+                                    if (stats.size === clients.length) {
+                                        const list = clients.map(item => {
+                                            const appName = item.app;
+                                            const app = this.conf.apps
+                                                .find(item => item.name === appName);
+
+                                            return {
+                                                app: appName,
+                                                uri: app.uri,
+                                                memory: stats.get(appName).memory,
+                                            };
+                                        });
+
+                                        client.end(JSON.stringify({ result: list }));
+                                    }
+                                });
+                            });
+
                         } else if (msg.cmd === "reply") {
                             // When a guest app finishes a control command, it send feedback via the
                             // `reply` command, we use the `msgId` to retrieve the callback, run it
@@ -804,7 +839,7 @@ export class App {
         client.on("data", (buf) => {
             try {
                 const msg = JSON.parse(buf.toString()) as {
-                    cmd: "reload" | "stop";
+                    cmd: "reload" | "stop" | "stat";
                     msgId: string;
                 };
 
@@ -812,6 +847,12 @@ export class App {
                     this._reload(msg.msgId).catch(console.error);
                 } else if (msg.cmd === "stop") {
                     this._stop(msg.msgId).catch(console.error);
+                } else if (msg.cmd === "stat") {
+                    client.write(JSON.stringify({
+                        cmd: "reply",
+                        msgId: msg.msgId,
+                        result: { memory: process.memoryUsage().rss }
+                    }));
                 } else {
                     // ignore other messages
                 }
@@ -845,7 +886,7 @@ export class App {
      *  the command is sent to all apps.
      * @param config Use a custom config file.
      */
-    static async sendCommand(cmd: "reload" | "stop", app = "", config = "") {
+    static async sendCommand(cmd: "reload" | "stop" | "list", app = "", config = "") {
         const conf = this.loadConfig(config);
         const sockFile = absPath(conf.sockFile || "boot.sock", true);
 
@@ -860,12 +901,23 @@ export class App {
 
                 try {
                     const reply = JSON.parse(json) as {
-                        result?: string;
+                        result?: any;
                         error?: string;
                     };
 
                     if (reply.error) {
                         console.error(reply.error);
+                    } else if (cmd === "list") {
+                        const list = reply.result as {
+                            app: string;
+                            uri: string;
+                            memory: number;
+                        }[];
+
+                        console.table(list.map(item => ({
+                            ...item,
+                            memory: `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
+                        })));
                     } else {
                         console.info(reply.result ?? null);
                     }
@@ -873,7 +925,14 @@ export class App {
                     console.error(err);
                     console.log(json);
                 }
-            }).on("end", resolve).once("error", reject);
+            }).on("end", resolve).once("error", (err) => {
+                if (err["code"] === "ENOENT") {
+                    console.info("No app is running");
+                    resolve();
+                } else {
+                    reject(err);
+                }
+            });
         });
     }
 

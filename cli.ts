@@ -113,8 +113,18 @@ program.command("start")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string, options) => {
         if (options.detach) { // fork a child process to start the app
+            const conf = App.loadConfig(options.config);
+            const app = conf.apps?.find(app => app.name === appName);
+
+            if (!app) {
+                throw new Error(`gRPC app [${appName}] doesn't exist in the config file`);
+            } else if (!app.serve) {
+                throw new Error(`gRPC app [${appName}] is not intended to be served`);
+            }
+
             const child = fork(__filename, options.config ? [appName, options.config] : [appName], {
                 detached: true,
+                silent: true,
             });
 
             await new Promise<void>((resolve, reject) => {
@@ -124,6 +134,8 @@ program.command("start")
                     reject(err);
                 });
             });
+
+            console.info(`gRPC app [${appName}] started at '${app.uri}'`);
 
             process.exit(0);
         } else {
@@ -142,7 +154,6 @@ program.command("reload")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string | undefined, options) => {
         try {
-            console.log(appName);
             await App.sendCommand("reload", appName, options.config);
         } catch (err) {
             console.error(err.message || String(err));
@@ -155,10 +166,20 @@ program.command("stop")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string | undefined, options) => {
         try {
-            console.log(appName);
             await App.sendCommand("stop", appName, options.config);
         } catch (err) {
             console.error(err.message || String(err));
+        }
+    });
+
+program.command("list")
+    .description("list all gRPC apps (exclude pure-clients apps)")
+    .option("c, --config <filename>", "use a custom config file")
+    .action(async (_, options) => {
+        try {
+            await App.sendCommand("list", void 0, options.config);
+        } catch (err) {
+            console.error(err);
         }
     });
 
