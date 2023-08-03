@@ -3,6 +3,7 @@ import "source-map-support/register";
 import * as commander from "commander";
 import * as fs from "fs";
 import * as path from "path";
+import { fork } from "child_process";
 import pkg = require("./package.json");
 import { App, Config } from ".";
 import { absPath, ensureDir } from "./util";
@@ -108,13 +109,30 @@ program.command("init")
 program.command("start")
     .description("start a gRPC app")
     .argument("<app>", "the app name in the config file")
+    .option("-d, --detach", "allow the CLI command to exit after starting the app")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string, options) => {
-        try {
-            const app = new App(options.config);
-            await app.start(appName);
-        } catch (err) {
-            console.error(err.message || String(err));
+        if (options.detach) { // fork a child process to start the app
+            const child = fork(__filename, options.config ? [appName, options.config] : [appName], {
+                detached: true,
+            });
+
+            await new Promise<void>((resolve, reject) => {
+                child.on("disconnect", () => {
+                    resolve();
+                }).on("error", err => {
+                    reject(err);
+                });
+            });
+
+            process.exit(0);
+        } else {
+            try {
+                const app = new App(options.config);
+                await app.start(appName);
+            } catch (err) {
+                console.error(err.message || String(err));
+            }
         }
     });
 
@@ -144,4 +162,16 @@ program.command("stop")
         }
     });
 
-program.parse();
+if (process.send) {
+    const appName = process.argv[2];
+    const config = process.argv[3];
+
+    if (appName) {
+        const app = new App(config);
+        app.start(appName).catch(console.error).finally(() => {
+            process.disconnect();
+        });
+    }
+} else {
+    program.parse();
+}
