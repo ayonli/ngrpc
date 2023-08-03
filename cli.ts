@@ -18,11 +18,37 @@ program.command("init")
     .option("-c, --config <filename>", "create a custom config file")
     .action(async (pkg: string, options) => {
         pkg ||= "services";
+        const tsConfig = absPath("tsconfig.json");
         const config = absPath(options.config || "boot.config.json");
         const dir = absPath(pkg);
 
+        if (fs.existsSync(tsConfig)) {
+            console.warn(`File '${path.basename(config)}' already exists`);
+        } else {
+            const tsConf = {
+                "compilerOptions": {
+                    "module": "commonjs",
+                    "target": "es2018",
+                    "newLine": "LF",
+                    "importHelpers": true,
+                    "noUnusedParameters": true,
+                    "noUnusedLocals": true,
+                    "noImplicitThis": true,
+                    "sourceMap": true,
+                    "declaration": true
+                },
+                "include": [
+                    "*.ts",
+                    "**/*.ts"
+                ],
+            };
+
+            fs.writeFileSync(tsConfig, JSON.stringify(tsConf, null, "    "), "utf8");
+            console.info(`TSConfig file written to '${path.basename(tsConfig)}'`);
+        }
+
         if (fs.existsSync(config)) {
-            console.warn(`Config file '${config}' already exists`);
+            console.warn(`File '${path.basename(config)}' already exists`);
         } else {
             const conf: Config = {
                 "$schema": "./node_modules/@hyurl/grpc-boot/boot.config.schema.json",
@@ -49,7 +75,7 @@ program.command("init")
                 ]
             };
             fs.writeFileSync(config, JSON.stringify(conf, null, "    "), "utf8");
-            console.info(`Config file written to '${config}'`);
+            console.info(`Config file written to '${path.basename(config)}'`);
         }
 
         if (fs.existsSync(dir)) {
