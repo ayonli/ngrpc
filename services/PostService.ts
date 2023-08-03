@@ -1,3 +1,4 @@
+/// <reference path="./ExampleService.ts" />
 /// <reference path="./UserService.d.ts" />
 import _try from "dotry";
 import { ServiceClient } from "@hyurl/grpc-async";
@@ -43,6 +44,13 @@ export default class PostService implements LifecycleSupportInterface {
                 author: "ayon.li",
             }
         ];
+
+        try {
+            const reply = await services.ExampleService.sayHello({ name: "World" });
+            console.log(reply);
+        } catch (err) {
+            console.error(err);
+        }
 
         try {
             const user = await services.UserService.getUser({ id: "ayon.li" });

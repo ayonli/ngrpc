@@ -10,6 +10,7 @@
         "noImplicitThis": true,
         "sourceMap": true,
         "declaration": true,
+        "resolveJsonModule": true,
         "paths": {
             "@hyurl/grpc-async": [
                 "../grpc-async"

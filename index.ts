@@ -19,8 +19,10 @@ import isEqual = require("lodash/isEqual");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
+import { absPath, ensureDir } from "./util";
 
 export type Config = {
+    $schema?: string;
     package: string;
     protoDirs: string[];
     protoOptions: ProtoOptions,
@@ -46,7 +48,7 @@ export interface RoutableMessageStruct {
     route: string;
 }
 
-export class BootApp {
+export class App {
     protected conf: Config = null;
     protected oldConf: Config = null;
     protected pkgDef: GrpcObject;
@@ -61,15 +63,17 @@ export class BootApp {
     protected host: net.Server = null;
     protected hostClients = new Map<string, net.Socket>();
     protected hostCallbacks = new Map<string, (result: any) => void>();
+    protected socket: net.Socket = null;
     protected _onReload: () => void = null;
     protected _onStop: () => void = null;
+    protected isStopped = false;
 
     constructor(protected config: string = "") {
-        this.conf = BootApp.loadConfig(config);
+        this.conf = App.loadConfig(config);
     }
 
     protected static loadConfig(config: string = "") {
-        config = this.absPath(config || "boot.config.json");
+        config = absPath(config || "boot.config.json");
         const fileContent = fs.readFileSync(config, "utf8");
         const conf: Config = FRON.parse(fileContent, config);
 
@@ -262,7 +266,7 @@ export class BootApp {
                     if (err) {
                         reject(err);
                     } else {
-                        console.info(`gRPC server [${app.name}] started`);
+                        console.info(`gRPC app [${app.name}] started`);
                         resolve();
                     }
                 });
@@ -421,23 +425,33 @@ export class BootApp {
         this.clientRegistry = clientRegistry;
     }
 
-    async start(appName = "") {
-        if (appName) {
-            await this.initServer(appName);
+    /**
+     * Starts the app programmatically.
+     * 
+     * @param app The app's name that should be started as a server. If not
+     *  provided, the app only connects to other servers but not serves as one.
+     */
+    async start(app = "") {
+        if (app) {
+            await this.initServer(app);
         }
 
         await this.initClients();
+        await this.tryHost();
 
         for (const [, { ins }] of this.serverRegistry) {
             if (typeof ins.init === "function") {
                 await ins.init();
             }
         }
-
-        await this.tryHost();
     }
 
+    /** Stops the app programmatically. */
     async stop() {
+        return await this._stop();
+    }
+
+    protected async _stop(msgId: string = "") {
         for (const [_, { ins }] of this.serverRegistry) {
             if (typeof ins.destroy === "function") {
                 await ins.destroy();
@@ -446,19 +460,49 @@ export class BootApp {
 
         this.manager?.close();
         this.server?.forceShutdown();
+        this.isStopped = true;
+
+        if (msgId) {
+            let result: string;
+
+            if (this.serverName) {
+                result = `gRPC app [${this.serverName}] stopped`;
+            } else {
+                result = "gRPC clients stopped";
+            }
+
+            this.socket.end(JSON.stringify({
+                cmd: "reply",
+                replyId: msgId,
+                result
+            }));
+
+            if (this.host) {
+                this.hostClients.forEach((_client) => {
+                    if (_client !== this.socket) {
+                        _client.end();
+                    }
+                });
+                this.host.close(() => {
+                    this._onStop?.();
+                });
+            } else {
+                this._onStop?.();
+            }
+        } else {
+            this.socket?.destroy();
+            this._onStop?.();
+        }
     }
 
-    onReload(callback: () => void) {
-        this._onReload = callback;
+    /** Reloads the app programmatically. */
+    async reload() {
+        return await this._reload();
     }
 
-    onStop(callback: () => void) {
-        this._onStop = callback;
-    }
-
-    protected async reload() {
+    protected async _reload(msgId: string = "") {
         this.oldConf = this.conf;
-        this.conf = BootApp.loadConfig(this.config);
+        this.conf = App.loadConfig(this.config);
         await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions, true);
 
         if (this.server) {
@@ -466,18 +510,57 @@ export class BootApp {
         }
 
         await this.initClients(true);
+
+        for (const [, { ins }] of this.serverRegistry) {
+            if (typeof ins.init === "function") {
+                await ins.init();
+            }
+        }
+
+        if (msgId) {
+            let result: string;
+
+            if (this.serverName) {
+                result = `gRPC app [${this.serverName}] reloaded`;
+            } else {
+                result = `gRPC clients reloaded`;
+            }
+
+            this.socket?.write(JSON.stringify({ cmd: "reply", replyId: msgId, result }));
+        }
+
+        this._onReload?.();
     }
 
+    /** Registers a callback to run after the app is reloaded. */
+    onReload(callback: () => void) {
+        this._onReload = callback;
+    }
+
+    /** Registers a callback to run after the app is stopped. */
+    onStop(callback: () => void) {
+        this._onStop = callback;
+    }
+
+    /**
+     * Try to serve the current app as the host server for app control.
+     */
     protected async tryHost() {
-        const _sockFile = BootApp.absPath(this.conf.sockFile || "boot.sock");
+        const _sockFile = absPath(this.conf.sockFile || "boot.sock");
+        const sockFile = absPath(this.conf.sockFile || "boot.sock", true);
 
-        await BootApp.ensureDir(path.dirname(_sockFile));
-        // If the path exists, it's more likely caused by a previous 
-        // server process closing unexpected, just remove it before ship
-        // the new server.
-        await BootApp.unlinkIfExists(_sockFile);
+        await ensureDir(path.dirname(_sockFile));
 
-        const sockFile = BootApp.absPath(_sockFile, true);
+        if (fs.existsSync(_sockFile)) {
+            try {
+                await new Promise<void>((resolve, reject) => {
+                    this.tryConnect(sockFile, resolve, reject);
+                });
+                return;
+            } catch {
+                fs.unlinkSync(_sockFile);
+            }
+        }
 
         await new Promise<void>((resolve, reject) => {
             const host = net.createServer(client => {
@@ -505,7 +588,7 @@ export class BootApp {
                                     const replyId = Math.random().toString(16).slice(2);
                                     _client.write(JSON.stringify({ cmd: "reload", replyId }));
                                     this.hostCallbacks.set(replyId, (reply) => {
-                                        client.end(reply);
+                                        client.end(JSON.stringify(reply));
                                     });
                                 } else {
                                     client.destroy(new Error(`gRPC app ${msg.app} is not running`));
@@ -533,7 +616,7 @@ export class BootApp {
                                     const replyId = Math.random().toString(16).slice(2);
                                     _client.write(JSON.stringify({ cmd: "stop", replyId }));
                                     this.hostCallbacks.set(replyId, (reply) => {
-                                        client.end(reply);
+                                        client.end(JSON.stringify(reply));
                                     });
                                 } else {
                                     client.destroy(new Error(`gRPC app ${msg.app} is not running`));
@@ -563,133 +646,92 @@ export class BootApp {
                                 }
                             }
                         } else {
+                            console.log(msg);
                             client.destroy(new Error("Invalid message"));
                         }
-                    } catch {
+                    } catch (err) {
+                        console.error(err);
                         client.destroy(new Error("Invalid message"));
+                    }
+                }).on("close", () => {
+                    let appName: string;
+
+                    this.hostClients.forEach((_client, name) => {
+                        if (_client === client) {
+                            appName ||= name;
+                        }
+                    });
+
+                    if (appName) {
+                        this.hostClients.delete(appName);
                     }
                 });
             });
 
-            const tryConnect = (resolve: () => void) => {
-                const client = net.createConnection(sockFile, () => {
-                    client.write(JSON.stringify({ cmd: "connect", app: this.serverName }));
-                    resolve();
-                });
-                client.on("data", (buf) => {
-                    try {
-                        const msg = JSON.parse(buf.toString()) as { cmd: string; replyId: string; };
-
-                        if (msg.cmd === "reload") {
-                            this.reload().then(() => {
-                                let result: string;
-
-                                if (this.serverName) {
-                                    result = `gRPC app [${this.serverName}] reloaded`;
-                                } else {
-                                    result = `gRPC clients reloaded`;
-                                }
-
-                                client.write(JSON.stringify({
-                                    cmd: "reply",
-                                    replyId: msg.replyId,
-                                    result
-                                }));
-                                this._onReload?.();
-                            }).catch(console.error);
-                        } else if (msg.cmd === "stop") {
-                            this.stop().then(() => {
-                                let result: string;
-
-                                if (this.serverName) {
-                                    result = `gRPC app [${this.serverName}] stopped`;
-                                } else {
-                                    result = "gRPC clients stopped";
-                                }
-
-                                client.write(JSON.stringify({
-                                    cmd: "reply",
-                                    replyId: msg.replyId,
-                                    result
-                                }));
-
-                                if (this.host) {
-                                    this.hostClients.forEach((_client) => {
-                                        _client.end();
-                                    });
-                                    this.host.close(() => {
-                                        this._onStop?.();
-                                    });
-                                } else {
-                                    this._onStop?.();
-                                }
-                            }).catch(console.error);
-                        }
-                    } catch {
-                        // ...
-                    }
-                }).on("end", () => {
-                    if (!this.host) {
-                        this.tryHost().catch(console.error);
-                    }
-                }).on("error", err => {
-                    if (isSocketResetError(err) && !this.host) {
-                        this.tryHost().catch(console.error);
-                    } else {
-                        reject(err);
-                    }
-                });
-            };
-
-            host.on("error", () => tryConnect(resolve));
+            host.on("error", () => this.tryConnect(sockFile, resolve, reject));
 
             host.listen(sockFile, () => {
                 this.host = host;
-                tryConnect(resolve);
+                this.tryConnect(sockFile, resolve, reject);
+
+                if (this.serverName) {
+                    console.info(`gRPC app [${this.serverName}] has become the host server`);
+                } else {
+                    console.info("This app has become the host server");
+                }
             });
         });
     }
 
-    protected static async ensureDir(dirname: string) {
-        try {
-            await fs.promises.mkdir(dirname, { recursive: true });
-        } catch (err) {
-            if (err["code"] !== "EEXIST")
-                throw err;
-        }
+    /**
+     * Try to connect to the host server of app control.
+     * 
+     * @param sockFile 
+     * @param resolve 
+     * @param reject 
+     */
+    protected tryConnect(sockFile: string, resolve: () => void, reject: (err: Error) => void) {
+        const client = net.createConnection(sockFile, () => {
+            client.write(JSON.stringify({ cmd: "connect", app: this.serverName }));
+            this.socket = client;
+            resolve();
+        });
+        client.on("data", (buf) => {
+            try {
+                const msg = JSON.parse(buf.toString()) as { cmd: string; replyId: string; };
+
+                if (msg.cmd === "reload") {
+                    this._reload(msg.replyId).catch(console.error);
+                } else if (msg.cmd === "stop") {
+                    this._stop(msg.replyId).catch(console.error);
+                }
+            } catch {
+                // ...
+            }
+        }).on("end", () => {
+            if (!this.host && !this.isStopped) {
+                this.tryHost().catch(console.error);
+            }
+        }).on("error", err => {
+            if (isSocketResetError(err) && !this.host) {
+                this.tryHost().catch(console.error);
+            } else {
+                reject(err);
+            }
+        });
     }
 
-    protected static async unlinkIfExists(filename: string) {
-        try {
-            await fs.promises.unlink(filename);
-        } catch (err) {
-            if (err["code"] !== "ENOENT")
-                throw err;
-        }
-    }
-
-    protected static absPath(filename: string, withPipe = false): string {
-        if (!/^\/|^[a-zA-Z]:[\\\/]/.test(filename) && typeof process === "object") {
-            filename = path.resolve(process.cwd(), filename);
-        }
-
-        if (path?.sep) {
-            filename = filename.replace(/\\|\//g, path.sep);
-        }
-
-        if (withPipe &&
-            typeof process === "object" && process.platform === "win32" &&
-            !/\\\\[.?]\\pipe\\/.test(filename)
-        ) {
-            filename = "\\\\?\\pipe\\" + filename;
-        }
-
-        return filename;
-    }
-
-    static async issue(cmd: "reload" | "stop", app = "", config = "") {
+    /**
+     * Sends control command to the gRPC apps.
+     * 
+     * @param cmd 
+     * @param app The app's name that should received the command. If not provided,
+     *  the command is sent to all apps.
+     * @param config Use a custom config file.
+     */
+    static async sendCommand(cmd: "reload" | "stop", app = "", config = "") {
         const conf = this.loadConfig(config);
-        const sockFile = BootApp.absPath(conf.sockFile || "boot.sock", true);
+        const sockFile = absPath(conf.sockFile || "boot.sock", true);
 
         await new Promise<void>((resolve, reject) => {
             const client = net.createConnection(sockFile, () => {
@@ -713,5 +755,25 @@ export class BootApp {
                 resolve();
             }).once("error", reject);
         });
+    }
+
+    /**
+     * Runs a snippet inside the gRPC apps context. The function is called
+     * after the necessary connections are established, so we can use any
+     * services inside the function as we want.
+     * 
+     * @param fn The function needs to be run.
+     * @param config Use a custom config file.
+     */
+    static async runSnippet(fn: () => void | Promise<void>, config: string = void 0) {
+        try {
+            const app = new App(config);
+
+            await app.start();
+            await fn();
+            await app.stop();
+        } catch (err) {
+            console.error(err);
+        }
     }
 }
