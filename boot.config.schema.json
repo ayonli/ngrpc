@@ -26,17 +26,25 @@
                 "longs": {
                     "type": "string",
                     "description": "The type to use to represent long values. Defaults to a Long object type.",
-                    "enum": ["String", "Number"]
+                    "enum": [
+                        "String",
+                        "Number"
+                    ]
                 },
                 "enums": {
                     "type": "string",
                     "description": "The type to use to represent enum values. Defaults to the numeric value.",
-                    "enum": ["String"]
+                    "enum": [
+                        "String"
+                    ]
                 },
                 "bytes": {
                     "type": "string",
                     "description": "The type to use to represent bytes values. Defaults to Buffer.",
-                    "enum": ["Array", "String"]
+                    "enum": [
+                        "Array",
+                        "String"
+                    ]
                 },
                 "defaults": {
                     "type": "boolean",
@@ -108,13 +116,33 @@
                     "options": {
                         "type": "object",
                         "description": "Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details."
+                    },
+                    "stdout": {
+                        "type": "string",
+                        "description": "Log file used for stdout when starting the app via CLI command with `--detach` option."
+                    },
+                    "stderr": {
+                        "type": "string",
+                        "description": "Log file used for stderr when starting the app via CLI command with `--detach` option."
                     }
                 },
                 "required": [
                     "name",
                     "uri",
                     "services"
-                ]
+                ],
+                "dependencies": {
+                    "options": [
+                        "serve"
+                    ],
+                    "stdout": [
+                        "serve"
+                    ],
+                    "stderr": [
+                        "serve",
+                        "stdout"
+                    ]
+                }
             }
         },
         "sockFile": {

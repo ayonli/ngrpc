@@ -7,3 +7,4 @@ examples
 !*.d.ts
 tsconfig.json
 go.*
+*.log

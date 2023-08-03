@@ -20,20 +20,5 @@
     "include": [
         "*.ts",
         "**/*.ts"
-    ],
-    "ts-node": {
-        "compilerOptions": {
-            "module": "commonjs",
-            "target": "es2018",
-            "rootDir": "test/",
-            "noEmit": true,
-            "noUnusedParameters": true,
-            "noUnusedLocals": true,
-            "paths": {
-                "@hyurl/grpc-async": [
-                    "../grpc-async"
-                ]
-            }
-        }
-    }
+    ]
 }

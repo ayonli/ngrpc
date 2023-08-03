@@ -3,7 +3,7 @@ import "source-map-support/register";
 import * as commander from "commander";
 import * as fs from "fs";
 import * as path from "path";
-import { fork } from "child_process";
+import { fork, ForkOptions } from "child_process";
 import pkg = require("./package.json");
 import { App, Config } from ".";
 import { absPath, ensureDir } from "./util";
@@ -115,6 +115,12 @@ program.command("start")
         if (options.detach) { // fork a child process to start the app
             const conf = App.loadConfig(options.config);
             const app = conf.apps?.find(app => app.name === appName);
+            const forkOptions: ForkOptions = {
+                detached: true,
+                silent: true,
+            };
+            let stdout: number;
+            let stderr: number;
 
             if (!app) {
                 throw new Error(`gRPC app [${appName}] doesn't exist in the config file`);
@@ -122,10 +128,28 @@ program.command("start")
                 throw new Error(`gRPC app [${appName}] is not intended to be served`);
             }
 
-            const child = fork(__filename, options.config ? [appName, options.config] : [appName], {
-                detached: true,
-                silent: true,
-            });
+            if (app.stdout) {
+                const filename = absPath(app.stdout);
+                await ensureDir(path.dirname(filename));
+                stdout = fs.openSync(filename, "a");
+            }
+
+            if (app.stderr) {
+                const filename = absPath(app.stderr);
+                await ensureDir(path.dirname(filename));
+                stderr = fs.openSync(filename, "a");
+            } else if (stdout) {
+                stderr = fs.openSync(absPath(app.stdout), "a");
+            }
+
+            if (stdout && stderr) {
+                forkOptions.stdio = ["ignore", stdout, stderr, "ipc"];
+            }
+
+            const child = fork(
+                __filename,
+                options.config ? [appName, options.config] : [appName],
+                forkOptions);
 
             await new Promise<void>((resolve, reject) => {
                 child.on("disconnect", () => {
@@ -137,6 +161,7 @@ program.command("start")
 
             console.info(`gRPC app [${appName}] started at '${app.uri}'`);
 
+            child.unref();
             process.exit(0);
         } else {
             try {
