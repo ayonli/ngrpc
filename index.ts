@@ -685,6 +685,7 @@ export class App {
 
         await new Promise<void>((resolve, reject) => {
             const host = net.createServer(client => {
+                client.setNoDelay(true);
                 client.on("data", (buf) => {
                     const json = buf.toString();
 
@@ -799,6 +800,7 @@ export class App {
             resolve();
         });
 
+        client.setNoDelay(true);
         client.on("data", (buf) => {
             try {
                 const msg = JSON.parse(buf.toString()) as {
@@ -850,9 +852,14 @@ export class App {
         await new Promise<void>((resolve, reject) => {
             const client = net.createConnection(sockFile, () => {
                 client.write(JSON.stringify({ cmd, app }));
-            }).on("data", (buf) => {
+            });
+
+            client.setNoDelay(true);
+            client.on("data", (buf) => {
+                const json = buf.toString();
+
                 try {
-                    const reply = JSON.parse(buf.toString()) as {
+                    const reply = JSON.parse(json) as {
                         result?: string;
                         error?: string;
                     };
@@ -864,6 +871,7 @@ export class App {
                     }
                 } catch (err) {
                     console.error(err);
+                    console.log(json);
                 }
             }).on("end", resolve).once("error", reject);
         });
