@@ -10,6 +10,8 @@ import { unlinkSync } from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
+
 let goProcess: ChildProcess;
 
 before(function (done) {
@@ -150,7 +152,7 @@ describe("app.[method]", () => {
         let reply: any;
         let reply2: any;
 
-        const filename = path.join(__dirname, "services", "ExampleService.ts");
+        const filename = path.join(__dirname, "services", "ExampleService" + (isTsNode ? ".ts" : ".js"));
         let contents = await fs.readFile(filename, "utf8");
 
         try {

@@ -7,7 +7,10 @@
     "prepublishOnly": "tsc",
     "postpublish": "node postpublish.js",
     "protoc:go": "protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative services/*.proto",
-    "test": "mocha -r ts-node/register test.ts"
+    "pretest": "tsc",
+    "posttest": "node postpublish.js",
+    "test": "mocha test.js",
+    "test:ts": "mocha -r ts-node/register test.ts"
   },
   "bin": {
     "grpc-boot": "dist/cli.js"
