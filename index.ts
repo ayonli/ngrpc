@@ -671,8 +671,16 @@ export default class App {
                     socket.end();
                 }
             });
-            this.host.close(() => {
-                this._onStop?.();
+
+            await new Promise<void>((resolve, reject) => {
+                this.host.close((err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        this._onStop?.();
+                        resolve();
+                    }
+                });
             });
         } else {
             this.guest?.destroy();
