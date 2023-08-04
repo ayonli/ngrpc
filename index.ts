@@ -85,20 +85,18 @@ export interface RoutableMessageStruct {
     route: string;
 }
 
-/**
- * The very gRPC app constructor of the gRPC Boot package.
- */
-export class App {
+export default class App {
+    protected config: string = void 0;
     protected conf: Config = null;
     protected oldConf: Config = null;
-    protected pkgDef: GrpcObject;
-    protected server: Server;
-    protected manager: ConnectionManager;
-    protected serverName: string;
+    protected pkgDef: GrpcObject = null;
+    protected server: Server = null;
+    protected manager: ConnectionManager = null;
+    protected serverName: string = void 0;
     protected serverRegistry = new Map<string, { ctor: ServiceClientConstructor, ins: any; }>();
     protected sslOptions: { cert: Buffer, key: Buffer; } = null;
     protected serverOptions: ChannelOptions = null;
-    protected rootNsp: string;
+    protected rootNsp: string = void 0;
     protected clientRegistry = new Map<string, Config["apps"]>();
 
     // The Host-Guest model is a mechanism used to hold communication between all apps running on
@@ -116,14 +114,11 @@ export class App {
     protected hostClients: { socket: net.Socket, app?: string; }[] = [];
     protected hostCallbacks = new Map<string, (result: any) => void>();
     protected guest: net.Socket = null;
+    protected canTryHost = false;
 
     protected isStopped = false;
     protected _onReload: () => void = null;
     protected _onStop: () => void = null;
-
-    constructor(protected config = "") {
-        this.conf = App.loadConfig(config);
-    }
 
     static loadConfig(config = "") {
         config = absPath(config || "boot.config.json");
@@ -488,7 +483,7 @@ export class App {
 
                 const client = connect(get(this.pkgDef as object, serviceName), address, cred, {
                     ...(app.options ?? null),
-                    connectTimeout: app.connectTimeout || 120_000,
+                    connectTimeout: app.connectTimeout || 5_000,
                 });
 
                 this.manager.register(client);
@@ -502,7 +497,7 @@ export class App {
                         credentials: cred,
                         options: {
                             ...(app.options ?? null),
-                            connectTimeout: app.connectTimeout || 120_000,
+                            connectTimeout: app.connectTimeout || 5_000,
                         },
                     } satisfies ServerConfig;
                 });
@@ -559,16 +554,6 @@ export class App {
         this.clientRegistry = clientRegistry;
     }
 
-    /**
-     * Starts the app programmatically.
-     * 
-     * @param app The app's name that should be started as a server. If not provided, the app only
-     *  connects to other servers but not serves as one.
-     */
-    async start(app = "") {
-        return this._start(app, true);
-    }
-
     protected async _start(app = "", tryHost = false) {
         if (app) {
             await this.initServer(app);
@@ -577,6 +562,7 @@ export class App {
         await this.initClients();
 
         if (tryHost) {
+            this.canTryHost = true;
             await this.tryHost();
         } else {
             const _sockFile = absPath(this.conf.sockFile || "boot.sock");
@@ -609,6 +595,27 @@ export class App {
         }
     }
 
+    /**
+     * Initiates and starts an app.
+     * 
+     * @param app The app's name that should be started as a server. If not provided, the app only
+     *  connects to other servers but not serves as one.
+     * @param config Use a custom config file.
+     */
+    static async boot(app = "", config = "") {
+        const ins = new this();
+
+        ins.config = absPath(config || "boot.config.json");
+        ins.conf = this.loadConfig(config);
+
+        // When starting, if no `app` is provided and no `require.main` is presented, that means the
+        // the is running in the Node.js REPL and we're trying only to connect to services, in this
+        // case, we don't need to try gaining the host-ship.
+        await ins._start(app, !!(app || require.main));
+
+        return ins;
+    }
+
     /** Stops the app programmatically. */
     async stop() {
         return await this._stop();
@@ -633,6 +640,7 @@ export class App {
 
             if (this.serverName) {
                 result = `gRPC app [${this.serverName}] stopped`;
+                console.info(result);
             } else {
                 result = "gRPC clients stopped";
             }
@@ -697,6 +705,7 @@ export class App {
 
             if (this.serverName) {
                 result = `gRPC app [${this.serverName}] reloaded`;
+                console.info(result);
             } else {
                 result = `gRPC clients reloaded`;
             }
@@ -926,7 +935,7 @@ export class App {
                             pid: process.pid,
                             memory: process.memoryUsage().rss,
                             uptime: process.uptime(),
-                            entry: require.main?.filename,
+                            entry: require.main?.filename || "REPL",
                         }
                     }) + "\n");
                 } else {
@@ -934,7 +943,7 @@ export class App {
                 }
             });
         }).on("end", () => {
-            if (!this.host && !this.isStopped) {
+            if (!this.host && !this.isStopped && this.canTryHost) {
                 // If the connection is closed by the host server and the client is not marked
                 // closed, it indicates that the server is closed by a guest app (mainly the CLI
                 // tool), the client now is able to retry gaining the host-ship.
@@ -945,7 +954,9 @@ export class App {
                 // if the connection is interrupted, for example, force terminated by `ctrl + C`,
                 // and the client is not marked closed, the client now is able to retry gaining the
                 // host-ship.
-                this.tryHost().catch(console.error);
+                if (this.canTryHost) {
+                    this.tryHost().catch(console.error);
+                }
             } else {
                 reject(err);
             }
@@ -1010,21 +1021,30 @@ export class App {
                             entry: string;
                         }[];
 
-                        console.table(list.map(item => ({
-                            ...item,
-                            uptime: humanizeDuration(item.uptime * 1000, {
-                                largest: 1,
-                                round: true,
-                            }),
-                            memory: `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
-                            entry: item.entry?.slice(process.cwd().length + 1),
-                        })));
+                        console.table(list.map(item => {
+                            let entry = item.entry;
+                            const cwd = process.cwd() + path.sep;
+
+                            if (entry?.startsWith(cwd)) {
+                                entry = entry.slice(cwd.length);
+                            }
+
+                            return {
+                                ...item,
+                                uptime: humanizeDuration(item.uptime * 1000, {
+                                    largest: 1,
+                                    round: true,
+                                }),
+                                memory: `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
+                                entry,
+                            };
+                        }));
                     } else {
                         console.info(reply.result ?? null);
                     }
                 });
             }).on("end", resolve).once("error", (err) => {
-                if (err["code"] === "ENOENT") {
+                if (err["code"] === "ENOENT" || err["code"] === "ECONNREFUSED") {
                     console.info("No app is running");
                     resolve();
                 } else {
@@ -1046,7 +1066,10 @@ export class App {
      */
     static async runSnippet(fn: () => void | Promise<void>, config: string = void 0) {
         try {
-            const app = new App(config);
+            const app = new this();
+
+            app.config = absPath(config || "boot.config.json");
+            app.conf = this.loadConfig(config);
 
             await app._start();
             await fn();

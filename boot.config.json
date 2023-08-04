@@ -37,7 +37,7 @@
                 "services.PostService"
             ],
             "stdout": "./out.log",
-            "entry": "./main.ts"
+            "entry": "./main"
         }
     ]
 }

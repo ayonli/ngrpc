@@ -46,7 +46,7 @@ Take a look at the following config file ([boot.config.json](./boot.config.json)
                 "services.PostService"
             ],
             "stdout": "./out.log",
-            "entry": "./main.ts"
+            "entry": "./main"
         }
     ]
 }
@@ -84,7 +84,7 @@ It's just that simple.
     - `entry` The entry file that is used to fork the app when starting with `--detach` option.
         Normally, this property is not required because the CLI command will use the default entry
         file for us. However, for demonstration, the above `post-server` uses a custom entry point
-        [main.ts](./main.ts).
+        [./main](./main.ts).
 
         If a custom entry file is provided, it's fork with the arguments `appName [config]`, we can
         use `process.argv[2]` to get the app's name and `process.argv[3]` to get the config filename
@@ -94,7 +94,7 @@ It's just that simple.
 
     - `cert` The certificate filename when using SSL.
     - `key` The private key filename when using SSL.
-    - `connectTimeout` Connection timeout is milliseconds, the default value is `120_000` ms.
+    - `connectTimeout` Connection timeout is milliseconds, the default value is `5_000` ms.
     - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
     - `stderr` Log file used for stderr when starting the app via CLI command with `--detach` option.
     - `env` The environment variables passed to the `entry` file.
@@ -153,50 +153,33 @@ after we have deployed new updates.
 
 ## Programmatic API
 
-**`new App(config?: string)`**
-
-The very gRPC app constructor of the gRPC Boot package.
-
-- `config` Use a custom config file.
-
-**Example**
-
-```ts
-import { App } from "@hyurl/grpc-boot";
-
-// This app uses the default config file boot.config.json
-const app1 = new App();
-
-// This app uses a custom config file my.config.json
-const app2 = new App("my.config.json");
-```
-
-----
-
-**`app.start(app?: string): Promise<void>`**
+**`App.boot(app?: string, config?: string): Promise<void>`**
 
 Starts the app programmatically.
 
 - `app` The app's name that should be started as a server. If not provided, the app only  connects
     to other servers but not serves as one.
+- `config` Use a custom config file.
 
 **Example**
 
 ```ts
-import { App } from "@hyurl/grpc-boot";
-
-const serverApp = new App();
+import App from "@hyurl/grpc-boot";
 
 (async () => {
     // This app starts a gRPC server named 'example-server' and connects to all services.
-    await serverApp.start("example-server");
-})();
+    const serverApp1 = await App.boot("example-server");
 
-const clientApp = new App();
+    // This app starts a gRPC server with a custom config file.
+    const serverApp2 = await App.boot("example-server", "my.config.json");
+})();
 
 (async () => {
     // This app won't start a gRPC server, but connects to all services.
-    await clientApp.start();
+    const clientApp1 = await App.boot();
+
+    // This app connects to all services with a custom config file.
+    const clientApp2 = await App.boot(null, "my.config.json");
 })();
 ```
 
@@ -209,11 +192,9 @@ Stops the app programmatically.
 **Example**
 
 ```ts
-import { App } from "@hyurl/grpc-boot";
+import App from "@hyurl/grpc-boot";
 
-const app = new App();
-
-app.start("example-server").then(() => {
+App.boot("example-server").then(app => {
     process.on("exit", (code) => {
         // Stop the app when the program is issued to exit.
         app.stop().then(() => {
@@ -241,11 +222,9 @@ Registers a callback to run after the app is reloaded.
 **Example**
 
 ```ts
-import { App } from "@hyurl/grpc-boot";
+import App from "@hyurl/grpc-boot";
 
-const app = new App();
-
-app.start("example-server").then(() => {
+App.boot("example-server").then(app => {
     app.onReload(() => {
         // Log the reload event.
         console.info("The app has been reloaded");
@@ -262,11 +241,9 @@ Registers a callback to run after the app is stopped.
 **Example**
 
 ```ts
-import { App } from "@hyurl/grpc-boot";
+import App from "@hyurl/grpc-boot";
 
-const app = new App();
-
-app.start("example-server").then(() => {
+App.boot("example-server").then(app => {
     app.onStop(() => {
         // Terminate the process when the app is stopped.
         process.exit(0);
@@ -318,7 +295,7 @@ automatically stopped.
 **Example**
 
 ```ts
-import { App } from "@hyurl/grpc-boot";
+import App from "@hyurl/grpc-boot";
 
 App.runSnippet(async () => {
     const post = await services.PostService.getPost({ id: 1 });

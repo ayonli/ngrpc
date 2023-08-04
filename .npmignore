@@ -13,3 +13,4 @@ go.*
 *.config.schema.json
 postpublish.js
 main.*
+script.*

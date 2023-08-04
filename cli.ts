@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { fork, ForkOptions } from "child_process";
 import pkg = require("./package.json");
-import { App, Config } from ".";
+import App, { Config } from ".";
 import { absPath, ensureDir } from "./util";
 
 const program = new commander.Command("grpc-boot");
@@ -181,8 +181,7 @@ program.command("start")
         } else {
             if (appName) {
                 try {
-                    const app = new App(options.config);
-                    await app.start(appName);
+                    await App.boot(appName, options.config);
                 } catch (err) {
                     console.error(err.message || String(err));
                 }
@@ -190,8 +189,7 @@ program.command("start")
                 const appNames = conf.apps.filter(app => app.serve).map(app => app.name);
                 await Promise.allSettled(appNames.map(async _appName => {
                     try {
-                        const app = new App(options.config);
-                        await app.start(_appName);
+                        await App.boot(_appName, options.config);
                     } catch (err) {
                         console.error(err.message || String(err));
                     }
@@ -239,9 +237,8 @@ if (process.send) {
     if (require.main.filename === __filename) {
         const appName = process.argv[2];
         const config = process.argv[3];
-        const app = new App(config);
 
-        app.start(appName).catch(console.error).finally(() => {
+        App.boot(appName, config).catch(console.error).finally(() => {
             process.disconnect();
         });
     }

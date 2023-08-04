@@ -113,7 +113,7 @@
                     },
                     "connectTimeout": {
                         "type": "integer",
-                        "description": "Connection timeout in milliseconds, the default value is `120_000` ms."
+                        "description": "Connection timeout in milliseconds, the default value is `5_000` ms."
                     },
                     "options": {
                         "type": "object",
