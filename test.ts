@@ -5,12 +5,34 @@
 import { deepStrictEqual } from "assert";
 import { it } from "mocha";
 import App from ".";
-import { spawnSync } from "child_process";
+import { spawn, spawnSync, execSync, ChildProcess } from "child_process";
+import { unlinkSync } from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
 
+let goProcess: ChildProcess;
+
+before(function (done) {
+    // Must build the go program before running it, otherwise the
+    // goProcess.kill() won"t be able to release the port, since
+    // the server process isn't the real process the start the gRPC server
+    // and when the go process is killed, the real process the holds the port
+    // still hangs and hangs the Node.js process as well, reason is unknown.
+    this.timeout(120_000); // this could take a while for go installing dependencies
+    execSync("go build -o user-server main.go", { cwd: __dirname });
+    goProcess = spawn(__dirname + "/user-server");
+    goProcess.on("spawn", () => {
+        done();
+    }).on("error", err => {
+        done(err);
+    });
+});
+
 after(function () {
+    goProcess.kill();
+
     setTimeout(() => {
+        unlinkSync(__dirname + "/user-server");
         process.exit();
     });
 });
@@ -45,7 +67,7 @@ describe("App.boot", () => {
     });
 
     it("App.boot()", async function () {
-        this.timeout(5000);
+        this.timeout(10_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
@@ -78,7 +100,7 @@ describe("App.boot", () => {
     });
 
     it("App.boot(null, config)", async function () {
-        this.timeout(5000);
+        this.timeout(10_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
@@ -122,7 +144,7 @@ describe("app.[method]", () => {
     });
 
     it("app.reload()", async function () {
-        this.timeout(5000);
+        this.timeout(10_000);
 
         let app: App;
         let reply: any;
@@ -231,7 +253,7 @@ describe("App.loadConfig*", () => {
 
 describe("App.runSnippet", () => {
     it("App.runSnippet(fn)", async function () {
-        this.timeout(5000);
+        this.timeout(10_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
@@ -247,7 +269,7 @@ describe("App.runSnippet", () => {
     });
 
     it("App.runSnippet(fn, config)", async function () {
-        this.timeout(5000);
+        this.timeout(10_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
