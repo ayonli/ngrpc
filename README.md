@@ -119,14 +119,23 @@ or connect to the services, all is properly handled internally by the gRPC Boot 
         - `-d, --detach` allow the CLI command to exit after starting the app
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
+
+- `restart [options] [app]` restart a gRPC app or all gRPC apps (in detach mode, exclude
+    non-served ones)
+    - `options`
+        - `-c, --config <filename>` use a custom config file
+    - `app` the app name in the config file
+
 - `reload [options] [app]` reload a gRPC app or all gRPC apps
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
+
 - `stop` stop a gRPC or all gRPC apps
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
+
 - `list [options]` list all gRPC apps (exclude non-served ones)
     - `options`
         - `-c, --config <filename>` use a custom config file
@@ -156,9 +165,9 @@ inconsistency between the two files and causing program failure. So this package
 
 ### NOTE: The CLI tool is not a replacement of PM2
 
-The `start`, `stop` and `list` commands provide a simple approach to manage gRPC applications during
-development, but the CLI tool is not a replacement of process management programs such as **PM2**,
-it lacks the ability to monit the applications and restart them if crashed.
+The control commands, such as `start`, `restart` and `list` provide a simple approach to manage gRPC
+applications during development, but the CLI tool is not a replacement of process management
+programs such as **PM2**, it lacks the ability to monit the applications and restart them if crashed.
 
 On the other hand, the CLI tool only works for the app instance, if the process contain other
 objects that prevent the process to exit, the `stop` command won't be able to terminate the process.
