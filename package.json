@@ -2,12 +2,12 @@
   "name": "@hyurl/grpc-boot",
   "version": "1.0.0",
   "description": "Make it easy to create standalone and elegant gRPC based applications.",
-  "main": "index.js",
+  "main": "index",
   "scripts": {
     "prepublishOnly": "tsc",
     "postpublish": "node postpublish.js",
     "protoc:go": "protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative services/*.proto",
-    "test": "mocha -r ts-node/register test/*.ts"
+    "test": "mocha -r ts-node/register test.ts"
   },
   "bin": {
     "grpc-boot": "dist/cli.js"
@@ -39,9 +39,12 @@
   },
   "devDependencies": {
     "@types/humanize-duration": "^3.27.1",
+    "@types/mocha": "^10.0.1",
     "@types/source-map-support": "^0.5.6",
     "@types/string-hash": "^1.1.1",
     "dotry": "^1.4.0",
+    "mocha": "^10.2.0",
+    "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
   }
 }

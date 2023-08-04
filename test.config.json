@@ -1,0 +1,22 @@
+{
+    "$schema": "./boot.config.schema.json",
+    "package": "services",
+    "protoDirs": [
+        "services"
+    ],
+    "protoOptions": {
+        "longs": "String",
+        "defaults": true,
+        "oneofs": true
+    },
+    "apps": [
+        {
+            "name": "test-server",
+            "uri": "grpc://localhost:3000",
+            "serve": true,
+            "services": [
+                "services.ExampleService"
+            ]
+        }
+    ]
+}

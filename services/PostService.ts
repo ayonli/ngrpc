@@ -44,27 +44,6 @@ export default class PostService implements LifecycleSupportInterface {
                 author: "ayon.li",
             }
         ];
-
-        try {
-            const reply = await services.ExampleService.sayHello({ name: "World" });
-            console.log(reply);
-        } catch (err) {
-            console.error(err);
-        }
-
-        try {
-            const user = await services.UserService.getUser({ id: "ayon.li" });
-            console.log(user);
-        } catch (err) {
-            console.error(err);
-        }
-
-        try {
-            const result = await services.UserService.getMyPosts({ id: "ayon.li" });
-            console.log(result);
-        } catch (err) {
-            console.error(err);
-        }
     }
 
     async destroy(): Promise<void> {

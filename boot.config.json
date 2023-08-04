@@ -2,7 +2,7 @@
     "$schema": "./boot.config.schema.json",
     "package": "services",
     "protoDirs": [
-        "./services"
+        "services"
     ],
     "protoOptions": {
         "longs": "String",
