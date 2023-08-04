@@ -124,6 +124,14 @@
                     "stderr": {
                         "type": "string",
                         "description": "Log file used for stderr when starting the app via CLI command with `--detach` option."
+                    },
+                    "entry": {
+                        "type": "string",
+                        "description": "The entry file that is used to fork the app when starting with `--detach` option."
+                    },
+                    "env": {
+                        "type": "object",
+                        "description": "The environment variables passed to the `entry` file."
                     }
                 },
                 "required": [
@@ -141,6 +149,17 @@
                     "stderr": [
                         "serve",
                         "stdout"
+                    ],
+                    "script": [
+                        "serve"
+                    ],
+                    "args": [
+                        "serve",
+                        "entry"
+                    ],
+                    "env": [
+                        "serve",
+                        "entry"
                     ]
                 }
             }

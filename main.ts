@@ -3,8 +3,11 @@
 import { App } from ".";
 
 if (require.main?.filename === __filename) {
-    App.runSnippet(async () => {
-        const post = await services.PostService.getPost({ id: 2 });
-        console.log(post);
+    const appName = process.argv[2];
+    const config = process.argv[3];
+    const app = new App(config);
+
+    app.start(appName).catch(console.error).finally(() => {
+        process.disconnect();
     });
 }

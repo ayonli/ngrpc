@@ -15,11 +15,13 @@ import {
 import { serve, unserve, connect, LoadBalancer, ConnectionManager, ServerConfig } from "@hyurl/grpc-async";
 import get = require("lodash/get");
 import isEqual = require("lodash/isEqual");
+import orderBy = require("lodash/orderBy");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
 import { absPath, ensureDir } from "./util";
 import { findDependencies } from "require-chain";
+import humanizeDuration = require("humanize-duration");
 
 /** These type represents the structures and properties set in the config file. */
 export type Config = {
@@ -38,6 +40,8 @@ export type Config = {
         options?: ChannelOptions;
         stdout?: string;
         stderr?: string;
+        entry?: string;
+        env?: { [name: string]: string; };
     }[];
     sockFile?: string;
 };
@@ -653,7 +657,7 @@ export class App {
                 result = `gRPC clients reloaded`;
             }
 
-            this.guest?.write(JSON.stringify({ cmd: "reply", msgId: msgId, result }));
+            this.guest?.write(JSON.stringify({ cmd: "reply", msgId: msgId, result }) + "\n");
         }
 
         this._onReload?.();
@@ -695,16 +699,16 @@ export class App {
 
         await new Promise<void>((resolve, reject) => {
             const host = net.createServer(client => {
-                client.setNoDelay(true);
                 client.on("data", (buf) => {
-                    const json = buf.toString();
-
-                    try {
-                        const msg = JSON.parse(json) as {
-                            cmd: "connect" | "reload" | "stop" | "list" | "reply",
-                            app?: string,
-                            msgId?: string;
-                        };
+                    App.processSocketMessage(buf, (err, msg: {
+                        cmd: "connect" | "reload" | "stop" | "list" | "reply",
+                        app?: string,
+                        msgId?: string;
+                    }) => {
+                        if (err) {
+                            client.destroy(err);
+                            return;
+                        }
 
                         if (msg.cmd === "connect") {
                             // After a guest establish the socket connection, it sends a `connect`
@@ -732,7 +736,10 @@ export class App {
                                 if (_client) {
                                     const msgId = Math.random().toString(16).slice(2);
 
-                                    _client.socket.write(JSON.stringify({ cmd: msg.cmd, msgId }));
+                                    _client.socket.write(JSON.stringify({
+                                        cmd: msg.cmd,
+                                        msgId,
+                                    }) + "\n");
                                     this.hostCallbacks.set(msgId, (reply) => {
                                         client.end(JSON.stringify(reply));
                                     });
@@ -746,9 +753,12 @@ export class App {
                                 this.hostClients.forEach(_client => {
                                     const msgId = Math.random().toString(16).slice(2);
 
-                                    _client.socket.write(JSON.stringify({ cmd: msg.cmd, msgId }));
+                                    _client.socket.write(JSON.stringify({
+                                        cmd: msg.cmd,
+                                        msgId,
+                                    }) + "\n");
                                     this.hostCallbacks.set(msgId, (reply) => {
-                                        client.write(JSON.stringify(reply));
+                                        client.write(JSON.stringify(reply) + "\n");
 
                                         if (++count === limit) {
                                             client.end();
@@ -760,31 +770,41 @@ export class App {
                             // When the host app receives a `list` command, we list all the clients
                             // with names and collect some information about them.
                             const clients = this.hostClients.filter(item => !!item.app);
-                            const stats = new Map<string, { memory: number; }>();
+                            type Stat = {
+                                pid: number;
+                                memory: number;
+                                uptime: number;
+                                entry: string;
+                            };
+                            const stats = new Map<string, Stat>();
 
                             clients.forEach(_client => {
                                 const msgId = Math.random().toString(16).slice(2);
 
-                                _client.socket.write(JSON.stringify({ cmd: "stat", msgId }));
+                                _client.socket.write(JSON.stringify({
+                                    cmd: "stat",
+                                    msgId,
+                                }) + "\n");
                                 this.hostCallbacks.set(msgId, (reply: {
-                                    result: { memory: number; };
+                                    result: Stat;
                                 }) => {
-                                    stats.set(_client.app, { memory: reply.result.memory });
+                                    stats.set(_client.app, reply.result);
 
                                     if (stats.size === clients.length) {
                                         const list = clients.map(item => {
                                             const appName = item.app;
                                             const app = this.conf.apps
                                                 .find(item => item.name === appName);
+                                            const stat = stats.get(appName);
 
                                             return {
                                                 app: appName,
                                                 uri: app.uri,
-                                                memory: stats.get(appName).memory,
+                                                ...stat
                                             };
                                         });
 
-                                        client.end(JSON.stringify({ result: list }));
+                                        client.end(JSON.stringify({ result: orderBy(list, "pid") }));
                                     }
                                 });
                             });
@@ -803,11 +823,9 @@ export class App {
                                 }
                             }
                         } else {
-                            client.destroy(new Error(`Invalid message: ${json}`));
+                            client.destroy(new Error(`Invalid message: ${JSON.stringify(msg)}`));
                         }
-                    } catch (err) {
-                        client.destroy(new Error(`Invalid message: ${json}`));
-                    }
+                    });
                 }).on("close", () => {
                     // Remove the client from the list if it has been stopped.
                     this.hostClients = this.hostClients.filter(item => item.socket !== client);
@@ -838,18 +856,19 @@ export class App {
      */
     protected tryConnect(sockFile: string, resolve: () => void, reject: (err: Error) => void) {
         const client = net.createConnection(sockFile, () => {
-            client.write(JSON.stringify({ cmd: "connect", app: this.serverName }));
+            client.write(JSON.stringify({ cmd: "connect", app: this.serverName }) + "\n");
             this.guest = client;
             resolve();
         });
 
-        client.setNoDelay(true);
         client.on("data", (buf) => {
-            try {
-                const msg = JSON.parse(buf.toString()) as {
-                    cmd: "reload" | "stop" | "stat";
-                    msgId: string;
-                };
+            App.processSocketMessage(buf, (err, msg: {
+                cmd: "reload" | "stop" | "stat";
+                msgId: string;
+            }) => {
+                if (err) {
+                    return; // ignore invalid messages
+                }
 
                 if (msg.cmd === "reload") {
                     this._reload(msg.msgId).catch(console.error);
@@ -859,14 +878,17 @@ export class App {
                     client.write(JSON.stringify({
                         cmd: "reply",
                         msgId: msg.msgId,
-                        result: { memory: process.memoryUsage().rss }
-                    }));
+                        result: {
+                            pid: process.pid,
+                            memory: process.memoryUsage().rss,
+                            uptime: process.uptime(),
+                            entry: require.main?.filename,
+                        }
+                    }) + "\n");
                 } else {
                     // ignore other messages
                 }
-            } catch {
-                // ignore other messages
-            }
+            });
         }).on("end", () => {
             if (!this.host && !this.isStopped) {
                 // If the connection is closed by the host server and the client is not marked
@@ -886,8 +908,30 @@ export class App {
         });
     }
 
+    private static processSocketMessage(buf: Buffer, handle: (err: Error, msg: any) => void) {
+        const str = buf.toString();
+
+        try {
+            const jsons = str.split("\n");
+
+            for (const json of jsons) {
+                if (!json)
+                    continue;
+
+                try {
+                    const msg = JSON.parse(json);
+                    handle(null, msg);
+                } catch {
+                    handle(new Error("Invalid message: " + str), null);
+                }
+            }
+        } catch {
+            handle(new Error("Invalid message: " + str), null);
+        }
+    }
+
     /**
-     * Sends control command to the gRPC apps.
+     * Sends control command to the gRPC apps. This function is mainly used in the CLI tool.
      * 
      * @param cmd 
      * @param app The app's name that should received the command. If not provided, the command is
@@ -900,18 +944,15 @@ export class App {
 
         await new Promise<void>((resolve, reject) => {
             const client = net.createConnection(sockFile, () => {
-                client.write(JSON.stringify({ cmd, app }));
+                client.write(JSON.stringify({ cmd, app }) + "\n");
             });
 
-            client.setNoDelay(true);
             client.on("data", (buf) => {
-                const json = buf.toString();
-
-                try {
-                    const reply = JSON.parse(json) as {
-                        result?: any;
-                        error?: string;
-                    };
+                this.processSocketMessage(buf, (err, reply: { result?: any; error?: string; }) => {
+                    if (err) {
+                        console.error(err);
+                        return;
+                    }
 
                     if (reply.error) {
                         console.error(reply.error);
@@ -919,20 +960,25 @@ export class App {
                         const list = reply.result as {
                             app: string;
                             uri: string;
+                            pid: number;
                             memory: number;
+                            uptime: number;
+                            entry: string;
                         }[];
 
                         console.table(list.map(item => ({
                             ...item,
+                            uptime: humanizeDuration(item.uptime * 1000, {
+                                largest: 1,
+                                round: true,
+                            }),
                             memory: `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
+                            entry: item.entry?.slice(process.cwd().length + 1),
                         })));
                     } else {
                         console.info(reply.result ?? null);
                     }
-                } catch (err) {
-                    console.error(err);
-                    console.log(json);
-                }
+                });
             }).on("end", resolve).once("error", (err) => {
                 if (err["code"] === "ENOENT") {
                     console.info("No app is running");

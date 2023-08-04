@@ -141,8 +141,12 @@ program.command("start")
                     forkOptions.stdio = ["ignore", stdout, stderr, "ipc"];
                 }
 
+                if (app.env) {
+                    forkOptions.env = app.env;
+                }
+
                 const child = fork(
-                    __filename,
+                    app.entry || __filename,
                     options.config ? [app.name, options.config] : [app.name],
                     forkOptions);
 
@@ -232,11 +236,11 @@ program.command("list")
     });
 
 if (process.send) {
-    const appName = process.argv[2];
-    const config = process.argv[3];
-
-    if (appName) {
+    if (require.main.filename === __filename) {
+        const appName = process.argv[2];
+        const config = process.argv[3];
         const app = new App(config);
+
         app.start(appName).catch(console.error).finally(() => {
             process.disconnect();
         });

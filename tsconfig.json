@@ -10,7 +10,13 @@
         "noImplicitThis": true,
         "sourceMap": true,
         "declaration": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "paths": {
+            "@hyurl/grpc-boot": [
+                "./index"
+            ]
+        }
     },
     "include": [
         "*.ts",
