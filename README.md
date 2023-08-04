@@ -2,6 +2,12 @@
 
 Make it easy to create standalone and elegant gRPC based applications.
 
+## Install
+
+```sh
+npm i @hyurl/grpc-boot
+```
+
 ## First Impression
 
 Take a look at the following config file ([boot.config.json](./boot.config.json)):
@@ -135,6 +141,18 @@ dependencies (exclude the ones in `node_modules`), and reload them all at once. 
 doesn't restart the process, all context stores in the global scope are still available.
 Hot-reloading is much faster than restarting the whole program, the clients will experience
 0-downtime of our services.
+
+It's important to point out, though, that the hot-reloading model this package uses only supports
+services and their dependencies, any other code, for example, the change of the entry file, will not
+join the reloading process and cannot be hot-reloaded, if such changes are made, a full restart is
+needed for the new code to run.
+
+**Why not auto-reload when the file is changed?**
+
+gRPC uses the `.proto` file for definition and the `.ts` file for implementation, it's hard to keep
+track on both files at the same time. If reload immediately after a file is changed, there may be
+inconsistency between the two files and causing program failure. So this package provides the
+`reload` command that allows us to manually reload the app when we're done with our changes.
 
 ### NOTE: The CLI tool is not a replacement of PM2
 
