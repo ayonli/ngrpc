@@ -14,9 +14,7 @@ Take a look at the following config file ([boot.config.json](./boot.config.json)
         "./services"
     ],
     "protoOptions": {
-        "keepCase": true,
         "longs": "String",
-        "enums": "String",
         "defaults": true,
         "oneofs": true
     },
