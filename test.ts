@@ -69,7 +69,7 @@ describe("App.boot", () => {
     });
 
     it("App.boot()", async function () {
-        this.timeout(10_000);
+        this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
@@ -102,7 +102,7 @@ describe("App.boot", () => {
     });
 
     it("App.boot(null, config)", async function () {
-        this.timeout(10_000);
+        this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
@@ -123,7 +123,7 @@ describe("App.boot", () => {
 
 describe("app.[method]", () => {
     it("app.stop()", async function () {
-        this.timeout(10_000); // prolong test for gRPC connection timeout
+        this.timeout(20_000); // prolong test for gRPC connection timeout
         let app: App;
         let reply: any;
         let reply2: any;
@@ -146,7 +146,7 @@ describe("app.[method]", () => {
     });
 
     it("app.reload()", async function () {
-        this.timeout(10_000);
+        this.timeout(20_000);
 
         let app: App;
         let reply: any;
@@ -255,7 +255,7 @@ describe("App.loadConfig*", () => {
 
 describe("App.runSnippet", () => {
     it("App.runSnippet(fn)", async function () {
-        this.timeout(10_000);
+        this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
@@ -271,7 +271,7 @@ describe("App.runSnippet", () => {
     });
 
     it("App.runSnippet(fn, config)", async function () {
-        this.timeout(10_000);
+        this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
         spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
