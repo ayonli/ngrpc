@@ -302,8 +302,14 @@ export default class App {
             // Remove cached files and their dependencies so, when reloading, they could be
             // reimported and use any changes inside them.
             const filenames = [...this.serverRegistry.keys()].map(serviceName => {
-                return path.join(process.cwd(), serviceName.split(".").join(path.sep));
-            });
+                const basename = serviceName.split(".").join(path.sep);
+
+                // try both .ts and .js files
+                return [
+                    path.join(process.cwd(), basename + ".ts"),
+                    path.join(process.cwd(), basename + ".js")
+                ];
+            }).flat();
             const dependencies = findDependencies(filenames);
 
             [...filenames, ...dependencies].forEach(filename => {
@@ -380,8 +386,14 @@ export default class App {
 
         this.manager ||= new ConnectionManager();
         const rootNsp = this.conf.package;
-        // @ts-ignore
-        global[rootNsp] ||= this.manager.useChainingSyntax(rootNsp);
+
+        if (reload) {
+            // @ts-ignore
+            global[rootNsp] ||= this.manager.useChainingSyntax(rootNsp);
+        } else {
+            // @ts-ignore
+            global[rootNsp] = this.manager.useChainingSyntax(rootNsp);
+        }
 
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
