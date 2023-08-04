@@ -12,7 +12,15 @@ import {
     credentials,
     loadPackageDefinition
 } from "@grpc/grpc-js";
-import { serve, unserve, connect, LoadBalancer, ConnectionManager, ServerConfig } from "@hyurl/grpc-async";
+import {
+    serve,
+    unserve,
+    connect,
+    ServiceClient,
+    LoadBalancer,
+    ConnectionManager,
+    ServerConfig
+} from "@hyurl/grpc-async";
 import get = require("lodash/get");
 import isEqual = require("lodash/isEqual");
 import orderBy = require("lodash/orderBy");
@@ -22,6 +30,8 @@ import isSocketResetError = require("is-socket-reset-error");
 import { absPath, ensureDir } from "./util";
 import { findDependencies } from "require-chain";
 import humanizeDuration = require("humanize-duration");
+
+export type { ServiceClient };
 
 /** These type represents the structures and properties set in the config file. */
 export type Config = {
@@ -69,7 +79,7 @@ export interface LifecycleSupportInterface {
  * - a URI or address that corresponds to the ones that set in the config file;
  * - an app's name that corresponds to the ones that set in the config file;
  * - if none of the above matches, use the hash algorithm on the `route` value;
- * - if `route` value is set, then the default round-robin algorithm is used for routing.
+ * - if `route` value is not set, then the default round-robin algorithm is used for routing.
  */
 export interface RoutableMessageStruct {
     route: string;
@@ -111,11 +121,11 @@ export class App {
     protected _onReload: () => void = null;
     protected _onStop: () => void = null;
 
-    constructor(protected config: string = "") {
+    constructor(protected config = "") {
         this.conf = App.loadConfig(config);
     }
 
-    static loadConfig(config: string = "") {
+    static loadConfig(config = "") {
         config = absPath(config || "boot.config.json");
         const fileContent = fs.readFileSync(config, "utf8");
         const conf: Config = JSON.parse(fileContent);
@@ -141,6 +151,40 @@ export class App {
         }
 
         return conf;
+    }
+
+    static loadConfigForPM2(config = "") {
+        const conf = this.loadConfig(config);
+
+        return {
+            apps: conf.apps.filter(app => app.serve && app.entry).map(app => {
+                const _app: {
+                    name: string;
+                    script: string;
+                    env?: { [name: string]: string; };
+                    log_file?: string;
+                    out_file?: string;
+                    err_file?: string;
+                } = {
+                    name: app.name,
+                    script: app.entry,
+                    env: app.env,
+                };
+
+                if (app.stdout && app.stderr) {
+                    if (app.stdout === app.stderr) {
+                        _app["log_file"] = app.stdout;
+                    } else {
+                        _app["out_file"] = app.stdout;
+                        _app["err_file"] = app.stderr;
+                    }
+                } else if (app.stdout) {
+                    _app["log_file"] = app.stdout;
+                }
+
+                return _app;
+            })
+        };
     }
 
     protected async loadProtoFiles(dirs: string[], options: ProtoOptions, reload = false) {
@@ -570,7 +614,7 @@ export class App {
         return await this._stop();
     }
 
-    protected async _stop(msgId: string = "") {
+    protected async _stop(msgId = "") {
         for (const [_, { ins }] of this.serverRegistry) {
             if (typeof ins.destroy === "function") {
                 await (ins as LifecycleSupportInterface).destroy();
@@ -621,7 +665,7 @@ export class App {
         return await this._reload();
     }
 
-    protected async _reload(msgId: string = "") {
+    protected async _reload(msgId = "") {
         this.oldConf = this.conf;
         this.conf = App.loadConfig(this.config);
 
@@ -997,7 +1041,7 @@ export class App {
      * can use the services as we normally do in our program, and after the main `fn` function is
      * run, the app is automatically stopped.
      * 
-     * @param fn The function needs to be run.
+     * @param fn The function to be run.
      * @param config Use a custom config file.
      */
     static async runSnippet(fn: () => void | Promise<void>, config: string = void 0) {

@@ -107,7 +107,7 @@ program.command("init")
     });
 
 program.command("start")
-    .description("start a gRPC app or all apps (exclude pure-clients ones)")
+    .description("start a gRPC app or all apps (exclude non-served ones)")
     .argument("[app]", "the app name in the config file")
     .option("-d, --detach", "allow the CLI command to exit after starting the app")
     .option("-c, --config <filename>", "use a custom config file")
@@ -225,7 +225,7 @@ program.command("stop")
     });
 
 program.command("list")
-    .description("list all gRPC apps (exclude pure-clients ones)")
+    .description("list all gRPC apps (exclude non-served ones)")
     .option("c, --config <filename>", "use a custom config file")
     .action(async (_, options) => {
         try {

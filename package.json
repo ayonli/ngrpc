@@ -1,7 +1,7 @@
 {
   "name": "@hyurl/grpc-boot",
   "version": "1.0.0",
-  "description": "Makes it easy to create standalone and elegant gRPC based applications.",
+  "description": "Make it easy to create standalone and elegant gRPC based applications.",
   "main": "index.js",
   "scripts": {
     "prepublishOnly": "tsc",

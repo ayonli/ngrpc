@@ -18,6 +18,7 @@
         },
         "protoOptions": {
             "type": "object",
+            "description": "These options are used when loading the `.proto` files.",
             "properties": {
                 "keepCase": {
                     "type": "boolean",
@@ -77,12 +78,13 @@
         },
         "apps": {
             "type": "array",
+            "description": "This property configures the apps that this project serves and connects.",
             "items": {
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "The name of this app."
+                        "description": "The name of the app."
                     },
                     "uri": {
                         "type": "string",
@@ -91,7 +93,7 @@
                     },
                     "serve": {
                         "type": "boolean",
-                        "description": "If this app is served by the grpc-boot server.",
+                        "description": "If this app is served by the gRPC Boot app server.",
                         "default": false
                     },
                     "services": {
@@ -103,15 +105,15 @@
                     },
                     "cert": {
                         "type": "string",
-                        "description": "The certificate filename when using SSL/TLS."
+                        "description": "The certificate filename when using SSL."
                     },
                     "key": {
                         "type": "string",
-                        "description": "The private key filename when using SSL/TLS."
+                        "description": "The private key filename when using SSL."
                     },
                     "connectTimeout": {
                         "type": "integer",
-                        "description": "Connection timeout is milliseconds."
+                        "description": "Connection timeout in milliseconds, the default value is `120_000` ms."
                     },
                     "options": {
                         "type": "object",
