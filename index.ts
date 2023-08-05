@@ -819,9 +819,7 @@ export default class App {
                                     client.destroy(new Error(`gRPC app [${msg.app}] is not running`));
                                 }
                             } else {
-                                const clients = msg.cmd === "stop"
-                                    ? this.hostClients.filter(item => !!item.app)
-                                    : [...this.hostClients];
+                                const clients = [...this.hostClients];
                                 let count = 0;
 
                                 clients.forEach(_client => {
@@ -963,7 +961,10 @@ export default class App {
         const client = net.createConnection(sockFile, () => {
             client.write(JSON.stringify({ cmd: "handshake", app: this.serverName }) + "\n");
             this.guest = client;
-            resolve();
+
+            if (!this.canTryHost) {
+                resolve();
+            }
         });
         const retryHost = () => {
             const lastHostName = this.hostName;
@@ -999,6 +1000,10 @@ export default class App {
                 if (msg.cmd === "handshake") {
                     this.hostName = msg.app;
                     this.hostStopped = false;
+
+                    if (this.canTryHost) {
+                        resolve();
+                    }
                 } else if (msg.cmd === "goodbye") {
                     this.hostStopped = true;
                 } else if (msg.cmd === "reload") {
