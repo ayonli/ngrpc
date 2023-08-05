@@ -72,7 +72,11 @@ describe("App.boot", () => {
         this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
-        spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
+        if (isTsNode) {
+            spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
+        } else {
+            spawnSync("node", ["cli.js", "start", "-d"]);
+        }
 
         try {
             await App.boot();
@@ -105,7 +109,11 @@ describe("App.boot", () => {
         this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
-        spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
+        if (isTsNode) {
+            spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
+        } else {
+            spawnSync("node", ["cli.js", "start", "-d", "-c", "test.config.json"]);
+        }
 
         try {
             await App.boot(null, "test.config.json");
@@ -258,7 +266,11 @@ describe("App.runSnippet", () => {
         this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
-        spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
+        if (isTsNode) {
+            spawnSync("npx", ["ts-node", "cli.ts", "start", "-d"]);
+        } else {
+            spawnSync("node", ["cli.js", "start", "-d"]);
+        }
 
         let reply: any;
 
@@ -274,7 +286,11 @@ describe("App.runSnippet", () => {
         this.timeout(20_000);
 
         // Use a child process to start the app so that the clients won't be connected automatically.
-        spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
+        if (isTsNode) {
+            spawnSync("npx", ["ts-node", "cli.ts", "start", "-d", "-c", "test.config.json"]);
+        } else {
+            spawnSync("node", ["cli.js", "start", "-d", "-c", "test.config.json"]);
+        }
 
         let reply: any;
 

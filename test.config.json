@@ -16,7 +16,8 @@
             "serve": true,
             "services": [
                 "services.ExampleService"
-            ]
+            ],
+            "stdout": "out.log"
         }
     ]
 }

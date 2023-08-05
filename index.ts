@@ -646,40 +646,39 @@ export default class App {
         this.server?.forceShutdown();
         this.isStopped = true;
 
-        if (msgId) {
-            // If `msgId` is provided, that means the stop event is issued by a guest app, for
-            // example, the CLI tool, in this case, we need to send feedback to acknowledge the
-            // sender that the process has finished.
-            let result: string;
+        const closeGuestSocket = () => {
+            if (msgId) {
+                // If `msgId` is provided, that means the stop event is issued by a guest app, for
+                // example, the CLI tool, in this case, we need to send feedback to acknowledge the
+                // sender that the process has finished.
+                let result: string;
 
-            if (this.serverName) {
-                result = `gRPC app [${this.serverName}] stopped`;
-                console.info(result);
+                if (this.serverName) {
+                    result = `gRPC app [${this.serverName}] stopped`;
+                    console.info(result);
+                } else {
+                    result = "gRPC clients stopped";
+                }
+
+                this.guest?.end(JSON.stringify({
+                    cmd: "reply",
+                    msgId: msgId,
+                    result
+                }));
             } else {
-                result = "gRPC clients stopped";
+                this.guest?.end();
             }
-
-            this.guest?.end(JSON.stringify({
-                cmd: "reply",
-                msgId: msgId,
-                result
-            }));
-        }
+        };
 
         if (this.host) {
-            this.hostStopped = true;
-            this.guest?.destroy();
             this.hostClients.forEach(client => {
-                if (client.app === this.serverName) {
-                    client.stopped = true;
-                } else if (!client.socket.destroyed && !client.socket.closed) {
-                    client.socket.end(JSON.stringify({
-                        cmd: "goodbye",
-                        app: this.serverName,
-                    }));
-                }
+                client.socket.write(JSON.stringify({
+                    cmd: "goodbye",
+                    app: this.serverName,
+                }));
             });
 
+            closeGuestSocket();
             await new Promise<void>((resolve, reject) => {
                 this.host.close((err) => {
                     if (err) {
@@ -691,10 +690,11 @@ export default class App {
                 });
             });
         } else {
-            this.guest?.end(JSON.stringify({
+            this.guest?.write(JSON.stringify({
                 cmd: "goodbye",
                 app: this.serverName,
-            }));
+            }) + "\n");
+            closeGuestSocket();
             this._onStop?.();
         }
     }
@@ -852,23 +852,29 @@ export default class App {
                                 this.hostClients.forEach(_client => {
                                     const msgId = Math.random().toString(16).slice(2);
 
-                                    _client.socket.write(JSON.stringify({
-                                        cmd: msg.cmd,
-                                        msgId,
-                                    }) + "\n");
-                                    this.hostCallbacks.set(msgId, (reply) => {
-                                        client.write(JSON.stringify(reply) + "\n");
+                                    if (_client.stopped) {
+                                        count++;
+                                    } else {
+                                        _client.socket.write(JSON.stringify({
+                                            cmd: msg.cmd,
+                                            msgId,
+                                        }) + "\n");
+                                        this.hostCallbacks.set(msgId, (reply) => {
+                                            client.write(JSON.stringify(reply) + "\n");
 
-                                        if (++count === limit) {
-                                            client.end();
-                                        }
-                                    });
+                                            if (++count === limit) {
+                                                client.end();
+                                            }
+                                        });
+                                    }
                                 });
                             }
                         } else if (msg.cmd === "list") {
                             // When the host app receives a `list` command, we list all the clients
                             // with names and collect some information about them.
-                            const clients = this.hostClients.filter(item => !!item.app);
+                            const clients = this.hostClients.filter(item => {
+                                return !!item.app && !item.stopped;
+                            });
                             type Stat = {
                                 pid: number;
                                 memory: number;
@@ -935,7 +941,7 @@ export default class App {
                         // host server and the later marked it as `stopped` normally. Otherwise, the
                         // connection is closed due to program failure on the client-side, we can
                         // try to revive the client app.
-                        if (_client.app && 
+                        if (_client.app &&
                             _client.app !== this.serverName &&
                             !_client.stopped &&
                             !this.hostStopped

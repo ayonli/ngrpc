@@ -198,7 +198,7 @@ program.command("stop")
 
 program.command("list")
     .description("list all gRPC apps (exclude non-served ones)")
-    .option("c, --config <filename>", "use a custom config file")
+    .option("-c, --config <filename>", "use a custom config file")
     .action(async (_, options: { config?: string; }) => {
         try {
             await App.sendCommand("list", void 0, options.config);

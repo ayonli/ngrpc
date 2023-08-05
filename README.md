@@ -131,7 +131,7 @@ or connect to the services, all is properly handled internally by the gRPC Boot 
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
 
-- `stop` stop a gRPC or all gRPC apps
+- `stop [options] [app]` stop a gRPC or all gRPC apps
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
