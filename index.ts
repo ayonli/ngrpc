@@ -388,14 +388,8 @@ export default class App {
 
         this.manager ||= new ConnectionManager();
         const rootNsp = this.conf.package;
-
-        if (reload) {
-            // @ts-ignore
-            global[rootNsp] ||= this.manager.useChainingSyntax(rootNsp);
-        } else {
-            // @ts-ignore
-            global[rootNsp] = this.manager.useChainingSyntax(rootNsp);
-        }
+        // @ts-ignore
+        global[rootNsp] = this.manager.useChainingSyntax(rootNsp);
 
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
