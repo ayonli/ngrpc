@@ -27,7 +27,7 @@ import orderBy = require("lodash/orderBy");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
-import { absPath, ensureDir } from "./util";
+import { absPath, ensureDir, forkServer as forkApp } from "./util";
 import { findDependencies } from "require-chain";
 import humanizeDuration = require("humanize-duration");
 
@@ -102,17 +102,19 @@ export default class App {
     // The Host-Guest model is a mechanism used to hold communication between all apps running on
     // the same machine.
     //
-    // When a app starts, regarding serves as a server or just pure clients, it joins the party and
-    // tries to gain the host-ship. If succeeds, it becomes the host app and others become guests.
+    // When a app starts, regarding serves as a server or just pure clients, it joins the group and
+    // tries to gain the hostship. If succeeds, it becomes the host app and others become guests.
     // The host app starts a guest client that connects to itself as well. Through the host app,
     // guests can talk to each other.
     //
     // This mechanism is primarily used for the CLI tool sending control commands to the apps. When
-    // the CLI tool starts, it becomes one of the member of the party (it starts a pure clients app),
+    // the CLI tool starts, it becomes one of the member of the group (it starts a pure clients app),
     // and use this communication channel to send commands like `reload` and `stop` to other apps.
     protected host: net.Server = null;
-    protected hostClients: { socket: net.Socket, app?: string; }[] = [];
+    protected hostClients: { socket: net.Socket, stopped: boolean; app?: string; }[] = [];
     protected hostCallbacks = new Map<string, (result: any) => void>();
+    protected hostName: string = void 0;
+    protected hostStopped = false;
     protected guest: net.Socket = null;
     protected canTryHost = false;
 
@@ -368,11 +370,11 @@ export default class App {
                 }
 
                 this.server.bindAsync(address, cred, (err) => {
-                    this.server.start();
-
                     if (err) {
+                        console.log(err, this.serverName);
                         reject(err);
                     } else {
+                        this.server.start();
                         console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
                         resolve();
                     }
@@ -584,7 +586,7 @@ export default class App {
                 // If the socket file already exists, there either be the host app already exists or
                 // the socket file is left there because an unclean shutdown of the previous host
                 // app. We need to first try to connect to it, if not succeeded, delete it and try
-                // to gain the host-ship.
+                // to gain the hostship.
                 try {
                     await new Promise<void>((resolve, reject) => {
                         this.tryConnect(sockFile, resolve, reject);
@@ -622,7 +624,7 @@ export default class App {
 
         // When starting, if no `app` is provided and no `require.main` is presented, that means the
         // the is running in the Node.js REPL and we're trying only to connect to services, in this
-        // case, we don't need to try gaining the host-ship.
+        // case, we don't need to try gaining the hostship.
         await ins._start(app, !!(app || require.main));
 
         return ins;
@@ -665,10 +667,16 @@ export default class App {
         }
 
         if (this.host) {
+            this.hostStopped = true;
             this.guest?.destroy();
-            this.hostClients.forEach(({ socket }) => {
-                if (socket !== this.guest) {
-                    socket.end();
+            this.hostClients.forEach(client => {
+                if (client.app === this.serverName) {
+                    client.stopped = true;
+                } else if (!client.socket.destroyed && !client.socket.closed) {
+                    client.socket.end(JSON.stringify({
+                        cmd: "goodbye",
+                        app: this.serverName,
+                    }));
                 }
             });
 
@@ -683,7 +691,10 @@ export default class App {
                 });
             });
         } else {
-            this.guest?.destroy();
+            this.guest?.end(JSON.stringify({
+                cmd: "goodbye",
+                app: this.serverName,
+            }));
             this._onStop?.();
         }
     }
@@ -759,7 +770,7 @@ export default class App {
             // If the socket file already exists, there either be the host app already exists or the
             // socket file is left there because an unclean shutdown of the previous host app. We
             // need to first try to connect to it, if not succeeded, delete it and try to gain the
-            // host-ship.
+            // hostship.
             try {
                 await new Promise<void>((resolve, reject) => {
                     this.tryConnect(sockFile, resolve, reject);
@@ -774,7 +785,7 @@ export default class App {
             const host = net.createServer(client => {
                 client.on("data", (buf) => {
                     App.processSocketMessage(buf, (err, msg: {
-                        cmd: "connect" | "reload" | "stop" | "list" | "reply",
+                        cmd: "handshake" | "goodbye" | "reload" | "stop" | "list" | "reply",
                         app?: string,
                         msgId?: string;
                     }) => {
@@ -783,8 +794,8 @@ export default class App {
                             return;
                         }
 
-                        if (msg.cmd === "connect") {
-                            // After a guest establish the socket connection, it sends a `connect`
+                        if (msg.cmd === "handshake") {
+                            // After a guest establish the socket connection, it sends a `handshake`
                             // command indicates a signing-in, we then store the client in the
                             // `hostClients` property for broadcast purposes.
 
@@ -794,11 +805,26 @@ export default class App {
                                 } else if (this.hostClients.some(item => item.app === msg.app)) {
                                     client.destroy(new Error(`gRPC app [${msg}] is already running`));
                                 } else {
-                                    this.hostClients.push({ socket: client, app: msg.app });
+                                    this.hostClients.push({
+                                        socket: client,
+                                        stopped: false,
+                                        app: msg.app,
+                                    });
                                 }
                             } else {
-                                this.hostClients.push({ socket: client });
+                                this.hostClients.push({ socket: client, stopped: false });
                             }
+
+                            client.write(JSON.stringify({
+                                cmd: "handshake",
+                                app: this.serverName,
+                            }) + "\n");
+                        } else if (msg.cmd === "goodbye") {
+                            this.hostClients.forEach(_client => {
+                                if (_client.socket === client) {
+                                    _client.stopped = true;
+                                }
+                            });
                         } else if (msg.cmd === "reload" || msg.cmd == "stop") {
                             // When the host app receives a control command, it distribute the
                             // command to the target app or all apps if the app is not specified.
@@ -881,7 +907,6 @@ export default class App {
                                     }
                                 });
                             });
-
                         } else if (msg.cmd === "reply") {
                             // When a guest app finishes a control command, it send feedback via the
                             // `reply` command, we use the `msgId` to retrieve the callback, run it
@@ -900,9 +925,35 @@ export default class App {
                         }
                     });
                 }).on("close", () => {
-                    // Remove the client from the list if it has been stopped.
-                    this.hostClients = this.hostClients.filter(item => item.socket !== client);
+                    const _client = this.hostClients.find(item => item.socket === client);
+
+                    if (_client) {
+                        // Remove the client from the list if it has been stopped.
+                        this.hostClients = this.hostClients.filter(item => item !== _client);
+
+                        // When the client is closed expectedly, it sends a `goodbye` command to the
+                        // host server and the later marked it as `stopped` normally. Otherwise, the
+                        // connection is closed due to program failure on the client-side, we can
+                        // try to revive the client app.
+                        if (_client.app && 
+                            _client.app !== this.serverName &&
+                            !_client.stopped &&
+                            !this.hostStopped
+                        ) {
+                            const app = this.conf.apps.find(app => app.name === _client.app);
+
+                            if (app) {
+                                forkApp(app, this.config).catch(console.error);
+                            }
+                        }
+                    }
                 });
+            }).once("error", err => {
+                if (err["code"] === "EEXIST") { // gaining hostship failed
+                    this.tryConnect(sockFile, resolve, reject);
+                } else {
+                    reject(err);
+                }
             });
 
             host.listen(sockFile, () => {
@@ -929,21 +980,47 @@ export default class App {
      */
     protected tryConnect(sockFile: string, resolve: () => void, reject: (err: Error) => void) {
         const client = net.createConnection(sockFile, () => {
-            client.write(JSON.stringify({ cmd: "connect", app: this.serverName }) + "\n");
+            client.write(JSON.stringify({ cmd: "handshake", app: this.serverName }) + "\n");
             this.guest = client;
             resolve();
         });
+        const retryHost = () => {
+            const lastHostName = this.hostName;
+
+            // If the connection is closed and the client is not marked closed, the client now is
+            // able to retry gaining the hostship.
+            this.tryHost().then(() => {
+                // When the host server is closed by the expectedly, it sends a `goodbye`
+                // command to the clients to acknowledge a clear shutdown, and the client
+                // mark `hostStopped`, otherwise, the connection is closed unexpectedly due
+                // to program failure, after the current app has gain the hostship, we can
+                // try to revive the formal host app.
+                if (lastHostName && !this.hostStopped) {
+                    const app = this.conf.apps.find(app => app.name === lastHostName);
+
+                    if (app) {
+                        return forkApp(app, this.config);
+                    }
+                }
+            }).catch(console.error);
+        };
 
         client.on("data", (buf) => {
             App.processSocketMessage(buf, (err, msg: {
-                cmd: "reload" | "stop" | "stat";
+                cmd: "handshake" | "goodbye" | "reload" | "stop" | "stat";
+                app?: string;
                 msgId: string;
             }) => {
                 if (err) {
                     return; // ignore invalid messages
                 }
 
-                if (msg.cmd === "reload") {
+                if (msg.cmd === "handshake") {
+                    this.hostName = msg.app;
+                    this.hostStopped = false;
+                } else if (msg.cmd === "goodbye") {
+                    this.hostStopped = true;
+                } else if (msg.cmd === "reload") {
                     this._reload(msg.msgId).catch(console.error);
                 } else if (msg.cmd === "stop") {
                     this._stop(msg.msgId).catch(console.error);
@@ -964,18 +1041,12 @@ export default class App {
             });
         }).on("end", () => {
             if (!this.host && !this.isStopped && this.canTryHost) {
-                // If the connection is closed by the host server and the client is not marked
-                // closed, it indicates that the server is closed by a guest app (mainly the CLI
-                // tool), the client now is able to retry gaining the host-ship.
-                this.tryHost().catch(console.error);
+                retryHost();
             }
         }).on("error", err => {
             if (isSocketResetError(err) && !this.host && !this.isStopped) {
-                // if the connection is interrupted, for example, force terminated by `ctrl + C`,
-                // and the client is not marked closed, the client now is able to retry gaining the
-                // host-ship.
                 if (this.canTryHost) {
-                    this.tryHost().catch(console.error);
+                    retryHost();
                 }
             } else {
                 reject(err);
@@ -987,14 +1058,14 @@ export default class App {
         const str = buf.toString();
 
         try {
-            const jsons = str.split("\n");
+            const chunks = str.split("\n");
 
-            for (const json of jsons) {
-                if (!json)
+            for (const chunk of chunks) {
+                if (!chunk)
                     continue;
 
                 try {
-                    const msg = JSON.parse(json);
+                    const msg = JSON.parse(chunk);
                     handle(null, msg);
                 } catch {
                     handle(new Error("Invalid message: " + str), null);

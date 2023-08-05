@@ -163,18 +163,18 @@ track on both files at the same time. If reload immediately after a file is chan
 inconsistency between the two files and causing program failure. So this package provides the
 `reload` command that allows us to manually reload the app when we're done with our changes.
 
-### NOTE: The CLI tool is not a replacement of PM2
+### About Process Management
 
-The control commands, such as `start`, `restart` and `list` provide a simple approach to manage gRPC
-applications during development, but the CLI tool is not a replacement of process management
-programs such as **PM2**, it lacks the ability to monit the applications and restart them if crashed.
+A server app may be automatically respawned if it is crashed, but this behavior requires at least
+one server app is still running. If our project only have one app that serves as a server, this
+feature will not function. 
 
 On the other hand, the CLI tool only works for the app instance, if the process contain other
 objects that prevent the process to exit, the `stop` command won't be able to terminate the process.
-So in production, use PM2 or containers instead.
 
-However, when the application is run via PM2, we can still use the `reload` command to hot-reload it
-after we have deployed new updates.
+It's recommended to use external process management tool such as **PM2** in production, which gives
+us more control of our program and provides more features such as monitoring. And while using PM2
+(or others), we can still use the `reload` command to hot-reload our app after deployed new updates.
 
 ## Programmatic API
 

@@ -3,10 +3,9 @@ import "source-map-support/register";
 import * as commander from "commander";
 import * as fs from "fs";
 import * as path from "path";
-import { fork, ForkOptions } from "child_process";
 import pkg = require("./package.json");
 import App, { Config } from ".";
-import { absPath, ensureDir } from "./util";
+import { absPath, ensureDir, forkServer } from "./util";
 
 const program = new commander.Command("grpc-boot");
 
@@ -114,51 +113,8 @@ async function handleStart(appName: string | undefined, options: {
 
     if (options.detach) { // fork a child process to start the app
         const start = async (app: Config["apps"][0]) => {
-            const forkOptions: ForkOptions = {
-                detached: true,
-                silent: true,
-            };
-            let stdout: number;
-            let stderr: number;
-
-            if (app.stdout) {
-                const filename = absPath(app.stdout);
-                await ensureDir(path.dirname(filename));
-                stdout = fs.openSync(filename, "a");
-            }
-
-            if (app.stderr) {
-                const filename = absPath(app.stderr);
-                await ensureDir(path.dirname(filename));
-                stderr = fs.openSync(filename, "a");
-            } else if (stdout) {
-                stderr = fs.openSync(absPath(app.stdout), "a");
-            }
-
-            if (stdout && stderr) {
-                forkOptions.stdio = ["ignore", stdout, stderr, "ipc"];
-            }
-
-            if (app.env) {
-                forkOptions.env = app.env;
-            }
-
-            const child = fork(
-                app.entry || __filename,
-                options.config ? [app.name, options.config] : [app.name],
-                forkOptions);
-
-            await new Promise<void>((resolve, reject) => {
-                child.on("disconnect", () => {
-                    resolve();
-                }).on("error", err => {
-                    reject(err);
-                });
-            });
-
+            await forkServer(app, options.config);
             console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
-
-            child.unref();
         };
 
         if (appName) {
