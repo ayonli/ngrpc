@@ -371,7 +371,6 @@ export default class App {
 
                 this.server.bindAsync(address, cred, (err) => {
                     if (err) {
-                        console.log(err, this.serverName);
                         reject(err);
                     } else {
                         this.server.start();

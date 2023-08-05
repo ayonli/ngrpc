@@ -146,6 +146,7 @@ describe("app.[method]", () => {
             reply2 = await services.ExampleService.sayHello({ name: "World" });
         } catch (_err) {
             err = _err;
+            app?.stop();
         }
 
         deepStrictEqual(reply, { message: "Hello, World" });
