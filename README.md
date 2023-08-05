@@ -56,10 +56,10 @@ Take a look at the following config file ([boot.config.json](./boot.config.json)
 }
 ```
 
-Now, start an app like this:
+Now, start the apps like this:
 
 ```sh
-npx grpc-boot start --detach example-server
+npx tsc && npx grpc-boot start
 ```
 
 It's just that simple.
@@ -84,15 +84,15 @@ It's just that simple.
         [services.ExampleService](./services/ExampleService.ts) and the
         [services.PostService](./services/PostService.ts), you will see that they're very simple
         TypeScript class files.
-    - `stdout` Log file used for stdout when starting the app via CLI command with `--detach` option.
-    - `entry` The entry file that is used to fork the app when starting with `--detach` option.
+    - `stdout` Log file used for stdout.
+    - `entry` The entry file that is used to spawn the app.
         Normally, this property is not required because the CLI command will use the default entry
         file for us. However, for demonstration, the above `post-server` uses a custom entry point
         [./main](./main.ts).
 
-        If a custom entry file is provided, it's fork with the arguments `appName [config]`, we can
-        use `process.argv[2]` to get the app's name and `process.argv[3]` to get the config filename
-        (if provided).
+        If a custom entry file is provided, it's spawned with the arguments `appName [config]`, we
+        can use `process.argv[2]` to get the app's name and `process.argv[3]` to get the config
+        filename (if provided).
 
     **More Options**
 
@@ -100,7 +100,7 @@ It's just that simple.
     - `key` The private key filename when using SSL.
     - `connectTimeout` Connection timeout is milliseconds, the default value is `5_000` ms.
     - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
-    - `stderr` Log file used for stderr when starting the app via CLI command with `--detach` option.
+    - `stderr` Log file used for stderr.
     - `env` The environment variables passed to the `entry` file.
 
 With these simple configurations, we can write our gRPC application straightforwardly in a `.proto`
@@ -116,12 +116,10 @@ or connect to the services, all is properly handled internally by the gRPC Boot 
 
 - `start [options] [app]` start a gRPC app or all apps (exclude non-served ones)
     - `options`
-        - `-d, --detach` allow the CLI command to exit after starting the app
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
 
-- `restart [options] [app]` restart a gRPC app or all gRPC apps (in detach mode, exclude
-    non-served ones)
+- `restart [options] [app]` restart a gRPC app or all gRPC apps (exclude non-served ones)
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
@@ -448,3 +446,34 @@ export interface RequestMessage extends RoutableMessageStruct {
     // other fields
 }
 ```
+
+## Running the Program in TS-Node
+
+The CLI tools starts the program either with `node` or `ts-node` according to the entry file. If the
+entry file's extension is `.js`, it spawn the process via `node`, which means the source code (in
+TypeScript) needs to be transpiled into JavaScript first in order to be run (the default behavior).
+If the filename ends with `.ts`, it load the program via `ts-node`, which allow TypeScript code run
+directly in the program.
+
+By default, gRPC Boot app uses a default entry file in JavaScript, which means our code needs to be
+transpiled. To use `ts-node` running TypeScript, we need to provide a custom entry file, just like
+the `post-server` app in the example shown on the top of this document.
+
+```json
+// ...
+{
+    "name": "post-server",
+    "uri": "grpc://localhost:4002",
+    "serve": true,
+    "services": [
+        "services.PostService"
+    ],
+    "stdout": "./out.log",
+    "entry": "./main"
+}
+// ...
+```
+
+And there is a trick here, we didn't provide the extension of the [./main](./main.ts) file, it
+allows the CLI tool to determine whether to use `node` or `ts-node` according the file presented.
+If `main.js` is presented, `node` is used, otherwise, `ts-node` is used.

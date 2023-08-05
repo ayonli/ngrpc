@@ -121,15 +121,15 @@
                     },
                     "stdout": {
                         "type": "string",
-                        "description": "Log file used for stdout when starting the app via CLI command with `--detach` option."
+                        "description": "Log file used for stdout."
                     },
                     "stderr": {
                         "type": "string",
-                        "description": "Log file used for stderr when starting the app via CLI command with `--detach` option."
+                        "description": "Log file used for stderr."
                     },
                     "entry": {
                         "type": "string",
-                        "description": "The entry file that is used to fork the app when starting with `--detach` option."
+                        "description": "The entry file that is used to spawn the app."
                     },
                     "env": {
                         "type": "object",

@@ -27,7 +27,7 @@ import orderBy = require("lodash/orderBy");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
-import { absPath, ensureDir, forkServer as forkApp } from "./util";
+import { absPath, ensureDir, spawnProcess } from "./util";
 import { findDependencies } from "require-chain";
 import humanizeDuration = require("humanize-duration");
 
@@ -151,6 +151,7 @@ export default class App {
     }
 
     static loadConfigForPM2(config = "") {
+        config = absPath(config || "boot.config.json");
         const conf = this.loadConfig(config);
 
         return {
@@ -158,6 +159,7 @@ export default class App {
                 const _app: {
                     name: string;
                     script: string;
+                    args: string[],
                     env?: { [name: string]: string; };
                     log_file?: string;
                     out_file?: string;
@@ -165,7 +167,8 @@ export default class App {
                 } = {
                     name: app.name,
                     script: app.entry,
-                    env: app.env,
+                    args: [app.name, config],
+                    env: app.env || {},
                 };
 
                 if (app.stdout && app.stderr) {
@@ -922,7 +925,7 @@ export default class App {
                             const app = this.conf.apps.find(app => app.name === _client.app);
 
                             if (app) {
-                                forkApp(app, this.config).catch(console.error);
+                                spawnProcess(app, this.config).catch(console.error);
                             }
                         }
                     }
@@ -981,7 +984,7 @@ export default class App {
                     const app = this.conf.apps.find(app => app.name === lastHostName);
 
                     if (app) {
-                        return forkApp(app, this.config);
+                        return spawnProcess(app, this.config);
                     }
                 }
             }).catch(console.error);

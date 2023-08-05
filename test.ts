@@ -87,7 +87,7 @@ describe("App.boot", () => {
     it("App.boot()", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", ["-d"], { stdio: "inherit" });
+        await runCliCommand("start", [], { stdio: "inherit" });
 
         try {
             await App.boot();
@@ -119,7 +119,7 @@ describe("App.boot", () => {
     it("App.boot(null, config)", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", ["-d", "-c", "test.config.json"], { stdio: "inherit" });
+        await runCliCommand("start", ["-c", "test.config.json"], { stdio: "inherit" });
 
         try {
             await App.boot(null, "test.config.json");
@@ -260,8 +260,9 @@ describe("App.loadConfig*", () => {
                 {
                     name: "post-server",
                     script: "./main",
+                    args: ["post-server", path.join(__dirname, "boot.config.json")],
+                    env: {},
                     log_file: "./out.log",
-                    env: void 0,
                 }
             ]
         });
@@ -272,7 +273,7 @@ describe("App.runSnippet", () => {
     it("App.runSnippet(fn)", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", ["-d"], { stdio: "inherit" });
+        await runCliCommand("start", [], { stdio: "inherit" });
 
         let reply: any;
 
@@ -287,7 +288,7 @@ describe("App.runSnippet", () => {
     it("App.runSnippet(fn, config)", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", ["-d", "-c", "test.config.json"]);
+        await runCliCommand("start", ["-c", "test.config.json"]);
 
         let reply: any;
 
@@ -361,7 +362,8 @@ describe("CLI:init", () => {
                 "serve": true,
                 "services": [
                     `grpc.ExampleService`
-                ]
+                ],
+                "stdout": "./out.log"
             }
         ]);
 
@@ -401,7 +403,8 @@ describe("CLI:init", () => {
                 "serve": true,
                 "services": [
                     `grpc.ExampleService`
-                ]
+                ],
+                "stdout": "./out.log"
             }
         ]);
 
@@ -413,42 +416,8 @@ describe("CLI:start", () => {
     it("start <app>", async function () {
         this.timeout(20_000);
 
-        let child: ChildProcess;
-        let app: App;
-
         try {
-            if (isTsNode) {
-                child = spawn("npx",
-                    ["ts-node", "cli.ts", "start", "example-server"],
-                    { stdio: "inherit" });
-            } else {
-                child = spawn("node", ["cli.js", "start", "example-server"], { stdio: "inherit" });
-            }
-
-            await new Promise<void>((resolve, reject) => {
-                child.once("spawn", () => resolve())
-                    .once("error", reject);
-            });
-            await new Promise((resolve) => setTimeout(resolve, 2_000)); // wait a while
-
-            app = await App.boot();
-            const reply = await services.ExampleService.sayHello({ name: "World" });
-            deepStrictEqual(reply, { message: "Hello, World" });
-
-            await app.stop();
-            child.kill();
-        } catch (err) {
-            await app?.stop();
-            child?.kill();
-            throw err;
-        }
-    });
-
-    it("start --detach <app>", async function () {
-        this.timeout(20_000);
-
-        try {
-            await runCliCommand("start", ["-d", "example-server"], { stdio: "inherit" });
+            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
             await App.boot();
 
             const reply = await services.ExampleService.sayHello({ name: "World" });
@@ -461,11 +430,11 @@ describe("CLI:start", () => {
         }
     });
 
-    it("start --detach", async function () {
+    it("start", async function () {
         this.timeout(20_000);
 
         try {
-            await runCliCommand("start", ["-d"]);
+            await runCliCommand("start", []);
             await App.boot();
 
             const reply = await services.ExampleService.sayHello({ name: "World" });
@@ -490,7 +459,7 @@ describe("CLI:restart", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", ["-d"], { stdio: "inherit" });
+            await runCliCommand("start", [], { stdio: "inherit" });
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -525,7 +494,7 @@ describe("CLI:restart", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", ["-d", "example-server"], { stdio: "inherit" });
+            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
             const app = await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -565,7 +534,7 @@ describe("CLI:reload", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", ["-d"], { stdio: "inherit" });
+            await runCliCommand("start", [], { stdio: "inherit" });
             await App.boot();
             await App.boot();
 
@@ -601,7 +570,7 @@ describe("CLI:reload", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", ["-d", "example-server"], { stdio: "inherit" });
+            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -636,7 +605,7 @@ describe("CLI:stop", () => {
         let err: any;
 
         try {
-            await runCliCommand("start", ["-d"], { stdio: "inherit" });
+            await runCliCommand("start", [], { stdio: "inherit" });
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -659,7 +628,7 @@ describe("CLI:stop", () => {
         let err: any;
 
         try {
-            await runCliCommand("start", ["-d", "example-server"], { stdio: "inherit" });
+            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });

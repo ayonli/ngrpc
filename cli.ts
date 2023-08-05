@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import pkg = require("./package.json");
 import App, { Config } from ".";
-import { absPath, ensureDir, forkServer } from "./util";
+import { absPath, ensureDir, spawnProcess } from "./util";
 
 const program = new commander.Command("grpc-boot");
 
@@ -70,7 +70,8 @@ program.command("init")
                         "serve": true,
                         "services": [
                             `${pkg}.ExampleService`
-                        ]
+                        ],
+                        "stdout": "./out.log"
                     }
                 ]
             };
@@ -107,57 +108,45 @@ program.command("init")
 
 async function handleStart(appName: string | undefined, options: {
     config?: string;
-    detach?: boolean;
 }) {
     const conf = App.loadConfig(options.config);
 
-    if (options.detach) { // fork a child process to start the app
-        const start = async (app: Config["apps"][0]) => {
-            await forkServer(app, options.config);
-            console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
-        };
+    const start = async (app: Config["apps"][0]) => {
+        await spawnProcess(app, options.config);
+        console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
+    };
 
-        if (appName) {
-            const app = conf.apps?.find(app => app.name === appName);
+    if (appName) {
+        const app = conf.apps?.find(app => app.name === appName);
 
-            if (!app) {
-                throw new Error(`gRPC app [${app.name}] doesn't exist in the config file`);
-            } else if (!app.serve) {
-                throw new Error(`gRPC app [${app.name}] is not intended to be served`);
-            }
-
-            await start(app);
-        } else {
-            await Promise.all(conf.apps.filter(app => app.serve).map(start));
+        if (!app) {
+            throw new Error(`gRPC app [${app.name}] doesn't exist in the config file`);
+        } else if (!app.serve) {
+            throw new Error(`gRPC app [${app.name}] is not intended to be served`);
         }
 
-        process.exit(0);
-    } else if (appName) {
-        try {
-            await App.boot(appName, options.config);
-        } catch (err) {
-            console.error(err.message || String(err));
-        }
+        await start(app);
     } else {
-        console.error("'app' argument is required when '--detach' option is not provided");
+        await Promise.all(conf.apps.filter(app => app.serve).map(start));
     }
+
+    process.exit(0);
 }
 
 program.command("start")
     .description("start a gRPC app or all apps (exclude non-served ones)")
     .argument("[app]", "the app name in the config file")
-    .option("-d, --detach", "allow the CLI command to exit after starting the app")
     .option("-c, --config <filename>", "use a custom config file")
     .action(handleStart);
 
 program.command("restart")
-    .description("restart a gRPC app or all gRPC apps (in detach mode, exclude non-served ones)")
+    .description("restart a gRPC app or all gRPC apps (exclude non-served ones)")
     .argument("[app]", "the app name in the config file")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string | undefined, options: { config?: string; }) => {
         try {
             await App.sendCommand("stop", appName, options.config);
-            await handleStart(appName, { ...options, detach: true });
+            await handleStart(appName, options);
         } catch (err) {
             console.error(err.message || String(err));
         }

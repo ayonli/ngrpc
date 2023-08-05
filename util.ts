@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { fork, ForkOptions } from "child_process";
+import { spawn, SpawnOptions } from "child_process";
 import { Config } from ".";
 
 export async function ensureDir(dirname: string) {
@@ -31,13 +31,27 @@ export function absPath(filename: string, withPipe = false): string {
     return filename;
 }
 
-export async function forkServer(app: Config["apps"][0], config = "") {
-    const forkOptions: ForkOptions = {
-        detached: true,
-        silent: true,
-    };
+export async function spawnProcess(app: Config["apps"][0], config = "") {
+    let entry = app.entry || path.join(__dirname, "cli");
+    const ext = path.extname(entry).toLowerCase();
+    let execCmd: "node" | "ts-node";
     let stdout: number;
     let stderr: number;
+    const options: SpawnOptions = {
+        detached: true,
+    };
+
+    if (ext === ".js") {
+        execCmd = "node";
+    } else if (ext === ".ts") {
+        execCmd = "ts-node";
+    } else if (fs.existsSync(entry + ".js")) {
+        execCmd = "node";
+    } else if (fs.existsSync(entry + ".ts")) {
+        execCmd = "ts-node";
+    } else {
+        throw new Error("Cannot determine the type of the entry file");
+    }
 
     if (app.stdout) {
         const filename = absPath(app.stdout);
@@ -54,23 +68,33 @@ export async function forkServer(app: Config["apps"][0], config = "") {
     }
 
     if (stdout && stderr) {
-        forkOptions.stdio = ["ignore", stdout, stderr, "ipc"];
+        options.stdio = ["ignore", stdout, stderr, "ipc"];
     } else {
-        throw new Error("'stdout' must be configured in detach mode");
+        options.stdio = ["ignore", "inherit", "inherit", "ipc"];
     }
 
     if (app.env) {
-        forkOptions.env = app.env;
+        options.env = app.env;
     }
 
-    const child = fork(
-        app.entry || path.join(__dirname, "cli"),
-        config ? [app.name, config] : [app.name],
-        forkOptions);
+    const args: string[] = [entry, app.name];
 
+    if (config) {
+        args.push(config);
+    }
+
+    if (execCmd === "ts-node") {
+        args.unshift("-r", "ts-node/register");
+    }
+
+    const child = spawn("node", args, options);
     await new Promise<void>((resolve, reject) => {
         child.on("disconnect", () => {
             resolve();
+        }).on("message", (msg) => {
+            if (msg === "ready") {
+                resolve();
+            }
         }).on("error", err => {
             reject(err);
         });
