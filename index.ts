@@ -819,10 +819,12 @@ export default class App {
                                     client.destroy(new Error(`gRPC app [${msg.app}] is not running`));
                                 }
                             } else {
+                                const clients = msg.cmd === "stop"
+                                    ? this.hostClients.filter(item => !!item.app)
+                                    : [...this.hostClients];
                                 let count = 0;
-                                let limit = this.hostClients.length;
 
-                                this.hostClients.forEach(_client => {
+                                clients.forEach(_client => {
                                     const msgId = Math.random().toString(16).slice(2);
 
                                     if (_client.stopped) {
@@ -835,7 +837,7 @@ export default class App {
                                         this.hostCallbacks.set(msgId, (reply) => {
                                             client.write(JSON.stringify(reply) + "\n");
 
-                                            if (++count === limit) {
+                                            if (++count === clients.length) {
                                                 client.end();
                                             }
                                         });

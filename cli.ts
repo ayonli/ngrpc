@@ -132,23 +132,14 @@ async function handleStart(appName: string | undefined, options: {
         }
 
         process.exit(0);
-    } else {
-        if (appName) {
-            try {
-                await App.boot(appName, options.config);
-            } catch (err) {
-                console.error(err.message || String(err));
-            }
-        } else {
-            const appNames = conf.apps.filter(app => app.serve).map(app => app.name);
-            await Promise.allSettled(appNames.map(async _appName => {
-                try {
-                    await App.boot(_appName, options.config);
-                } catch (err) {
-                    console.error(err.message || String(err));
-                }
-            }));
+    } else if (appName) {
+        try {
+            await App.boot(appName, options.config);
+        } catch (err) {
+            console.error(err.message || String(err));
         }
+    } else {
+        console.error("'app' argument is required when '--detach' option is not provided");
     }
 }
 

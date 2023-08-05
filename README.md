@@ -111,7 +111,7 @@ or connect to the services, all is properly handled internally by the gRPC Boot 
 
 - `init [options] [package]` initiate a new gRPC project
     - `options`
-        - `-c, config <filename>` create a custom config file
+        - `-c, --config <filename>` create a custom config file
     - `package` The package name / root namespace of the services, default 'services'
 
 - `start [options] [app]` start a gRPC app or all apps (exclude non-served ones)
