@@ -383,13 +383,8 @@ export default class App {
         }
     }
 
-    protected async initClients(reload = false) {
+    protected async initClients() {
         await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions);
-
-        this.manager ||= new ConnectionManager();
-        const rootNsp = this.conf.package;
-        // @ts-ignore
-        global[rootNsp] = this.manager.useChainingSyntax(rootNsp);
 
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
@@ -410,9 +405,17 @@ export default class App {
             }
         }
 
+        // IMPORTANT: keep the remaining code synchronous.
+
+        this.manager?.close(); // close old clients
+        this.manager = new ConnectionManager();
+        const rootNsp = this.conf.package;
+        // @ts-ignore
+        global[rootNsp] = this.manager.useChainingSyntax(rootNsp);
+
         // Reorganize client-side configuration based on the service name since the gRPC clients are
         // created based on the service.
-        const clientRegistry = this.conf.apps.reduce((registry, app) => {
+        this.clientRegistry = this.conf.apps.reduce((registry, app) => {
             for (const serviceName of app.services) {
                 const apps = registry.get(serviceName);
 
@@ -425,15 +428,6 @@ export default class App {
 
             return registry;
         }, new Map<string, Config["apps"]>());
-
-        if (reload) {
-            this.clientRegistry.forEach((_, serviceName) => {
-                if (!clientRegistry.has(serviceName)) {
-                    // Remove redundant service client or load balancer.
-                    this.manager.deregister(serviceName, true);
-                }
-            });
-        }
 
         const getAddress = (app: Config["apps"][0]) => {
             const { protocol, hostname, port } = new URL(app.uri);
@@ -472,19 +466,7 @@ export default class App {
             return { address, credentials: cred };
         };
 
-        clientRegistry.forEach((apps, serviceName) => {
-            if (reload && this.clientRegistry.has(serviceName)) {
-                // Remove old service client or load balancer.
-                // 
-                // We remove the connection just before it is reloaded, so that if for some reason
-                // we fail to reload it, that old connection can still be available.
-                // 
-                // Unlike the server-side, client-side doesn't have lifecycle logic and the
-                // connection doesn't happen immediately, and we preloaded the `cert`s and `key`s,
-                // so there would be no real delay for re-register.
-                this.manager.deregister(serviceName, true);
-            }
-
+        this.clientRegistry.forEach((apps, serviceName) => {
             if (apps.length === 1) {
                 const [app] = apps;
                 const { address, credentials: cred } = getConnectConfig(app);
@@ -558,8 +540,6 @@ export default class App {
                 this.manager.register(balancer);
             }
         });
-
-        this.clientRegistry = clientRegistry;
     }
 
     protected async _start(app = "", tryHost = false) {
@@ -710,7 +690,7 @@ export default class App {
             await this.initServer(this.serverName, true);
         }
 
-        await this.initClients(true);
+        await this.initClients();
 
         // Same as in the `start()` function, we only run the lifecycle `init()` functions when all
         // the necessary procedure are done, so that any logic, for example, calling another
