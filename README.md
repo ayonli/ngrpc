@@ -108,6 +108,9 @@ With these simple configurations, we can write our gRPC application straightforw
 file and a `.ts` file in the `services` directory, without any headache of how to start the server
 or connect to the services, all is properly handled internally by the gRPC Boot framework.
 
+**NOTE: this package uses [@hyurl/grpc-async](https://github.com/hyurl/grpc-async) to make life with**
+**gRPC easier.**
+
 ## CLI Commands
 
 - `init [options] [package]` initiate a new gRPC project
@@ -471,3 +474,58 @@ entry file, just like this.
 Moreover, instead of given the extension name, we can omitted (for example `./main`) and allow the
 CLI tool to determine whether to use `node` or `ts-node` according the file presented. If `main.js`
 is presented, `node` is used, otherwise, `ts-node` is used.
+
+## Multi-Config Project
+
+It's possible to define a project with multiple gRPC Boot configurations, just pass the custom
+config filename everywhere we need. This suits the scenario that the gRPC servers from other
+projects uses other package names that is different from ours (commonly `services`).
+
+For example, another project uses the package name `helloworld`, and we use the `GreeterService`
+from it. To do this, we can create a custom config file `helloworld.grpc-boot.json` like this:
+
+```json
+{
+    "package": "helloworld",
+    "protoDirs": ["helloworld"],
+    "protoOptions": {
+        "longs": "String",
+        "defaults": true,
+        "oneofs": true
+    },
+    "apps": [
+        {
+            "name": "greeter-server",
+            "uri": "grpc://greeter-server:4000",
+            "services": [
+                "helloworld.GreeterService"
+            ]
+        },
+    ]
+}
+```
+
+Then create a folder named `helloworld`, inside it, we create a TypeScript declaration
+`GreeterService.d.ts`:
+
+```ts
+import { ServiceClient } from "@hyurl/grpc-boot";
+
+declare global {
+    namespace helloworld {
+        const GreeterService: ServiceClient<GreeterService>;
+    }
+}
+
+// declare message types ...
+
+export default class GreeterService {
+    // declare methods ...
+}
+```
+
+Then in our entry file, add the following code:
+
+```ts
+await App.boot(null, "helloworld.grpc-boot.json");
+```
