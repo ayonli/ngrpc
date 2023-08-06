@@ -1,7 +1,9 @@
 node_modules
+certs
 test
 services
 .*
+*.sh
 *.tgz
 *.ts
 !*.d.ts
@@ -11,7 +13,6 @@ go.*
 *.log
 grpc-boot.json
 test.*
-test/
 postpublish.js
 main.*
 script.*

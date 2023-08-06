@@ -111,13 +111,17 @@
                             "type": "string"
                         }
                     },
+                    "ca": {
+                        "type": "string",
+                        "description": "The CA filename when using TLS/SSL."
+                    },
                     "cert": {
                         "type": "string",
-                        "description": "The certificate filename when using SSL."
+                        "description": "The certificate filename when using TLS/SSL."
                     },
                     "key": {
                         "type": "string",
-                        "description": "The private key filename when using SSL."
+                        "description": "The private key filename when using TLS/SSL."
                     },
                     "connectTimeout": {
                         "type": "integer",
@@ -155,9 +159,6 @@
                     "stderr": [
                         "serve",
                         "stdout"
-                    ],
-                    "script": [
-                        "serve"
                     ],
                     "args": [
                         "serve"

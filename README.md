@@ -97,8 +97,9 @@ It's just that simple.
 
     **More Options**
 
-    - `cert` The certificate filename when using SSL.
-    - `key` The private key filename when using SSL.
+    - `ca` The CA filename when using TLS/SSL.
+    - `cert` The certificate filename when using TLS/SSL.
+    - `key` The private key filename when using TLS/SSL.
     - `connectTimeout` Connection timeout is milliseconds, the default value is `5_000` ms.
     - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
     - `stderr` Log file used for stderr.

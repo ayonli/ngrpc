@@ -29,12 +29,15 @@
         },
         {
             "name": "post-server",
-            "uri": "grpc://localhost:4002",
+            "uri": "grpcs://localhost:4002",
             "serve": true,
             "services": [
                 "services.PostService"
             ],
-            "stdout": "./out.log"
+            "stdout": "./out.log",
+            "ca": "./certs/ca.crt",
+            "cert": "./certs/cert.crt",
+            "key": "./certs/cert.key"
         }
     ]
 }

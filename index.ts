@@ -46,6 +46,7 @@ export type Config = {
         uri: string;
         serve?: boolean;
         services: string[];
+        ca?: string;
         cert?: string;
         key?: string;
         connectTimeout?: number;
@@ -94,7 +95,7 @@ export default class App {
     protected manager: ConnectionManager = null;
     protected serverName: string = void 0;
     protected serverRegistry = new Map<string, { ctor: ServiceClientConstructor, ins: any; }>();
-    protected sslOptions: { cert: Buffer, key: Buffer; } = null;
+    protected sslOptions: { ca: Buffer, cert: Buffer, key: Buffer; } = null;
     protected serverOptions: ChannelOptions = null;
     protected rootNsp: string = void 0;
     protected clientRegistry = new Map<string, Config["apps"]>();
@@ -236,18 +237,23 @@ export default class App {
         let address = hostname;
         let newServer = !this.server;
         let useSSL = false;
+        let ca: Buffer;
         let cert: Buffer;
         let key: Buffer;
 
         if (protocol === "xds:") {
             throw new Error(`gRPC app [${app.name}] cannot be served since it uses 'xds:' protocol`);
         } else if (protocol === "grpcs:" || protocol === "https:") {
-            if (!app.cert) {
+            if (!app.ca) {
+                throw new Error(`Missing 'ca' config for app [${app.name}]`);
+            } else if (!app.cert) {
                 throw new Error(`Missing 'cert' config for app [${app.name}]`);
             } else if (!app.key) {
                 throw new Error(`Missing 'key' config for app [${app.name}]`);
             } else if (!port) {
                 address += ":443";
+            } else {
+                address += ":" + port;
             }
 
             useSSL = true;
@@ -263,21 +269,24 @@ export default class App {
                     this.sslOptions = null;
                     newServer = true;
                 } else {
+                    ca = await fs.promises.readFile(app.ca);
                     cert = await fs.promises.readFile(app.cert);
                     key = await fs.promises.readFile(app.key);
 
-                    if (Buffer.compare(cert, this.sslOptions.cert) ||
+                    if (Buffer.compare(ca, this.sslOptions.ca) ||
+                        Buffer.compare(cert, this.sslOptions.cert) ||
                         Buffer.compare(key, this.sslOptions.key)
                     ) {
                         // SSL credentials changed
-                        this.sslOptions = { cert, key };
+                        this.sslOptions = { ca, cert, key };
                         newServer = true;
                     }
                 }
             } else if (useSSL) { // non-SSL to SSL
+                ca = await fs.promises.readFile(app.ca);
                 cert = await fs.promises.readFile(app.cert);
                 key = await fs.promises.readFile(app.key);
-                this.sslOptions = { cert, key };
+                this.sslOptions = { ca, cert, key };
                 newServer = true;
             }
 
@@ -289,6 +298,11 @@ export default class App {
                     newServer = true;
                 }
             }
+        } else if (useSSL) {
+            ca = await fs.promises.readFile(app.ca);
+            cert = await fs.promises.readFile(app.cert);
+            key = await fs.promises.readFile(app.key);
+            this.sslOptions = { ca, cert, key };
         }
 
         if (reload && this.server) {
@@ -371,10 +385,10 @@ export default class App {
             await new Promise<void>(async (resolve, reject) => {
                 let cred: ServerCredentials;
 
-                // Create different knd of server credentials according to whether the `cert` and
-                // `key` are set.
-                if (cert && key) {
-                    cred = ServerCredentials.createSsl(cert, [{
+                // Create different knd of server credentials according to whether the certificates
+                // are set.
+                if (ca && cert && key) {
+                    cred = ServerCredentials.createSsl(ca, [{
                         private_key: key,
                         cert_chain: cert,
                     }], true);
@@ -398,12 +412,19 @@ export default class App {
     protected async initClients() {
         await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions);
 
+        const cas = new Map<string, Buffer>();
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
 
         // Preload `cert`s and `key`s so in the "connection" phase, there would be no latency for
         // loading resources asynchronously.
         for (const app of this.conf.apps) {
+            if (app.ca) {
+                const filename = absPath(app.ca);
+                const ca = await fs.promises.readFile(filename);
+                cas.set(filename, ca);
+            }
+
             if (app.cert) {
                 const filename = absPath(app.cert);
                 const cert = await fs.promises.readFile(filename);
@@ -448,12 +469,16 @@ export default class App {
             if (protocol === "xds:") {
                 address = app.uri;
             } else if (protocol === "grpcs:" || protocol === "https:") {
-                if (!app.cert) {
+                if (!app.ca) {
+                    throw new Error(`Missing 'ca' config for app [${app.name}]`);
+                } else if (!app.cert) {
                     throw new Error(`Missing 'cert' config for app [${app.name}]`);
                 } else if (!app.key) {
                     throw new Error(`Missing 'key' config for app [${app.name}]`);
                 } else if (!port) {
                     address += ":443";
+                } else {
+                    address += ":" + port;
                 }
             } else if ((protocol === "grpc:" || protocol === "http:") && !port) {
                 address += ":80";
@@ -468,9 +493,10 @@ export default class App {
             let cred: ChannelCredentials;
 
             if (app.uri.startsWith("grpcs:") || app.uri.startsWith("https:")) {
+                const ca = cas.get(absPath(app.ca));
                 const cert = certs.get(absPath(app.cert));
                 const key = keys.get(absPath(app.key));
-                cred = credentials.createSsl(cert, key, cert);
+                cred = credentials.createSsl(ca, key, cert);
             } else {
                 cred = credentials.createInsecure();
             }
