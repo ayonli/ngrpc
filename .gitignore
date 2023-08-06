@@ -8,3 +8,4 @@ node_modules
 user-server
 test/
 *.config.json
+!pm2.config.js

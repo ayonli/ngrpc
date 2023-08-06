@@ -1,5 +1,5 @@
 /// <reference path="./services/PostService.ts" />
-import App from ".";
+import App from "."; // replace `.` with `@hyurl/grpc-boot`
 
 if (require.main?.filename === __filename) {
     App.runSnippet(async () => {

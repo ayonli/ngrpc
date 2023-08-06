@@ -5,6 +5,12 @@ import { Config } from ".";
 
 export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
 
+export type CpuUsage = NodeJS.CpuUsage & {
+    uptime: number;
+    percent: number;
+    _start: { cpuUsage: NodeJS.CpuUsage; time: number; };
+};
+
 export async function ensureDir(dirname: string) {
     try {
         await fs.promises.mkdir(dirname, { recursive: true });
@@ -102,4 +108,31 @@ export async function spawnProcess(app: Config["apps"][0], config = "", entry = 
         });
     });
     child.unref();
+}
+
+export function getCpuUsage(oldUsage: CpuUsage) {
+    let usage: Partial<CpuUsage>;
+
+    if (oldUsage?._start) {
+        usage = {
+            ...process.cpuUsage(oldUsage._start.cpuUsage),
+            uptime: Date.now() - oldUsage._start.time,
+        };
+    } else {
+        usage = {
+            ...process.cpuUsage(),
+            uptime: process.uptime() * 1000,
+        };
+    }
+
+    usage.percent = (usage.system + usage.user) / (usage.uptime * 10);
+
+    Object.defineProperty(usage, "_start", {
+        value: {
+            cpuUsage: process.cpuUsage(),
+            time: Date.now(),
+        }
+    });
+
+    return usage as CpuUsage;
 }

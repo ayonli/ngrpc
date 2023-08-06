@@ -17,3 +17,4 @@ postpublish.js
 main.*
 script.*
 user-server
+pm2.config.js

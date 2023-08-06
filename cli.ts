@@ -193,7 +193,7 @@ if (process.send) {
         const config = process.argv[3];
 
         App.boot(appName, config).catch(console.error).finally(() => {
-            process.disconnect();
+            process.send("ready");
         });
     }
 } else {

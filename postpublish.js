@@ -4,7 +4,10 @@ const path = require("path");
 const files1 = fs.readdirSync(".");
 
 for (const file of files1) {
-    if (/(.js|\.js\.map|\.d\.ts)$/.test(file) && file !== path.basename(__filename)) {
+    if (/(.js|\.js\.map|\.d\.ts)$/.test(file) &&
+        file !== path.basename(__filename) &&
+        file !== "pm2.config.js"
+    ) {
         fs.unlinkSync(path.join(__dirname, file));
     }
 }

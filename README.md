@@ -292,7 +292,7 @@ Loads the configurations.
 **`App.loadConfigForPM2(config?: string): { apps: any[] }`**
 
 Loads the configurations and reorganize them so that the same configuration can be used in PM2's
-`ecosystem.config.js` file.
+configuration file.
 
 - `config` Use a custom config file.
 

@@ -27,7 +27,7 @@ import orderBy = require("lodash/orderBy");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
-import { absPath, ensureDir, isTsNode, spawnProcess } from "./util";
+import { CpuUsage, absPath, ensureDir, getCpuUsage, isTsNode, spawnProcess } from "./util";
 import { findDependencies } from "require-chain";
 import humanizeDuration = require("humanize-duration");
 
@@ -123,6 +123,8 @@ export default class App {
     protected _onReload: () => void = null;
     protected _onStop: () => void = null;
 
+    private cpuUsage: CpuUsage = null;
+
     static loadConfig(config = "") {
         config = absPath(config || "grpc-boot.json");
         const fileContent = fs.readFileSync(config, "utf8");
@@ -155,13 +157,22 @@ export default class App {
         config = absPath(config || "grpc-boot.json");
         const conf = this.loadConfig(config);
         let entry = conf.entry || path.join(__dirname, "cli");
+        const ext = path.extname(entry);
+
+        if (ext === ".ts") {
+            entry += entry.slice(0, -ext.length) + ".js";
+        } else if (!ext) {
+            entry += ".js";
+        } else if (ext !== ".js") {
+            throw new Error(`Entry file '${entry}' is not a JavaScript file`);
+        }
 
         return {
             apps: conf.apps.filter(app => app.serve).map(app => {
                 const _app: {
                     name: string;
                     script: string;
-                    args: string[],
+                    args: string,
                     env?: { [name: string]: string; };
                     log_file?: string;
                     out_file?: string;
@@ -169,7 +180,9 @@ export default class App {
                 } = {
                     name: app.name,
                     script: entry,
-                    args: [app.name, config],
+                    args: [app.name, config]
+                        .map(arg => arg.includes(" ") ? `"${arg}"` : arg)
+                        .join(" "),
                     env: app.env || {},
                 };
 
@@ -891,8 +904,9 @@ export default class App {
                             });
                             type Stat = {
                                 pid: number;
-                                memory: number;
                                 uptime: number;
+                                memory: number;
+                                cpu: number;
                                 entry: string;
                             };
                             const stats = new Map<string, Stat>();
@@ -1057,8 +1071,9 @@ export default class App {
                         msgId: msg.msgId,
                         result: {
                             pid: process.pid,
-                            memory: process.memoryUsage().rss,
                             uptime: process.uptime(),
+                            memory: process.memoryUsage().rss,
+                            cpu: (this.cpuUsage = getCpuUsage(this.cpuUsage)).percent,
                             entry: require.main?.filename || "REPL",
                         }
                     }) + "\n");
@@ -1135,8 +1150,9 @@ export default class App {
                             app: string;
                             uri: string;
                             pid: number;
-                            memory: number;
                             uptime: number;
+                            memory: number;
+                            cpu: number;
                             entry: string;
                         }[];
 
@@ -1155,6 +1171,7 @@ export default class App {
                                     round: true,
                                 }),
                                 memory: `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
+                                cpu: `${Math.round(item.cpu)}%`,
                                 entry,
                             };
                         }));

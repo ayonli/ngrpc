@@ -1,4 +1,4 @@
-import App from ".";
+import App from "."; // replace `.` with `@hyurl/grpc-boot`
 
 if (require.main?.filename === __filename) {
     const appName = process.argv[2];
