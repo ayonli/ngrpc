@@ -287,14 +287,14 @@ describe("App.loadConfig*", () => {
             apps: [
                 {
                     name: "example-server",
-                    script: path.join(__dirname, "cli"),
+                    script: path.join(__dirname, "cli.js"),
                     args: `example-server ${path.join(__dirname, "grpc-boot.json")}`,
                     env: {},
                     log_file: "./out.log",
                 },
                 {
                     name: "post-server",
-                    script: path.join(__dirname, "cli"),
+                    script: path.join(__dirname, "cli.js"),
                     args: `post-server ${path.join(__dirname, "grpc-boot.json")}`,
                     env: {},
                     log_file: "./out.log",
