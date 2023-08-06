@@ -4,21 +4,22 @@
 
 import { deepStrictEqual, ok } from "assert";
 import { it } from "mocha";
-import App from ".";
+import App, { ServiceClient } from ".";
 import { isTsNode } from "./util";
 import { spawn, execSync, ChildProcess, SpawnOptions } from "child_process";
 import { unlinkSync } from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
+import cloneDeep = require("lodash/cloneDeep");
 
-async function runCliCommand(cmd: string, args: string[], options: SpawnOptions = {}) {
+async function runCommand(cmd: string, args: string[] = [], options: SpawnOptions = {}) {
     let child: ChildProcess;
 
     // Use spawn instead of spawnSync to prevent blocking the thread.
     if (isTsNode) {
-        child = spawn("npx", ["ts-node", "cli.ts", cmd, ...args], options);
+        child = spawn("npx", ["ts-node", "cli.ts", cmd, ...args], { stdio: "inherit", ...options });
     } else {
-        child = spawn("node", ["cli.js", cmd, ...args], options);
+        child = spawn("node", ["cli.js", cmd, ...args], { stdio: "inherit", ...options });
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -29,7 +30,31 @@ async function runCliCommand(cmd: string, args: string[], options: SpawnOptions 
 
 let goProcess: ChildProcess;
 
-before(function (done) {
+before(async function () {
+    await fs.writeFile("test.config.json", JSON.stringify({
+        "$schema": "./grpc-boot.schema.json",
+        "package": "services",
+        "protoDirs": [
+            "services"
+        ],
+        "protoOptions": {
+            "longs": "String",
+            "defaults": true,
+            "oneofs": true
+        },
+        "apps": [
+            {
+                "name": "test-server",
+                "uri": "grpc://localhost:3000",
+                "serve": true,
+                "services": [
+                    "services.ExampleService"
+                ],
+                "stdout": "out.log"
+            }
+        ]
+    }, null, "    "), "utf8");
+
     // Must build the go program before running it, otherwise the
     // goProcess.kill() won"t be able to release the port, since
     // the server process isn't the real process the start the gRPC server
@@ -38,14 +63,18 @@ before(function (done) {
     this.timeout(120_000); // this could take a while for go installing dependencies
     execSync("go build -o user-server main.go", { cwd: __dirname });
     goProcess = spawn(__dirname + "/user-server");
-    goProcess.on("spawn", () => {
-        done();
-    }).on("error", err => {
-        done(err);
+
+    await new Promise<void>((resolve, reject) => {
+        goProcess.on("spawn", () => {
+            resolve();
+        }).on("error", err => {
+            reject(err);
+        });
     });
 });
 
-after(function () {
+after(async function () {
+    await fs.rm("test.config.json");
     goProcess.kill();
 
     setTimeout(() => {
@@ -86,7 +115,7 @@ describe("App.boot", () => {
     it("App.boot()", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", [], { stdio: "inherit" });
+        await runCommand("start");
 
         try {
             await App.boot();
@@ -118,7 +147,7 @@ describe("App.boot", () => {
     it("App.boot(null, config)", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", ["-c", "test.config.json"], { stdio: "inherit" });
+        await runCommand("start", ["-c", "test.config.json"]);
 
         try {
             await App.boot(null, "test.config.json");
@@ -279,7 +308,7 @@ describe("App.runSnippet", () => {
     it("App.runSnippet(fn)", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", [], { stdio: "inherit" });
+        await runCommand("start");
 
         let reply: any;
 
@@ -294,7 +323,7 @@ describe("App.runSnippet", () => {
     it("App.runSnippet(fn, config)", async function () {
         this.timeout(20_000);
 
-        await runCliCommand("start", ["-c", "test.config.json"]);
+        await runCommand("start", ["-c", "test.config.json"]);
 
         let reply: any;
 
@@ -423,7 +452,7 @@ describe("CLI:start", () => {
         this.timeout(20_000);
 
         try {
-            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
+            await runCommand("start", ["example-server"]);
             await App.boot();
 
             const reply = await services.ExampleService.sayHello({ name: "World" });
@@ -440,7 +469,7 @@ describe("CLI:start", () => {
         this.timeout(20_000);
 
         try {
-            await runCliCommand("start", []);
+            await runCommand("start");
             await App.boot();
 
             const reply = await services.ExampleService.sayHello({ name: "World" });
@@ -465,7 +494,7 @@ describe("CLI:restart", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", [], { stdio: "inherit" });
+            await runCommand("start");
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -473,7 +502,7 @@ describe("CLI:restart", () => {
             const newContents = contents.replace("Hello, ", "Hi, ");
             await fs.writeFile(filename, newContents, "utf8"); // update the file
 
-            await runCliCommand("restart", [], { stdio: "inherit" });
+            await runCommand("restart");
 
             reply2 = await services.ExampleService.sayHello({ name: "World" });
 
@@ -500,7 +529,7 @@ describe("CLI:restart", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
+            await runCommand("start", ["example-server"]);
             const app = await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -508,7 +537,7 @@ describe("CLI:restart", () => {
             const newContents = contents.replace("Hello, ", "Hi, ");
             await fs.writeFile(filename, newContents, "utf8"); // update the file
 
-            await runCliCommand("restart", ["example-server"], { stdio: "inherit" });
+            await runCommand("restart", ["example-server"]);
 
             // gRPC's reconnect algorithm takes too long, we just manually reload our clients.
             await app.reload();
@@ -540,7 +569,7 @@ describe("CLI:reload", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", [], { stdio: "inherit" });
+            await runCommand("start");
             await App.boot();
             await App.boot();
 
@@ -549,7 +578,7 @@ describe("CLI:reload", () => {
             const newContents = contents.replace("Hello, ", "Hi, ");
             await fs.writeFile(filename, newContents, "utf8"); // update the file
 
-            await runCliCommand("reload", [], { stdio: "inherit" });
+            await runCommand("reload");
 
             reply2 = await services.ExampleService.sayHello({ name: "World" });
 
@@ -576,7 +605,7 @@ describe("CLI:reload", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
+            await runCommand("start", ["example-server"]);
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -584,7 +613,7 @@ describe("CLI:reload", () => {
             const newContents = contents.replace("Hello, ", "Hi, ");
             await fs.writeFile(filename, newContents, "utf8"); // update the file
 
-            await runCliCommand("reload", ["example-server"], { stdio: "inherit" });
+            await runCommand("reload", ["example-server"]);
 
             reply2 = await services.ExampleService.sayHello({ name: "World" });
 
@@ -611,12 +640,12 @@ describe("CLI:stop", () => {
         let err: any;
 
         try {
-            await runCliCommand("start", [], { stdio: "inherit" });
+            await runCommand("start");
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
-            await runCliCommand("stop", [], { stdio: "inherit" });
+            await runCommand("stop");
 
             await services.ExampleService.sayHello({ name: "World" });
         } catch (_err) {
@@ -634,12 +663,12 @@ describe("CLI:stop", () => {
         let err: any;
 
         try {
-            await runCliCommand("start", ["example-server"], { stdio: "inherit" });
+            await runCommand("start", ["example-server"]);
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
-            await runCliCommand("stop", ["example-server"], { stdio: "inherit" });
+            await runCommand("stop", ["example-server"]);
 
             await services.ExampleService.sayHello({ name: "World" });
         } catch (_err) {
@@ -650,3 +679,144 @@ describe("CLI:stop", () => {
         deepStrictEqual(String(err), "Error: Failed to connect before the deadline");
     });
 });
+
+describe("config options", () => {
+    const testDir = path.join(process.cwd(), "test");
+
+    async function runCommandInTestDir(cmd: string, args: string[] = []) {
+        let child: ChildProcess;
+
+        // Use spawn instead of spawnSync to prevent blocking the thread.
+        if (isTsNode) {
+            child = spawn("npx", ["ts-node", "../cli.ts", cmd, ...args], {
+                cwd: path.join(process.cwd(), "test"),
+                stdio: "inherit",
+            });
+        } else {
+            child = spawn("node", ["../cli.js", cmd, ...args], {
+                cwd: path.join(process.cwd(), "test"),
+                stdio: "inherit",
+            });
+        }
+
+        await new Promise<void>((resolve, reject) => {
+            child.once("exit", () => resolve())
+                .once("err", reject);
+        });
+    }
+
+    before(async function () {
+        this.timeout(20_000);
+        await fs.mkdir(testDir);
+
+        await runCommandInTestDir("init", ["grpc"]);
+        await fs.writeFile("test/main.ts", `
+import App from "@hyurl/grpc-boot";
+
+if (require.main?.filename === __filename) {
+    const appName = process.argv[2];
+    const config = process.argv[3];
+
+    App.boot(appName, config).catch(console.error).finally(() => {
+        process.send("ready");
+    });
+}
+        `, "utf8");
+
+        const conf = JSON.parse(await fs.readFile("test/grpc-boot.json", "utf8"));
+        conf.entry = "dist/main.js";
+        conf.importRoot = "dist";
+        await fs.writeFile("test/grpc-boot.json", JSON.stringify(conf, null, "    "), "utf8");
+
+        const tsConf = JSON.parse(await fs.readFile("test/tsconfig.json", "utf8"));
+        tsConf.compilerOptions.outDir = "dist";
+        await fs.writeFile("test/tsconfig.json", JSON.stringify(tsConf, null, "    "), "utf8");
+
+        if (isTsNode) {
+            await (async function compileMainProject() {
+                const mainTsConfContents = await fs.readFile("tsconfig.json", "utf8");
+                const mainTsConf = JSON.parse(mainTsConfContents);
+                mainTsConf.compilerOptions.outDir = "dist";
+                await fs.writeFile("tsconfig.json", JSON.stringify(mainTsConf, null, "    "), "utf8");
+
+                const child = spawn("npx", ["tsc"], { stdio: "inherit" });
+                await new Promise<void>((resolve, reject) => {
+                    child.once("exit", () => resolve())
+                        .once("err", reject);
+                });
+
+                await fs.writeFile("tsconfig.json", mainTsConfContents, "utf8");
+            })();
+        }
+
+        await (async function compileTest() {
+            try {
+                const child = spawn("npx", ["tsc"], {
+                    stdio: "ignore",
+                    cwd: path.join(process.cwd(), "test"),
+                });
+                await new Promise<void>((resolve, reject) => {
+                    child.once("exit", () => resolve())
+                        .once("err", reject);
+                });
+            } catch (err) {
+                // ignore
+            }
+
+            let mainJs = (await fs.readFile("test/dist/main.js", "utf8"));
+
+            if (isTsNode) {
+                mainJs = mainJs.replace("@hyurl/grpc-boot", "../../dist");
+            } else {
+                mainJs = mainJs.replace("@hyurl/grpc-boot", "../..");
+            }
+
+            await fs.writeFile("test/dist/main.js", mainJs, "utf8");
+        })();
+
+        const conf2 = cloneDeep(conf);
+
+        conf2.entry = "test/dist/main.js";
+        conf2.importRoot = "test/dist";
+        conf2.protoDirs = ["test/grpc"];
+
+        await fs.writeFile("grpc.config.json", JSON.stringify(conf2, null, "    "), "utf8");
+
+        await runCommandInTestDir("start");
+    });
+
+    after(async function () {
+        this.timeout(20_000);
+        await runCommandInTestDir("stop");
+        await fs.rm(testDir, { recursive: true });
+        await fs.rm("grpc.config.json");
+
+        if (isTsNode) {
+            await fs.rm("dist", { recursive: true });
+        }
+    });
+
+    it("run the example", async function () {
+        this.timeout(20_000);
+        let app: App;
+
+        try {
+            app = await App.boot(null, "grpc.config.json");
+
+            // @ts-ignore
+            const reply = await grpc.ExampleService.sayHello({ name: "World" });
+
+            deepStrictEqual(reply, { message: "Hello, World" });
+            await app.stop();
+        } catch (err) {
+            await app?.stop();
+            throw err;
+        }
+    });
+});
+
+declare global {
+    namespace grpc {
+        const ExampleService: ServiceClient<import("./services/ExampleService").default>;
+    }
+}

@@ -6,3 +6,5 @@ node_modules
 *.js.map
 !postpublish.js
 user-server
+test/
+*.config.json

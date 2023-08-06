@@ -11,6 +11,7 @@ go.*
 *.log
 grpc-boot.json
 test.*
+test/
 postpublish.js
 main.*
 script.*
