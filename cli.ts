@@ -19,7 +19,7 @@ program.command("init")
     .action(async (pkg: string, options: { config?: string; }) => {
         pkg ||= "services";
         const tsConfig = absPath("tsconfig.json");
-        const config = absPath(options.config || "boot.config.json");
+        const config = absPath(options.config || "grpc-boot.json");
         const dir = absPath(pkg);
 
         if (fs.existsSync(tsConfig)) {
@@ -51,7 +51,7 @@ program.command("init")
             console.warn(`File '${path.basename(config)}' already exists`);
         } else {
             const conf: Config = {
-                "$schema": "./node_modules/@hyurl/grpc-boot/boot.config.schema.json",
+                "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
                 "package": pkg,
                 "protoDirs": ["./" + pkg],
                 "protoOptions": {

@@ -123,7 +123,7 @@ export default class App {
     protected _onStop: () => void = null;
 
     static loadConfig(config = "") {
-        config = absPath(config || "boot.config.json");
+        config = absPath(config || "grpc-boot.json");
         const fileContent = fs.readFileSync(config, "utf8");
         const conf: Config = JSON.parse(fileContent);
 
@@ -151,7 +151,7 @@ export default class App {
     }
 
     static loadConfigForPM2(config = "") {
-        config = absPath(config || "boot.config.json");
+        config = absPath(config || "grpc-boot.json");
         const conf = this.loadConfig(config);
 
         return {
@@ -595,7 +595,7 @@ export default class App {
     static async boot(app = "", config = "") {
         const ins = new this();
 
-        ins.config = absPath(config || "boot.config.json");
+        ins.config = absPath(config || "grpc-boot.json");
         ins.conf = this.loadConfig(config);
 
         // When starting, if no `app` is provided and no `require.main` is presented, that means the
@@ -1148,7 +1148,7 @@ export default class App {
         try {
             const app = new this();
 
-            app.config = absPath(config || "boot.config.json");
+            app.config = absPath(config || "grpc-boot.json");
             app.conf = this.loadConfig(config);
 
             await app._start();

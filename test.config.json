@@ -1,5 +1,5 @@
 {
-    "$schema": "./boot.config.schema.json",
+    "$schema": "./grpc-boot.schema.json",
     "package": "services",
     "protoDirs": [
         "services"

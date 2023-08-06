@@ -10,11 +10,11 @@ npm i @hyurl/grpc-boot
 
 ## First Impression
 
-Take a look at the following config file ([boot.config.json](./boot.config.json)):
+Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
 
 ```json
 {
-    "$schema": "./boot.config.schema.json",
+    "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
     "package": "services",
     "protoDirs": [
         "./services"

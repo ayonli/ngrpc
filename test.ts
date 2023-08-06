@@ -236,7 +236,7 @@ describe("app.[method]", () => {
 describe("App.loadConfig*", () => {
     it("App.loadConfig()", async () => {
         const conf = App.loadConfig();
-        const conf1 = require("./boot.config.json");
+        const conf1 = require("./grpc-boot.json");
 
         conf1.protoOptions.longs = String;
 
@@ -260,7 +260,7 @@ describe("App.loadConfig*", () => {
                 {
                     name: "post-server",
                     script: "./main",
-                    args: ["post-server", path.join(__dirname, "boot.config.json")],
+                    args: ["post-server", path.join(__dirname, "grpc-boot.json")],
                     env: {},
                     log_file: "./out.log",
                 }
@@ -329,7 +329,7 @@ describe("CLI:init", () => {
 
         ok((await fs.stat(testDir)).isDirectory());
         ok((await fs.stat(path.join(testDir, "tsconfig.json"))).isFile());
-        ok((await fs.stat(path.join(testDir, "boot.config.json"))).isFile());
+        ok((await fs.stat(path.join(testDir, "grpc-boot.json"))).isFile());
         ok((await fs.stat(path.join(testDir, "services"))).isDirectory());
         ok((await fs.stat(path.join(testDir, "services", "ExampleService.proto"))).isFile());
         ok((await fs.stat(path.join(testDir, "services", "ExampleService.ts"))).isFile());
@@ -342,7 +342,7 @@ describe("CLI:init", () => {
 
         await runInitCommandInTestDir(["grpc"]);
 
-        const confFile = path.join(testDir, "boot.config.json");
+        const confFile = path.join(testDir, "grpc-boot.json");
         const protoFile = path.join(testDir, "grpc", "ExampleService.proto");
         const tsFile = path.join(testDir, "grpc", "ExampleService.ts");
 

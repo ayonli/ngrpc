@@ -9,8 +9,8 @@ tsconfig.json
 go.*
 *.go
 *.log
-*.config.json
-*.config.schema.json
+grpc-boot.json
+test.*
 postpublish.js
 main.*
 script.*

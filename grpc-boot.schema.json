@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/schema",
-    "$id": "https://github.com/hyurl/grpc-boot/blob/main/boot.config.schema.json",
+    "$id": "https://github.com/hyurl/grpc-boot/blob/main/grpc-boot.schema.json",
     "title": "Boot Config",
     "description": "The configuration for @hyurl/grpc-boot",
     "type": "object",
