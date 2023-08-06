@@ -607,7 +607,7 @@ export default class App {
         const ins = new this();
 
         ins.config = absPath(config || "grpc-boot.json");
-        ins.conf = this.loadConfig(config);
+        ins.conf = this.loadConfig(ins.config);
 
         // When starting, if no `app` is provided and no `require.main` is presented, that means the
         // the is running in the Node.js REPL and we're trying only to connect to services, in this
@@ -1160,7 +1160,7 @@ export default class App {
             const app = new this();
 
             app.config = absPath(config || "grpc-boot.json");
-            app.conf = this.loadConfig(config);
+            app.conf = this.loadConfig(app.config);
 
             await app._start();
             await fn();
