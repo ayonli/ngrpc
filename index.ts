@@ -54,7 +54,6 @@ export type Config = {
         stderr?: string;
         env?: { [name: string]: string; };
     }[];
-    sockFile?: string;
 };
 
 /**
@@ -566,8 +565,9 @@ export default class App {
             this.canTryHost = true;
             await this.tryHost();
         } else {
-            const _sockFile = absPath(this.conf.sockFile || "boot.sock");
-            const sockFile = absPath(this.conf.sockFile || "boot.sock", true);
+            const ext = path.extname(this.config);
+            const _sockFile = this.config.slice(0, -ext.length) + ".sock";
+            const sockFile = absPath(_sockFile, true);
 
             if (fs.existsSync(_sockFile)) {
                 // If the socket file already exists, there either be the host app already exists or
@@ -748,8 +748,9 @@ export default class App {
      * Try to make the current app as the host app for communications.
      */
     protected async tryHost() {
-        const _sockFile = absPath(this.conf.sockFile || "boot.sock");
-        const sockFile = absPath(this.conf.sockFile || "boot.sock", true);
+        const ext = path.extname(this.config);
+        const _sockFile = this.config.slice(0, -ext.length) + ".sock";
+        const sockFile = absPath(_sockFile, true);
 
         await ensureDir(path.dirname(_sockFile));
 
@@ -1085,8 +1086,9 @@ export default class App {
      * @param config Use a custom config file.
      */
     static async sendCommand(cmd: "reload" | "stop" | "list", app = "", config = "") {
-        const conf = this.loadConfig(config);
-        const sockFile = absPath(conf.sockFile || "boot.sock", true);
+        config = absPath(config || "grpc-boot.json");
+        const ext = path.extname(config);
+        const sockFile = absPath(config.slice(0, -ext.length) + ".sock", true);
 
         await new Promise<void>((resolve, reject) => {
             const client = net.createConnection(sockFile, () => {
