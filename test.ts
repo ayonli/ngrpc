@@ -5,12 +5,11 @@
 import { deepStrictEqual, ok } from "assert";
 import { it } from "mocha";
 import App from ".";
+import { isTsNode } from "./util";
 import { spawn, execSync, ChildProcess, SpawnOptions } from "child_process";
 import { unlinkSync } from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
-
-const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
 
 async function runCliCommand(cmd: string, args: string[], options: SpawnOptions = {}) {
     let child: ChildProcess;
@@ -258,8 +257,15 @@ describe("App.loadConfig*", () => {
         deepStrictEqual(conf, {
             apps: [
                 {
+                    name: "example-server",
+                    script: path.join(__dirname, "cli"),
+                    args: ["example-server", path.join(__dirname, "grpc-boot.json")],
+                    env: {},
+                    log_file: "./out.log",
+                },
+                {
                     name: "post-server",
-                    script: "./main",
+                    script: path.join(__dirname, "cli"),
                     args: ["post-server", path.join(__dirname, "grpc-boot.json")],
                     env: {},
                     log_file: "./out.log",

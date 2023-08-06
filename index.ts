@@ -27,7 +27,7 @@ import orderBy = require("lodash/orderBy");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
-import { absPath, ensureDir, spawnProcess } from "./util";
+import { absPath, ensureDir, isTsNode, spawnProcess } from "./util";
 import { findDependencies } from "require-chain";
 import humanizeDuration = require("humanize-duration");
 
@@ -37,8 +37,10 @@ export type { ServiceClient };
 export type Config = {
     $schema?: string;
     package: string;
+    entry?: string;
+    importRoot?: string;
     protoDirs: string[];
-    protoOptions: ProtoOptions,
+    protoOptions?: ProtoOptions,
     apps: {
         name: string;
         uri: string;
@@ -50,7 +52,6 @@ export type Config = {
         options?: ChannelOptions;
         stdout?: string;
         stderr?: string;
-        entry?: string;
         env?: { [name: string]: string; };
     }[];
     sockFile?: string;
@@ -153,9 +154,10 @@ export default class App {
     static loadConfigForPM2(config = "") {
         config = absPath(config || "grpc-boot.json");
         const conf = this.loadConfig(config);
+        let entry = conf.entry || path.join(__dirname, "cli");
 
         return {
-            apps: conf.apps.filter(app => app.serve && app.entry).map(app => {
+            apps: conf.apps.filter(app => app.serve).map(app => {
                 const _app: {
                     name: string;
                     script: string;
@@ -166,7 +168,7 @@ export default class App {
                     err_file?: string;
                 } = {
                     name: app.name,
-                    script: app.entry,
+                    script: entry,
                     args: [app.name, config],
                     env: app.env || {},
                 };
@@ -309,11 +311,11 @@ export default class App {
             const filenames = [...this.serverRegistry.keys()].map(serviceName => {
                 const basename = serviceName.split(".").join(path.sep);
 
-                // try both .ts and .js files
-                return [
-                    path.join(process.cwd(), basename + ".ts"),
-                    path.join(process.cwd(), basename + ".js")
-                ];
+                if (isTsNode) {
+                    return path.join(process.cwd(), basename + ".ts");
+                } else {
+                    return path.join(process.cwd(), basename + ".js");
+                }
             }).flat();
             const dependencies = findDependencies(filenames);
 
@@ -330,7 +332,16 @@ export default class App {
         }
 
         for (const serviceName of app.services) {
-            const filename = path.join(process.cwd(), serviceName.split(".").join(path.sep));
+            let filename = serviceName.split(".").join(path.sep);
+
+            if (this.conf.importRoot) {
+                filename = path.join(this.conf.importRoot, filename);
+            }
+
+            if (!filename.startsWith(process.cwd())) {
+                filename = path.join(process.cwd(), filename);
+            }
+
             const exports = await import(filename);
             let ctor: (new () => any) & { getInstance(): any; };
             let ins: any;
@@ -925,7 +936,7 @@ export default class App {
                             const app = this.conf.apps.find(app => app.name === _client.app);
 
                             if (app) {
-                                spawnProcess(app, this.config).catch(console.error);
+                                spawnProcess(app, this.config, this.conf.entry).catch(console.error);
                             }
                         }
                     }
@@ -984,7 +995,7 @@ export default class App {
                     const app = this.conf.apps.find(app => app.name === lastHostName);
 
                     if (app) {
-                        return spawnProcess(app, this.config);
+                        return spawnProcess(app, this.config, this.conf.entry);
                     }
                 }
             }).catch(console.error);

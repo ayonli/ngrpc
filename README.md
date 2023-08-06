@@ -49,8 +49,7 @@ Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
             "services": [
                 "services.PostService"
             ],
-            "stdout": "./out.log",
-            "entry": "./main"
+            "stdout": "./out.log"
         }
     ]
 }
@@ -68,6 +67,16 @@ It's just that simple.
 
 - `package` This is the directory that stores the service class files, and is the root namespace of
     the services, as well as the package name in the `.proto` files.
+- `entry` The entry file that is used to spawn apps.
+    Normally, this property is not required because the CLI command will use the default entry
+    file for us.
+
+    If a custom entry file is provided, it's spawned with the arguments `appName [config]`, we
+    can use `process.argv[2]` to get the app's name and `process.argv[3]` to get the config
+    filename (if provided). Please take a look at the example [main.ts](./main.ts).
+- `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
+    given, we need to set this property the same value as the `outDir` compiler option in the
+    `tsconfig.json` file.
 - `protoDirs` These directories stores the `.proto` files, normally, they reside with the service
     class files, so we set to `services` as well.
 - `protoOptions` These options are used when loading the `.proto` files.
@@ -75,24 +84,16 @@ It's just that simple.
     - `name` The name of the app.
     - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:` or `xds:`.
     - `serve` If this app is served by the gRPC Boot app server. If this property is `false`, that
-        means the underlying services are served by another program. As you can see from the above
+        means the underlying services are served by another program. As we can see from the above
         example, the `user-server` sets this property to `false`, because it's served in a
-        [`golang` program](./main.go). If you take a look at the
-        [services.UserService](./services/UserService.d.ts), you will just see a very simple
+        [`golang` program](./main.go). If we take a look at the
+        [services.UserService](./services/UserService.d.ts), we will just see a very simple
         TypeScript declaration file.
-    - `services` The services served by this app. if you take a look at the
+    - `services` The services served by this app. if we take a look at the
         [services.ExampleService](./services/ExampleService.ts) and the
-        [services.PostService](./services/PostService.ts), you will see that they're very simple
+        [services.PostService](./services/PostService.ts), we will see that they're very simple
         TypeScript class files.
     - `stdout` Log file used for stdout.
-    - `entry` The entry file that is used to spawn the app.
-        Normally, this property is not required because the CLI command will use the default entry
-        file for us. However, for demonstration, the above `post-server` uses a custom entry point
-        [./main](./main.ts).
-
-        If a custom entry file is provided, it's spawned with the arguments `appName [config]`, we
-        can use `process.argv[2]` to get the app's name and `process.argv[3]` to get the config
-        filename (if provided).
 
     **More Options**
 
@@ -455,25 +456,18 @@ TypeScript) needs to be transpiled into JavaScript first in order to be run (the
 If the filename ends with `.ts`, it load the program via `ts-node`, which allow TypeScript code run
 directly in the program.
 
-By default, gRPC Boot app uses a default entry file in JavaScript, which means our code needs to be
-transpiled. To use `ts-node` running TypeScript, we need to provide a custom entry file, just like
-the `post-server` app in the example shown on the top of this document.
+By default, gRPC Boot app uses a default entry file compiled in JavaScript, which means our code
+needs to be transpiled as well. To use `ts-node` running TypeScript, we need to provide a custom
+entry file, just like this.
 
 ```json
-// ...
 {
-    "name": "post-server",
-    "uri": "grpc://localhost:4002",
-    "serve": true,
-    "services": [
-        "services.PostService"
-    ],
-    "stdout": "./out.log",
-    "entry": "./main"
+    "package": "services",
+    "entry": "./main.ts",
+    // ...
 }
-// ...
 ```
 
-And there is a trick here, we didn't provide the extension of the [./main](./main.ts) file, it
-allows the CLI tool to determine whether to use `node` or `ts-node` according the file presented.
-If `main.js` is presented, `node` is used, otherwise, `ts-node` is used.
+Moreover, instead of given the extension name, we can omitted (for example `./main`) and allow the
+CLI tool to determine whether to use `node` or `ts-node` according the file presented. If `main.js`
+is presented, `node` is used, otherwise, `ts-node` is used.

@@ -9,6 +9,14 @@
             "type": "string",
             "description": "The same package name as in the `.proto` files."
         },
+        "entry": {
+            "type": "string",
+            "description": "The entry file that is used to spawn apps."
+        },
+        "importRoot": {
+            "type": "string",
+            "description": "Where to begin searching for TypeScript / JavaScript files, the default is `.`."
+        },
         "protoDirs": {
             "type": "array",
             "description": "The directories that contains `.proto` files.",
@@ -127,10 +135,6 @@
                         "type": "string",
                         "description": "Log file used for stderr."
                     },
-                    "entry": {
-                        "type": "string",
-                        "description": "The entry file that is used to spawn the app."
-                    },
                     "env": {
                         "type": "object",
                         "description": "The environment variables passed to the `entry` file."
@@ -156,12 +160,10 @@
                         "serve"
                     ],
                     "args": [
-                        "serve",
-                        "entry"
+                        "serve"
                     ],
                     "env": [
-                        "serve",
-                        "entry"
+                        "serve"
                     ]
                 }
             }

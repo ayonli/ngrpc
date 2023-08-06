@@ -3,6 +3,8 @@ import * as path from "path";
 import { spawn, SpawnOptions } from "child_process";
 import { Config } from ".";
 
+export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
+
 export async function ensureDir(dirname: string) {
     try {
         await fs.promises.mkdir(dirname, { recursive: true });
@@ -31,8 +33,8 @@ export function absPath(filename: string, withPipe = false): string {
     return filename;
 }
 
-export async function spawnProcess(app: Config["apps"][0], config = "") {
-    let entry = app.entry || path.join(__dirname, "cli");
+export async function spawnProcess(app: Config["apps"][0], config = "", entry = "") {
+    entry ||= path.join(__dirname, "cli");
     const ext = path.extname(entry).toLowerCase();
     let execCmd: "node" | "ts-node";
     let stdout: number;

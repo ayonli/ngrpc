@@ -112,7 +112,7 @@ async function handleStart(appName: string | undefined, options: {
     const conf = App.loadConfig(options.config);
 
     const start = async (app: Config["apps"][0]) => {
-        await spawnProcess(app, options.config);
+        await spawnProcess(app, options.config, conf.entry);
         console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
     };
 
