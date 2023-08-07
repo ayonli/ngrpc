@@ -2,6 +2,12 @@
 
 Make it easy to create standalone and elegant gRPC based applications.
 
+*NOTE: this package uses [@hyurl/grpc-async](https://github.com/hyurl/grpc-async) to make life with*
+*gRPC easier.*
+
+*NOTE: The NPM package only contains the minimal file base,*
+*[go to GitHub for this Doc](https://github.com/hyurl/grpc-boot) and the related files.*
+
 ## Install
 
 ```sh
@@ -108,9 +114,6 @@ It's just that simple.
 With these simple configurations, we can write our gRPC application straightforwardly in a `.proto`
 file and a `.ts` file in the `services` directory, without any headache of how to start the server
 or connect to the services, all is properly handled internally by the gRPC Boot framework.
-
-**NOTE: this package uses [@hyurl/grpc-async](https://github.com/hyurl/grpc-async) to make life with**
-**gRPC easier.**
 
 ## CLI Commands
 
