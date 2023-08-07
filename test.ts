@@ -155,9 +155,9 @@ describe("App.boot", () => {
 
             deepStrictEqual(reply, { message: "Hello, World" });
 
-            await App.sendCommand("stop");
+            await App.sendCommand("stop", null, "test.config.json");
         } catch (err) {
-            await App.sendCommand("stop");
+            await App.sendCommand("stop", null, "test.config.json");
             throw err;
         }
     });
@@ -330,7 +330,7 @@ describe("App.runSnippet", () => {
         await App.runSnippet(async () => {
             reply = await services.ExampleService.sayHello({ name: "World" });
         }, "test.config.json");
-        await App.sendCommand("stop");
+        await App.sendCommand("stop", null, "test.config.json");
 
         deepStrictEqual(reply, { message: "Hello, World" });
     });
