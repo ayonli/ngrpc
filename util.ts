@@ -97,17 +97,16 @@ export async function spawnProcess(app: Config["apps"][0], config = "", entry = 
 
     const child = spawn("node", args, options);
     await new Promise<void>((resolve, reject) => {
-        child.on("disconnect", () => {
-            resolve();
-        }).on("message", (msg) => {
+        child.on("message", (msg) => {
             if (msg === "ready") {
                 resolve();
             }
         }).on("error", err => {
             reject(err);
+        }).on("exit", (code) => {
+            reject(new Error(`Child process exited unexpectedly (code: ${code})`));
         });
     });
-    child.unref();
 }
 
 export function getCpuUsage(oldUsage: CpuUsage) {

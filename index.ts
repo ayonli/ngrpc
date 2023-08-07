@@ -23,7 +23,6 @@ import {
 } from "@hyurl/grpc-async";
 import get = require("lodash/get");
 import isEqual = require("lodash/isEqual");
-import orderBy = require("lodash/orderBy");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
@@ -907,7 +906,6 @@ export default class App {
                                 uptime: number;
                                 memory: number;
                                 cpu: number;
-                                entry: string;
                             };
                             const stats = new Map<string, Stat>();
 
@@ -937,7 +935,7 @@ export default class App {
                                             };
                                         });
 
-                                        client.end(JSON.stringify({ result: orderBy(list, "pid") }));
+                                        client.end(JSON.stringify({ result: list }));
                                     }
                                 });
                             });
@@ -1023,6 +1021,7 @@ export default class App {
         });
         const retryHost = () => {
             const lastHostName = this.hostName;
+            const hostStopped = this.hostStopped;
 
             // If the connection is closed and the client is not marked closed, the client now is
             // able to retry gaining the hostship.
@@ -1032,7 +1031,7 @@ export default class App {
                 // mark `hostStopped`, otherwise, the connection is closed unexpectedly due
                 // to program failure, after the current app has gain the hostship, we can
                 // try to revive the formal host app.
-                if (lastHostName && !this.hostStopped) {
+                if (lastHostName && !hostStopped) {
                     const app = this.conf.apps.find(app => app.name === lastHostName);
 
                     if (app) {
@@ -1061,6 +1060,10 @@ export default class App {
                     }
                 } else if (msg.cmd === "goodbye") {
                     this.hostStopped = true;
+
+                    if (!this.host) {
+                        client.end();
+                    }
                 } else if (msg.cmd === "reload") {
                     this._reload(msg.msgId).catch(console.error);
                 } else if (msg.cmd === "stop") {
@@ -1074,7 +1077,6 @@ export default class App {
                             uptime: process.uptime(),
                             memory: process.memoryUsage().rss,
                             cpu: (this.cpuUsage = getCpuUsage(this.cpuUsage)).percent,
-                            entry: require.main?.filename || "REPL",
                         }
                     }) + "\n");
                 } else {
@@ -1130,6 +1132,62 @@ export default class App {
         config = absPath(config || "grpc-boot.json");
         const ext = path.extname(config);
         const sockFile = absPath(config.slice(0, -ext.length) + ".sock", true);
+        type Stat = {
+            app: string;
+            uri: string;
+            pid: number;
+            uptime: number;
+            memory: number;
+            cpu: number;
+        };
+
+        const listApps = (stats: Stat[]) => {
+            const { apps } = this.loadConfig(config);
+            // const result = reply.result as Stat[];
+            const list = apps.map(app => {
+                const item = stats.find(item => item.app === app.name);
+
+                if (item) {
+                    return item;
+                } else if (app.serve) {
+                    return {
+                        app: app.name,
+                        uri: app.uri,
+                        pid: -1,
+                        uptime: -1,
+                        memory: -1,
+                        cpu: -1,
+                    } satisfies Stat;
+                }
+            }).filter(item => !!item);
+
+            stats.forEach(item => {
+                const _item = list.find(_item => _item.app === item.app);
+
+                if (!_item) {
+                    list.push(item);
+                }
+            });
+
+            console.table(list.map(item => {
+                return {
+                    app: item.app,
+                    uri: item.uri,
+                    status: item.pid !== -1 ? "running" : "stopped",
+                    pid: item.pid === -1 ? "N/A" : item.pid,
+                    uptime: item.uptime === -1
+                        ? "N/A"
+                        : humanizeDuration(item.uptime * 1000, {
+                            largest: 1,
+                            round: true,
+                        }),
+                    memory: item.memory === -1
+                        ? "N/A"
+                        : `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
+                    cpu: item.cpu === -1 ? "N/A" : `${Math.round(item.cpu)}%`,
+                };
+            }));
+        };
 
         await new Promise<void>((resolve, reject) => {
             const client = net.createConnection(sockFile, () => {
@@ -1146,42 +1204,21 @@ export default class App {
                     if (reply.error) {
                         console.error(reply.error);
                     } else if (cmd === "list") {
-                        const list = reply.result as {
-                            app: string;
-                            uri: string;
-                            pid: number;
-                            uptime: number;
-                            memory: number;
-                            cpu: number;
-                            entry: string;
-                        }[];
-
-                        console.table(list.map(item => {
-                            let entry = item.entry;
-                            const cwd = process.cwd() + path.sep;
-
-                            if (entry?.startsWith(cwd)) {
-                                entry = entry.slice(cwd.length);
-                            }
-
-                            return {
-                                ...item,
-                                uptime: humanizeDuration(item.uptime * 1000, {
-                                    largest: 1,
-                                    round: true,
-                                }),
-                                memory: `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
-                                cpu: `${Math.round(item.cpu)}%`,
-                                entry,
-                            };
-                        }));
+                        listApps(reply.result);
                     } else {
                         console.info(reply.result ?? null);
                     }
                 });
             }).on("end", resolve).once("error", (err) => {
                 if (err["code"] === "ENOENT" || err["code"] === "ECONNREFUSED") {
-                    console.info("No app is running");
+                    if (cmd === "list") {
+                        listApps([]);
+                    } else if (app) {
+                        console.info(`gRPC app [${app}] is not running`);
+                    } else {
+                        console.info("No gRPC app is running");
+                    }
+
                     resolve();
                 } else {
                     reject(err);

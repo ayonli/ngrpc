@@ -112,8 +112,13 @@ async function handleStart(appName: string | undefined, options: {
     const conf = App.loadConfig(options.config);
 
     const start = async (app: Config["apps"][0]) => {
-        await spawnProcess(app, options.config, conf.entry);
-        console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
+        try {
+            await spawnProcess(app, options.config, conf.entry);
+            console.info(`gRPC app [${app.name}] started at '${app.uri}'`);            
+        } catch (err) {
+            const reason = err.message || String(err);
+            console.error(`Unable to start gRPC app [${app.name}] (reason: ${reason})`);
+        }
     };
 
     if (appName) {
@@ -192,8 +197,11 @@ if (process.send) {
         const appName = process.argv[2];
         const config = process.argv[3];
 
-        App.boot(appName, config).catch(console.error).finally(() => {
+        App.boot(appName, config).then(() => {
             process.send("ready");
+        }).catch((err) => {
+            console.error(err);
+            process.exit(1);
         });
     }
 } else {
