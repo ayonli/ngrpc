@@ -263,7 +263,7 @@ describe("app.[method]", () => {
 
 describe("App.loadConfig*", () => {
     it("App.loadConfig()", async () => {
-        const conf = App.loadConfig();
+        const conf = await App.loadConfig();
         const conf1 = require("./grpc-boot.json");
 
         conf1.protoOptions.longs = String;
@@ -271,8 +271,8 @@ describe("App.loadConfig*", () => {
         deepStrictEqual(conf, conf1);
     });
 
-    it("App.loadConfig(config)", () => {
-        const conf = App.loadConfig("./test.config.json");
+    it("App.loadConfig(config)", async () => {
+        const conf = await App.loadConfig("./test.config.json");
         const conf1 = require("./test.config.json");
 
         conf1.protoOptions.longs = String;
@@ -281,7 +281,7 @@ describe("App.loadConfig*", () => {
     });
 
     it("App.loadConfigForPM2()", async () => {
-        const conf = App.loadConfigForPM2();
+        const conf = await App.loadConfigForPM2();
 
         deepStrictEqual(conf, {
             apps: [

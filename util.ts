@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { promisify } from "util";
 import { spawn, SpawnOptions } from "child_process";
 import { Config } from ".";
 
@@ -10,6 +11,17 @@ export type CpuUsage = NodeJS.CpuUsage & {
     percent: number;
     _start: { cpuUsage: NodeJS.CpuUsage; time: number; };
 };
+
+export const open = promisify(fs.open);
+
+export async function exists(filename: string) {
+    try {
+        await fs.promises.stat(filename);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 export async function ensureDir(dirname: string) {
     try {
@@ -53,9 +65,9 @@ export async function spawnProcess(app: Config["apps"][0], config = "", entry = 
         execCmd = "node";
     } else if (ext === ".ts") {
         execCmd = "ts-node";
-    } else if (fs.existsSync(entry + ".js")) {
+    } else if (await exists(entry + ".js")) {
         execCmd = "node";
-    } else if (fs.existsSync(entry + ".ts")) {
+    } else if (await exists(entry + ".ts")) {
         execCmd = "ts-node";
     } else {
         throw new Error("Cannot determine the type of the entry file");
@@ -64,15 +76,15 @@ export async function spawnProcess(app: Config["apps"][0], config = "", entry = 
     if (app.stdout) {
         const filename = absPath(app.stdout);
         await ensureDir(path.dirname(filename));
-        stdout = fs.openSync(filename, "a");
+        stdout = await open(filename, "a");
     }
 
     if (app.stderr) {
         const filename = absPath(app.stderr);
         await ensureDir(path.dirname(filename));
-        stderr = fs.openSync(filename, "a");
+        stderr = await open(filename, "a");
     } else if (stdout) {
-        stderr = fs.openSync(absPath(app.stdout), "a");
+        stderr = await open(absPath(app.stdout), "a");
     }
 
     if (stdout && stderr) {

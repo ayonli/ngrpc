@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import "source-map-support/register";
 import * as commander from "commander";
-import * as fs from "fs";
+import * as fs from "fs/promises";
 import * as path from "path";
 import pkg = require("./package.json");
 import App, { Config } from ".";
-import { absPath, ensureDir, spawnProcess } from "./util";
+import { absPath, ensureDir, exists, spawnProcess } from "./util";
 
 const program = new commander.Command("grpc-boot");
 
@@ -22,7 +22,7 @@ program.command("init")
         const config = absPath(options.config || "grpc-boot.json");
         const dir = absPath(pkg);
 
-        if (fs.existsSync(tsConfig)) {
+        if (await exists(tsConfig)) {
             console.warn(`File '${path.basename(config)}' already exists`);
         } else {
             const tsConf = {
@@ -43,11 +43,11 @@ program.command("init")
                 ],
             };
 
-            fs.writeFileSync(tsConfig, JSON.stringify(tsConf, null, "    "), "utf8");
+            await fs.writeFile(tsConfig, JSON.stringify(tsConf, null, "    "), "utf8");
             console.info(`TSConfig file written to '${path.basename(tsConfig)}'`);
         }
 
-        if (fs.existsSync(config)) {
+        if (await exists(config)) {
             console.warn(`File '${path.basename(config)}' already exists`);
         } else {
             const conf: Config = {
@@ -75,11 +75,11 @@ program.command("init")
                     }
                 ]
             };
-            fs.writeFileSync(config, JSON.stringify(conf, null, "    "), "utf8");
+            await fs.writeFile(config, JSON.stringify(conf, null, "    "), "utf8");
             console.info(`Config file written to '${path.basename(config)}'`);
         }
 
-        if (fs.existsSync(dir)) {
+        if (await exists(dir)) {
             console.warn(`Path '${dir}' already exists`);
         } else {
             await ensureDir(dir);
@@ -90,18 +90,18 @@ program.command("init")
         const exampleTsSrc = path.join(__dirname, "services", "ExampleService.ts");
         const exampleProtoDest = absPath(pkg + path.sep + "ExampleService.proto");
         const exampleTsDest = absPath(pkg + path.sep + "ExampleService.ts");
-        const ExampleServiceProto = fs.readFileSync(exampleProtoSrc, "utf8")
+        const ExampleServiceProto = (await fs.readFile(exampleProtoSrc, "utf8"))
             .replace("package services;", `package ${pkg};`);
-        const ExampleServiceTs = fs.readFileSync(exampleTsSrc, "utf8")
+        const ExampleServiceTs = (await fs.readFile(exampleTsSrc, "utf8"))
             .replace("namespace services {", `namespace ${pkg} {`);
 
-        if (!fs.existsSync(exampleProtoDest)) {
-            fs.writeFileSync(exampleProtoDest, ExampleServiceProto, "utf8");
+        if (!(await exists(exampleProtoDest))) {
+            await fs.writeFile(exampleProtoDest, ExampleServiceProto, "utf8");
             console.info(`Example .proto file '${exampleProtoDest}' created`);
         }
 
-        if (!fs.existsSync(exampleTsDest)) {
-            fs.writeFileSync(exampleTsDest, ExampleServiceTs, "utf8");
+        if (!(await exists(exampleTsDest))) {
+            await fs.writeFile(exampleTsDest, ExampleServiceTs, "utf8");
             console.info(`Example .ts file '${exampleTsDest}' created`);
         }
     });
@@ -109,12 +109,12 @@ program.command("init")
 async function handleStart(appName: string | undefined, options: {
     config?: string;
 }) {
-    const conf = App.loadConfig(options.config);
+    const conf = await App.loadConfig(options.config);
 
     const start = async (app: Config["apps"][0]) => {
         try {
             await spawnProcess(app, options.config, conf.entry);
-            console.info(`gRPC app [${app.name}] started at '${app.uri}'`);            
+            console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
         } catch (err) {
             const reason = err.message || String(err);
             console.error(`Unable to start gRPC app [${app.name}] (reason: ${reason})`);

@@ -1,4 +1,4 @@
-import * as fs from "fs";
+import * as fs from "fs/promises";
 import * as path from "path";
 import { Options as ProtoOptions, loadSync } from "@grpc/proto-loader";
 import {
@@ -26,7 +26,7 @@ import isEqual = require("lodash/isEqual");
 import hash = require("string-hash");
 import * as net from "net";
 import isSocketResetError = require("is-socket-reset-error");
-import { CpuUsage, absPath, ensureDir, getCpuUsage, isTsNode, spawnProcess } from "./util";
+import { CpuUsage, absPath, ensureDir, exists, getCpuUsage, isTsNode, spawnProcess } from "./util";
 import { findDependencies } from "require-chain";
 import humanizeDuration = require("humanize-duration");
 
@@ -124,9 +124,9 @@ export default class App {
 
     private cpuUsage: CpuUsage = null;
 
-    static loadConfig(config = "") {
+    static async loadConfig(config = "") {
         config = absPath(config || "grpc-boot.json");
-        const fileContent = fs.readFileSync(config, "utf8");
+        const fileContent = await fs.readFile(config, "utf8");
         const conf: Config = JSON.parse(fileContent);
 
         if (conf.protoOptions) {
@@ -152,9 +152,9 @@ export default class App {
         return conf;
     }
 
-    static loadConfigForPM2(config = "") {
+    static async loadConfigForPM2(config = "") {
         config = absPath(config || "grpc-boot.json");
-        const conf = this.loadConfig(config);
+        const conf = await this.loadConfig(config);
         let entry = conf.entry || path.join(__dirname, "cli");
         const ext = path.extname(entry);
 
@@ -210,12 +210,12 @@ export default class App {
             const filenames: string[] = [];
 
             for (const dir of dirs) {
-                const files = await fs.promises.readdir(dir);
+                const files = await fs.readdir(dir);
                 const subDirs: string[] = [];
 
                 for (const file of files) {
                     const filename = path.join(dir, file);
-                    const stat = await fs.promises.stat(filename);
+                    const stat = await fs.stat(filename);
 
                     if (stat.isFile() && file.endsWith(".proto")) {
                         filenames.push(filename);
@@ -281,9 +281,9 @@ export default class App {
                     this.sslOptions = null;
                     newServer = true;
                 } else {
-                    ca = await fs.promises.readFile(app.ca);
-                    cert = await fs.promises.readFile(app.cert);
-                    key = await fs.promises.readFile(app.key);
+                    ca = await fs.readFile(app.ca);
+                    cert = await fs.readFile(app.cert);
+                    key = await fs.readFile(app.key);
 
                     if (Buffer.compare(ca, this.sslOptions.ca) ||
                         Buffer.compare(cert, this.sslOptions.cert) ||
@@ -295,9 +295,9 @@ export default class App {
                     }
                 }
             } else if (useSSL) { // non-SSL to SSL
-                ca = await fs.promises.readFile(app.ca);
-                cert = await fs.promises.readFile(app.cert);
-                key = await fs.promises.readFile(app.key);
+                ca = await fs.readFile(app.ca);
+                cert = await fs.readFile(app.cert);
+                key = await fs.readFile(app.key);
                 this.sslOptions = { ca, cert, key };
                 newServer = true;
             }
@@ -311,9 +311,9 @@ export default class App {
                 }
             }
         } else if (useSSL) {
-            ca = await fs.promises.readFile(app.ca);
-            cert = await fs.promises.readFile(app.cert);
-            key = await fs.promises.readFile(app.key);
+            ca = await fs.readFile(app.ca);
+            cert = await fs.readFile(app.cert);
+            key = await fs.readFile(app.key);
             this.sslOptions = { ca, cert, key };
         }
 
@@ -433,19 +433,19 @@ export default class App {
         for (const app of this.conf.apps) {
             if (app.ca) {
                 const filename = absPath(app.ca);
-                const ca = await fs.promises.readFile(filename);
+                const ca = await fs.readFile(filename);
                 cas.set(filename, ca);
             }
 
             if (app.cert) {
                 const filename = absPath(app.cert);
-                const cert = await fs.promises.readFile(filename);
+                const cert = await fs.readFile(filename);
                 certs.set(filename, cert);
             }
 
             if (app.key) {
                 const filename = absPath(app.key);
-                const key = await fs.promises.readFile(filename);
+                const key = await fs.readFile(filename);
                 keys.set(filename, key);
             }
         }
@@ -601,25 +601,9 @@ export default class App {
 
         if (tryHost) {
             this.canTryHost = true;
-            await this.tryHost();
+            await this.tryHosting();
         } else {
-            const ext = path.extname(this.config);
-            const _sockFile = this.config.slice(0, -ext.length) + ".sock";
-            const sockFile = absPath(_sockFile, true);
-
-            if (fs.existsSync(_sockFile)) {
-                // If the socket file already exists, there either be the host app already exists or
-                // the socket file is left there because an unclean shutdown of the previous host
-                // app. We need to first try to connect to it, if not succeeded, delete it and try
-                // to gain the hostship.
-                try {
-                    await new Promise<void>((resolve, reject) => {
-                        this.tryConnect(sockFile, resolve, reject);
-                    });
-                } catch {
-                    fs.unlinkSync(_sockFile);
-                }
-            }
+            await this.tryJoining();
         }
 
         if (this.server) {
@@ -645,7 +629,7 @@ export default class App {
         const ins = new this();
 
         ins.config = absPath(config || "grpc-boot.json");
-        ins.conf = this.loadConfig(ins.config);
+        ins.conf = await this.loadConfig(ins.config);
 
         // When starting, if no `app` is provided and no `require.main` is presented, that means the
         // the is running in the Node.js REPL and we're trying only to connect to services, in this
@@ -731,7 +715,7 @@ export default class App {
 
     protected async _reload(msgId = "") {
         this.oldConf = this.conf;
-        this.conf = App.loadConfig(this.config);
+        this.conf = await App.loadConfig(this.config);
 
         // Pre-reload `.proto` files so they won't be duplicated reloaded in the `initServer()` or
         // `initClients()` functions.
@@ -785,26 +769,13 @@ export default class App {
     /**
      * Try to make the current app as the host app for communications.
      */
-    protected async tryHost() {
-        const ext = path.extname(this.config);
-        const _sockFile = this.config.slice(0, -ext.length) + ".sock";
-        const sockFile = absPath(_sockFile, true);
+    protected async tryHosting() {
+        const { success, filename, sockPath } = await this.tryJoining();
 
-        await ensureDir(path.dirname(_sockFile));
-
-        if (fs.existsSync(_sockFile)) {
-            // If the socket file already exists, there either be the host app already exists or the
-            // socket file is left there because an unclean shutdown of the previous host app. We
-            // need to first try to connect to it, if not succeeded, delete it and try to gain the
-            // hostship.
-            try {
-                await new Promise<void>((resolve, reject) => {
-                    this.tryConnect(sockFile, resolve, reject);
-                });
-                return;
-            } catch {
-                fs.unlinkSync(_sockFile);
-            }
+        if (success) {
+            return;
+        } else {
+            await ensureDir(path.dirname(filename));
         }
 
         await new Promise<void>((resolve, reject) => {
@@ -982,17 +953,17 @@ export default class App {
                 });
             }).once("error", err => {
                 if (err["code"] === "EEXIST") { // gaining hostship failed
-                    this.tryConnect(sockFile, resolve, reject);
+                    this.doTryJoining(sockPath, resolve, reject);
                 } else {
                     reject(err);
                 }
             });
 
-            host.listen(sockFile, () => {
+            host.listen(sockPath, () => {
                 this.host = host;
 
                 // Connect to self so that we can use the same control logic.
-                this.tryConnect(sockFile, resolve, reject);
+                this.doTryJoining(sockPath, resolve, reject);
 
                 if (this.serverName) {
                     console.info(`gRPC app [${this.serverName}] has become the host server`);
@@ -1003,15 +974,42 @@ export default class App {
         });
     }
 
+    protected async tryJoining(): Promise<{
+        success: boolean;
+        filename: string;
+        sockPath: string;
+    }> {
+        const ext = path.extname(this.config);
+        const filename = this.config.slice(0, -ext.length) + ".sock";
+        const sockPath = absPath(filename, true);
+
+        if (await exists(filename)) {
+            // If the socket file already exists, there either be the host app already exists or the
+            // socket file is left there because an unclean shutdown of the previous host app. We
+            // need to first try to connect to it, if not succeeded, delete it and try to gain the
+            // hostship.
+            try {
+                await new Promise<void>((resolve, reject) => {
+                    this.doTryJoining(sockPath, resolve, reject);
+                });
+                return { success: true, filename, sockPath };
+            } catch {
+                await fs.unlink(filename);
+            }
+        }
+
+        return { success: false, filename, sockPath };
+    }
+
     /**
      * Try to connect to the host server of app control.
      * 
-     * @param sockFile 
+     * @param sockPath 
      * @param resolve 
      * @param reject 
      */
-    protected tryConnect(sockFile: string, resolve: () => void, reject: (err: Error) => void) {
-        const client = net.createConnection(sockFile, () => {
+    protected doTryJoining(sockPath: string, resolve: () => void, reject: (err: Error) => void) {
+        const client = net.createConnection(sockPath, () => {
             client.write(JSON.stringify({ cmd: "handshake", app: this.serverName }) + "\n");
             this.guest = client;
 
@@ -1025,7 +1023,7 @@ export default class App {
 
             // If the connection is closed and the client is not marked closed, the client now is
             // able to retry gaining the hostship.
-            this.tryHost().then(() => {
+            this.tryHosting().then(() => {
                 // When the host server is closed by the expectedly, it sends a `goodbye`
                 // command to the clients to acknowledge a clear shutdown, and the client
                 // mark `hostStopped`, otherwise, the connection is closed unexpectedly due
@@ -1141,8 +1139,8 @@ export default class App {
             cpu: number;
         };
 
-        const listApps = (stats: Stat[]) => {
-            const { apps } = this.loadConfig(config);
+        const listApps = async (stats: Stat[]) => {
+            const { apps } = await this.loadConfig(config);
             // const result = reply.result as Stat[];
             const list = apps.map(app => {
                 const item = stats.find(item => item.app === app.name);
@@ -1204,7 +1202,7 @@ export default class App {
                     if (reply.error) {
                         console.error(reply.error);
                     } else if (cmd === "list") {
-                        listApps(reply.result);
+                        listApps(reply.result).catch(console.error);
                     } else {
                         console.info(reply.result ?? null);
                     }
@@ -1212,7 +1210,7 @@ export default class App {
             }).on("end", resolve).once("error", (err) => {
                 if (err["code"] === "ENOENT" || err["code"] === "ECONNREFUSED") {
                     if (cmd === "list") {
-                        listApps([]);
+                        listApps([]).catch(console.error);
                     } else if (app) {
                         console.info(`gRPC app [${app}] is not running`);
                     } else {
@@ -1242,7 +1240,7 @@ export default class App {
             const app = new this();
 
             app.config = absPath(config || "grpc-boot.json");
-            app.conf = this.loadConfig(app.config);
+            app.conf = await this.loadConfig(app.config);
 
             await app._start();
             await fn();
