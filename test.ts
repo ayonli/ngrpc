@@ -137,6 +137,43 @@ describe("App.boot", () => {
                 "_description": "description",
             });
 
+            const result = await services.UserService.getMyPosts({ id: "ayon.li" });
+
+            deepStrictEqual(result, {
+                posts: [
+                    {
+                        id: 1,
+                        title: "My first article",
+                        description: "This is my first article",
+                        content: "The article contents ...",
+                        author: {
+                            id: "ayon.li",
+                            name: "A-yon Lee",
+                            gender: 1,
+                            age: 28,
+                            email: "the@ayon.li",
+                        },
+                        "_author": "author",
+                        "_description": "description",
+                    },
+                    {
+                        id: 2,
+                        title: "My second article",
+                        description: "This is my second article",
+                        content: "The article contents ...",
+                        author: {
+                            id: "ayon.li",
+                            name: "A-yon Lee",
+                            gender: 1,
+                            age: 28,
+                            email: "the@ayon.li",
+                        },
+                        "_author": "author",
+                        "_description": "description",
+                    }
+                ]
+            })
+
             await App.sendCommand("stop");
         } catch (err) {
             await App.sendCommand("stop");

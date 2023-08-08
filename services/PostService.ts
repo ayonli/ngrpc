@@ -40,7 +40,7 @@ export default class PostService implements LifecycleSupportInterface {
                 id: 2,
                 title: "My second article",
                 description: "This is my second article",
-                content: "The article content ...",
+                content: "The article contents ...",
                 author: "ayon.li",
             }
         ];

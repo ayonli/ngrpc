@@ -35,8 +35,8 @@
                 "services.PostService"
             ],
             "stdout": "./out.log",
-            "ca": "./certs/ca.crt",
-            "cert": "./certs/cert.crt",
+            "ca": "./certs/ca.pem",
+            "cert": "./certs/cert.pem",
             "key": "./certs/cert.key"
         }
     ]

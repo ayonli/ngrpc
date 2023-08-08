@@ -107,6 +107,9 @@ It's just that simple.
     - `ca` The CA filename when using TLS/SSL.
     - `cert` The certificate filename when using TLS/SSL.
     - `key` The private key filename when using TLS/SSL.
+        
+        NOTE: We only need a pair of certificates for both the server and the client, since they are
+        inside one project, using different certificates makes no sense.
     - `connectTimeout` Connection timeout is milliseconds, the default value is `5_000` ms.
     - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
     - `stderr` Log file used for stderr.
