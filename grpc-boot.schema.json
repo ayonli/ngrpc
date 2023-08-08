@@ -96,7 +96,7 @@
                     },
                     "uri": {
                         "type": "string",
-                        "description": "The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:` or `xds:`.",
+                        "description": "The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or `xds:`.",
                         "pattern": "^(grpc|grpcs|xds)://*"
                     },
                     "serve": {

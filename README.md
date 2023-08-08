@@ -88,7 +88,8 @@ It's just that simple.
 - `protoOptions` These options are used when loading the `.proto` files.
 - `apps` This property configures the apps that this project serves and connects.
     - `name` The name of the app.
-    - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:` or `xds:`.
+    - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:`
+        or `xds:`.
     - `serve` If this app is served by the gRPC Boot app server. If this property is `false`, that
         means the underlying services are served by another program. As we can see from the above
         example, the `user-server` sets this property to `false`, because it's served in a
@@ -122,27 +123,27 @@ or connect to the services, all is properly handled internally by the gRPC Boot 
         - `-c, --config <filename>` create a custom config file
     - `package` The package name / root namespace of the services, default 'services'
 
-- `start [options] [app]` start a gRPC app or all apps (exclude non-served ones)
+- `start [options] [app]` start an app or all apps (exclude non-served ones)
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
 
-- `restart [options] [app]` restart a gRPC app or all gRPC apps (exclude non-served ones)
+- `restart [options] [app]` restart an app or all apps (exclude non-served ones)
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
 
-- `reload [options] [app]` reload a gRPC app or all gRPC apps
+- `reload [options] [app]` reload an app or all apps
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
 
-- `stop [options] [app]` stop a gRPC or all gRPC apps
+- `stop [options] [app]` stop an app or all apps
     - `options`
         - `-c, --config <filename>` use a custom config file
     - `app` the app name in the config file
 
-- `list [options]` list all gRPC apps (exclude non-served ones)
+- `list [options]` list all apps (exclude non-served ones)
     - `options`
         - `-c, --config <filename>` use a custom config file
 
@@ -303,7 +304,7 @@ configuration file.
 
 **`App.sendCommand(cmd: "reload" | "stop" | "list", app?: string, config?: string): Promise<void>`**
 
-Sends control command to the gRPC apps. This function is mainly used in the CLI tool.
+Sends control command to the apps. This function is mainly used in the CLI tool.
 
 - `cmd`
 - `app` The app's name that should received the command. If not provided, the
@@ -314,7 +315,7 @@ Sends control command to the gRPC apps. This function is mainly used in the CLI 
 
 **`App.runSnippet(fn: () => void | Promise<void>, config?: string): Promise<void>`**
 
-Runs a snippet inside the gRPC apps context.
+Runs a snippet inside the apps context.
 
 This function is for temporary scripting usage, it starts a temporary pure-clients app so we can use
 the services as we normally do in our program, and after the main `fn` function is run, the app is
@@ -405,9 +406,9 @@ import { LifecycleSupportInterface } from "@hyurl/grpc-boot";
 
 export default class ExampleService implements LifecycleSupportInterface {
     async init(): Promise<void> {
-        // When the app starts and the service is loaded (or reloaded), the `init()` method will be
-        // automatically called, we can add some async logic inside it, for example, establishing
-        // database connection, which is normally not possible in the default `constructor()` method
+        // When the service is loaded (or reloaded), the `init()` method will be automatically
+        // called, we can add some async logic inside it, for example, establishing database
+        // connection, which is normally not possible in the default `constructor()` method
         // since it doesn't support asynchronous codes.
     }
 
@@ -532,4 +533,83 @@ Then in our entry file, add the following code:
 
 ```ts
 await App.boot(null, "helloworld.grpc-boot.json");
+```
+
+## 0-Services App
+
+An app can be configured with `serve: true` but no services, such an app does not actually start the
+gRPC server neither consume the port. But such an app can be used, say, to start a web server, which
+connects to the gRPC services and uses the facility this package provides, such as the CLI tool and
+the reloading hook.
+
+For example:
+
+```json
+// grpc-boot.json
+{
+    // ...
+    "entry": "main", // need a custom entry file
+    "apps": [
+        {
+            "name": "web-server",
+            "uri": "http://localhost:4000",
+            "serve": true,
+            "services": [] // leave this blank
+        },
+        // ...
+    ]
+}
+```
+
+```ts
+// main.ts
+import App from "@hyurl/grpc-boot";
+import * as http from "http";
+import * as https from "https";
+import * as fs from "fs/promises";
+
+if (require.main?.filename === __filename) {
+    (async () => {
+        const appName = process.argv[2];
+        const config = process.argv[3];
+
+        const app = await App.boot(appName, config);
+        let httpServer: http.Server;
+        let httpsServer: https.Server;
+        
+        if (appName === "web-server") {
+            const conf = await App.loadConfig(config);
+            const _app = conf.apps.find(app => app.name === appName);
+            let { protocol, port } = new URL(_app.uri);
+
+            if (protocol === "https:") {
+                port ||= "443";
+                httpsServer = https.createServer({
+                    cert: await fs.readFile(_app.cert),
+                    key: await fs.readFile(_app.key),
+                }, (req, res) => {
+                    // ...
+                }).listen(port);
+            } else if (protocol === "http:") {
+                port ||= "80";
+                httpServer = http.createServer((req, res) => {
+                    // ...
+                }).listen(port);
+            }
+        } 
+
+        app.onReload(() => {
+            // do some logic to reload the HTTP(S) server
+        });
+        app.onStop(() => {
+            httpServer?.close();
+            httpsServer?.close();
+        });
+
+        process.send("ready");
+    })().catch(err => {
+        console.error(err);
+        process.exit(1);
+    });
+}
 ```

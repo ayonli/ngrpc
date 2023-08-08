@@ -90,13 +90,13 @@ export default class App {
     protected conf: Config = null;
     protected oldConf: Config = null;
     protected pkgDef: GrpcObject = null;
+    protected appName: string = void 0;
     protected server: Server = null;
-    protected manager: ConnectionManager = null;
-    protected serverName: string = void 0;
     protected serverRegistry = new Map<string, { ctor: ServiceClientConstructor, ins: any; }>();
     protected sslOptions: { ca: Buffer, cert: Buffer, key: Buffer; } = null;
     protected serverOptions: ChannelOptions = null;
     protected rootNsp: string = void 0;
+    protected manager: ConnectionManager = null;
     protected clientRegistry = new Map<string, Config["apps"]>();
 
     // The Host-Guest model is a mechanism used to hold communication between all apps running on
@@ -236,15 +236,7 @@ export default class App {
         this.pkgDef = loadPackageDefinition(loadSync(filenames, options));
     }
 
-    protected async initServer(appName: string, reload = false) {
-        const app = this.conf.apps.find(app => app.name === appName);
-
-        if (!app) {
-            throw new Error(`gRPC app [${appName}] doesn't exist in the config file`);
-        } else if (!app.serve) {
-            throw new Error(`gRPC app [${appName}] is not intended to be served`);
-        }
-
+    protected async initServer(app: Config["apps"][0], reload = false) {
         const { protocol, hostname, port } = new URL(app.uri);
         let address = hostname;
         let newServer = !this.server;
@@ -254,7 +246,7 @@ export default class App {
         let key: Buffer;
 
         if (protocol === "xds:") {
-            throw new Error(`gRPC app [${app.name}] cannot be served since it uses 'xds:' protocol`);
+            throw new Error(`App [${app.name}] cannot be served since it uses 'xds:' protocol`);
         } else if (protocol === "grpcs:" || protocol === "https:") {
             if (!app.ca) {
                 throw new Error(`Missing 'ca' config for app [${app.name}]`);
@@ -303,7 +295,7 @@ export default class App {
             }
 
             if (this.oldConf) {
-                const oldApp = this.oldConf.apps.find(app => app.name === appName);
+                const oldApp = this.oldConf.apps.find(_app => _app.name === app.name);
 
                 if (!oldApp || oldApp.uri !== app.uri || !isEqual(oldApp.options, app.options)) {
                     // server configurations changed
@@ -317,46 +309,19 @@ export default class App {
             this.sslOptions = { ca, cert, key };
         }
 
-        if (reload && this.server) {
-            // Unserve old service instance and possibly call the `destroy()` lifecycle method.
-            // 
-            // This part of code resides here instead of inside the `_reload()` method is because if
-            // there is something wrong with the configuration and we fail to reload the app, the
-            // old service instances can still work.
-            for (const [_, { ctor, ins }] of this.serverRegistry) {
-                if (typeof ins.destroy === "function") {
-                    await (ins as LifecycleSupportInterface).destroy();
-                }
-
-                unserve(this.server, ctor);
-            }
-
-            // Remove cached files and their dependencies so, when reloading, they could be
-            // reimported and use any changes inside them.
-            const filenames = [...this.serverRegistry.keys()].map(serviceName => {
-                const basename = serviceName.split(".").join(path.sep);
-
-                if (isTsNode) {
-                    return path.join(process.cwd(), basename + ".ts");
-                } else {
-                    return path.join(process.cwd(), basename + ".js");
-                }
-            }).flat();
-            const dependencies = findDependencies(filenames);
-
-            [...filenames, ...dependencies].forEach(filename => {
-                delete require.cache[filename];
-            });
-        }
-
         if (newServer || !this.server) {
             await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions);
             this.server?.forceShutdown();
             this.server = new Server(app.options);
-            this.serverName = app.name;
         }
 
         for (const serviceName of app.services) {
+            const protoCtor: ServiceClientConstructor = get(this.pkgDef as object, serviceName);
+
+            if (!protoCtor) {
+                console.error(`service '${serviceName}' is not correctly declared`);
+            }
+
             let filename = serviceName.split(".").join(path.sep);
 
             if (this.conf.importRoot) {
@@ -388,7 +353,10 @@ export default class App {
                 ins = new ctor();
             }
 
-            const protoCtor: ServiceClientConstructor = get(this.pkgDef as object, serviceName);
+            if (typeof ins.init === "function") {
+                await ins.init();
+            }
+
             serve(this.server, protoCtor, ins);
             this.serverRegistry.set(serviceName, { ctor: protoCtor, ins });
         }
@@ -413,7 +381,7 @@ export default class App {
                         reject(err);
                     } else {
                         this.server.start();
-                        console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
+                        console.info(`App [${app.name}] started at '${app.uri}'`);
                         resolve();
                     }
                 });
@@ -592,9 +560,19 @@ export default class App {
         });
     }
 
-    protected async _start(app = "", tryHost = false) {
-        if (app) {
-            await this.initServer(app);
+    protected async _start(appName = "", tryHost = false) {
+        if (appName) {
+            const app = this.conf.apps.find(app => app.name === appName);
+
+            if (!app) {
+                throw new Error(`App [${appName}] doesn't exist in the config file`);
+            } else {
+                this.appName = appName;
+
+                if (app.serve && app.services.length) {
+                    await this.initServer(app);
+                }
+            }
         }
 
         await this.initClients();
@@ -604,17 +582,6 @@ export default class App {
             await this.tryHosting();
         } else {
             await this.tryJoining();
-        }
-
-        if (this.server) {
-            // Only run the lifecycle `init()` functions when all the necessary procedure are done,
-            // so that any logic, for example, calling another service's methods in the `init()`
-            // method, is valid since the connection has been established.
-            for (const [, { ins }] of this.serverRegistry) {
-                if (typeof ins.init === "function") {
-                    await ins.init();
-                }
-            }
         }
     }
 
@@ -662,11 +629,11 @@ export default class App {
                 // sender that the process has finished.
                 let result: string;
 
-                if (this.serverName) {
-                    result = `gRPC app [${this.serverName}] stopped`;
+                if (this.appName) {
+                    result = `App [${this.appName}] stopped`;
                     console.info(result);
                 } else {
-                    result = "gRPC clients stopped";
+                    result = "App (clients) stopped";
                 }
 
                 this.guest?.end(JSON.stringify({
@@ -683,7 +650,7 @@ export default class App {
             this.hostClients.forEach(client => {
                 client.socket.write(JSON.stringify({
                     cmd: "goodbye",
-                    app: this.serverName,
+                    app: this.appName,
                 }));
             });
 
@@ -701,7 +668,7 @@ export default class App {
         } else {
             this.guest?.write(JSON.stringify({
                 cmd: "goodbye",
-                app: this.serverName,
+                app: this.appName,
             }) + "\n");
             closeGuestSocket();
             this._onStop?.();
@@ -721,21 +688,46 @@ export default class App {
         // `initClients()` functions.
         await this.loadProtoFiles(this.conf.protoDirs, this.conf.protoOptions, true);
 
+        const app = this.conf.apps.find(app => app.name === this.appName);
+
         if (this.server) {
-            await this.initServer(this.serverName, true);
+            // Unserve old service instance and possibly call the `destroy()` lifecycle method.
+            for (const [_, { ctor, ins }] of this.serverRegistry) {
+                if (typeof ins.destroy === "function") {
+                    await (ins as LifecycleSupportInterface).destroy();
+                }
+
+                unserve(this.server, ctor);
+            }
+
+            // Remove cached files and their dependencies so, when reloading, they could be
+            // reimported and use any changes inside them.
+            const filenames = [...this.serverRegistry.keys()].map(serviceName => {
+                const basename = serviceName.split(".").join(path.sep);
+
+                if (isTsNode) {
+                    return path.join(process.cwd(), basename + ".ts");
+                } else {
+                    return path.join(process.cwd(), basename + ".js");
+                }
+            }).flat();
+            const dependencies = findDependencies(filenames);
+
+            [...filenames, ...dependencies].forEach(filename => {
+                delete require.cache[filename];
+            });
+
+            this.serverRegistry = new Map(); // reset the server registry
+        }
+
+        if (app && app.serve && app.services?.length) {
+            await this.initServer(app, true);
+        } else if (this.server) { // The app has been removed from the config or no longer serve.
+            this.server.forceShutdown();
+            this.server = null;
         }
 
         await this.initClients();
-
-        // Same as in the `start()` function, we only run the lifecycle `init()` functions when all
-        // the necessary procedure are done, so that any logic, for example, calling another
-        // service's methods in the `init()`  method, is valid since the connection has been
-        // established.
-        for (const [, { ins }] of this.serverRegistry) {
-            if (typeof ins.init === "function") {
-                await ins.init();
-            }
-        }
 
         if (msgId) {
             // If `msgId` is provided, that means the stop event is issued by a guest app, for
@@ -743,11 +735,11 @@ export default class App {
             // sender that the process has finished.
             let result: string;
 
-            if (this.serverName) {
-                result = `gRPC app [${this.serverName}] reloaded`;
+            if (this.appName) {
+                result = `App [${this.appName}] reloaded`;
                 console.info(result);
             } else {
-                result = `gRPC clients reloaded`;
+                result = `App (clients) reloaded`;
             }
 
             this.guest?.write(JSON.stringify({ cmd: "reply", msgId: msgId, result }) + "\n");
@@ -800,7 +792,7 @@ export default class App {
                                 if (!this.conf.apps.some(app => app.name === msg.app)) {
                                     client.destroy(new Error(`Invalid app name '${msg.app}'`));
                                 } else if (this.hostClients.some(item => item.app === msg.app)) {
-                                    client.destroy(new Error(`gRPC app [${msg}] is already running`));
+                                    client.destroy(new Error(`App [${msg}] is already running`));
                                 } else {
                                     this.hostClients.push({
                                         socket: client,
@@ -814,7 +806,7 @@ export default class App {
 
                             client.write(JSON.stringify({
                                 cmd: "handshake",
-                                app: this.serverName,
+                                app: this.appName,
                             }) + "\n");
                         } else if (msg.cmd === "goodbye") {
                             this.hostClients.forEach(_client => {
@@ -840,7 +832,7 @@ export default class App {
                                         client.end(JSON.stringify(reply));
                                     });
                                 } else {
-                                    client.destroy(new Error(`gRPC app [${msg.app}] is not running`));
+                                    client.destroy(new Error(`App [${msg.app}] is not running`));
                                 }
                             } else {
                                 const clients = [...this.hostClients];
@@ -939,7 +931,7 @@ export default class App {
                         // connection is closed due to program failure on the client-side, we can
                         // try to revive the client app.
                         if (_client.app &&
-                            _client.app !== this.serverName &&
+                            _client.app !== this.appName &&
                             !_client.stopped &&
                             !this.hostStopped
                         ) {
@@ -965,8 +957,8 @@ export default class App {
                 // Connect to self so that we can use the same control logic.
                 this.doTryJoining(sockPath, resolve, reject);
 
-                if (this.serverName) {
-                    console.info(`gRPC app [${this.serverName}] has become the host server`);
+                if (this.appName) {
+                    console.info(`App [${this.appName}] has become the host server`);
                 } else {
                     console.info("This app has become the host server");
                 }
@@ -1010,7 +1002,7 @@ export default class App {
      */
     protected doTryJoining(sockPath: string, resolve: () => void, reject: (err: Error) => void) {
         const client = net.createConnection(sockPath, () => {
-            client.write(JSON.stringify({ cmd: "handshake", app: this.serverName }) + "\n");
+            client.write(JSON.stringify({ cmd: "handshake", app: this.appName }) + "\n");
             this.guest = client;
 
             if (!this.canTryHost) {
@@ -1119,7 +1111,7 @@ export default class App {
     }
 
     /**
-     * Sends control command to the gRPC apps. This function is mainly used in the CLI tool.
+     * Sends control command to the apps. This function is mainly used in the CLI tool.
      * 
      * @param cmd 
      * @param app The app's name that should received the command. If not provided, the command is
@@ -1212,9 +1204,9 @@ export default class App {
                     if (cmd === "list") {
                         listApps([]).catch(console.error);
                     } else if (app) {
-                        console.info(`gRPC app [${app}] is not running`);
+                        console.info(`App [${app}] is not running`);
                     } else {
-                        console.info("No gRPC app is running");
+                        console.info("No app is running");
                     }
 
                     resolve();
@@ -1226,7 +1218,7 @@ export default class App {
     }
 
     /**
-     * Runs a snippet inside the gRPC apps context.
+     * Runs a snippet inside the apps context.
      * 
      * This function is for temporary scripting usage, it starts a temporary pure-clients app so we
      * can use the services as we normally do in our program, and after the main `fn` function is

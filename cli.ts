@@ -9,7 +9,7 @@ import { absPath, ensureDir, exists, spawnProcess } from "./util";
 
 const program = new commander.Command("grpc-boot");
 
-program.description("start, reload or stop gRPC apps")
+program.description("start, reload or stop apps")
     .version(pkg.version);
 
 program.command("init")
@@ -114,10 +114,10 @@ async function handleStart(appName: string | undefined, options: {
     const start = async (app: Config["apps"][0]) => {
         try {
             await spawnProcess(app, options.config, conf.entry);
-            console.info(`gRPC app [${app.name}] started at '${app.uri}'`);
+            console.info(`App [${app.name}] started at '${app.uri}'`);
         } catch (err) {
             const reason = err.message || String(err);
-            console.error(`Unable to start gRPC app [${app.name}] (reason: ${reason})`);
+            console.error(`Unable to start app [${app.name}] (reason: ${reason})`);
         }
     };
 
@@ -125,9 +125,9 @@ async function handleStart(appName: string | undefined, options: {
         const app = conf.apps?.find(app => app.name === appName);
 
         if (!app) {
-            throw new Error(`gRPC app [${app.name}] doesn't exist in the config file`);
+            throw new Error(`App [${app.name}] doesn't exist in the config file`);
         } else if (!app.serve) {
-            throw new Error(`gRPC app [${app.name}] is not intended to be served`);
+            throw new Error(`App [${app.name}] is not intended to be served`);
         }
 
         await start(app);
@@ -139,13 +139,13 @@ async function handleStart(appName: string | undefined, options: {
 }
 
 program.command("start")
-    .description("start a gRPC app or all apps (exclude non-served ones)")
+    .description("start an app or all apps (exclude non-served ones)")
     .argument("[app]", "the app name in the config file")
     .option("-c, --config <filename>", "use a custom config file")
     .action(handleStart);
 
 program.command("restart")
-    .description("restart a gRPC app or all gRPC apps (exclude non-served ones)")
+    .description("restart an app or all apps (exclude non-served ones)")
     .argument("[app]", "the app name in the config file")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string | undefined, options: { config?: string; }) => {
@@ -158,7 +158,7 @@ program.command("restart")
     });
 
 program.command("reload")
-    .description("reload a gRPC app or all gRPC apps")
+    .description("reload an app or all apps")
     .argument("[app]", "the app name in the config file")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string | undefined, options: { config?: string; }) => {
@@ -170,7 +170,7 @@ program.command("reload")
     });
 
 program.command("stop")
-    .description("stop a gRPC or all gRPC apps")
+    .description("stop an app or all apps")
     .argument("[app]", "the app name in the config file")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (appName: string | undefined, options: { config?: string; }) => {
@@ -182,7 +182,7 @@ program.command("stop")
     });
 
 program.command("list")
-    .description("list all gRPC apps (exclude non-served ones)")
+    .description("list all apps (exclude non-served ones)")
     .option("-c, --config <filename>", "use a custom config file")
     .action(async (_, options: { config?: string; }) => {
         try {
@@ -193,7 +193,7 @@ program.command("list")
     });
 
 if (process.send) {
-    if (require.main.filename === __filename) {
+    if (require.main?.filename === __filename) {
         const appName = process.argv[2];
         const config = process.argv[3];
 
