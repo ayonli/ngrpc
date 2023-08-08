@@ -285,7 +285,7 @@ App.boot("example-server").then(app => {
 
 ----
 
-**`App.loadConfig(config?: string): Config`**
+**`App.loadConfig(config?: string): Promise<Config>`**
 
 Loads the configurations.
 
@@ -293,7 +293,7 @@ Loads the configurations.
 
 ----
 
-**`App.loadConfigForPM2(config?: string): { apps: any[] }`**
+**`App.loadConfigForPM2(config?: string): Promise<{ apps: any[] }>`**
 
 Loads the configurations and reorganize them so that the same configuration can be used in PM2's
 configuration file.
