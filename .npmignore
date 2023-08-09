@@ -18,3 +18,5 @@ main.*
 script.*
 user-server
 pm2.config.js
+cert-ext.conf
+cli.d.ts
