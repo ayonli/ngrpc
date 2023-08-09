@@ -7,6 +7,7 @@ Make it easy to create standalone and elegant gRPC based applications.
 
 *NOTE: The NPM package only contains the minimal file base,*
 *[go to GitHub for this Doc](https://github.com/hyurl/grpc-boot) and the related files.*
+*By combining these files, this project itself serves as an example of using gRPC Boot in real world.*
 
 ## Install
 
