@@ -1,7 +1,6 @@
 node_modules
 certs
 test
-services
 .*
 *.sh
 *.tgz
@@ -20,3 +19,11 @@ user-server
 pm2.config.js
 cert-ext.conf
 cli.d.ts
+services/*.go
+services/*.js
+services/*.js.map
+services/*.d.ts
+services/*.ts
+services/*.proto
+!services/ExampleService.ts
+!services/ExampleService.proto

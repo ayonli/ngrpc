@@ -57,11 +57,8 @@ program.command("init")
                 "package": pkg,
                 "protoDirs": ["./" + pkg],
                 "protoOptions": {
-                    "keepCase": true,
                     // @ts-ignore
                     "longs": "String",
-                    // @ts-ignore
-                    "enums": "String",
                     "defaults": true,
                     "oneofs": true
                 },
