@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import "source-map-support/register";
+try {
+    require("source-map-support/register");
+} catch {}
 import * as commander from "commander";
 import * as fs from "fs/promises";
 import * as path from "path";
