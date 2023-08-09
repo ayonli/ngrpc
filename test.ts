@@ -702,12 +702,13 @@ describe("CLI:stop", () => {
 
         try {
             await runCommand("start", ["example-server"]);
-            await App.boot();
+            const app = await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
             await runCommand("stop", ["example-server"]);
 
+            await app.reload();
             await services.ExampleService.sayHello({ name: "World" });
         } catch (_err) {
             err = _err;
