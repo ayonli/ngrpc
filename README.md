@@ -90,7 +90,8 @@ It's just that simple.
 - `apps` This property configures the apps that this project serves and connects.
     - `name` The name of the app.
     - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:`
-        or `xds:`.
+        or `xds:` (make sure package [@grpc/grpc-js-xds](https://www.npmjs.com/package/@grpc/grpc-js-xds)
+        is installed).
     - `serve` If this app is served by the gRPC Boot app server. If this property is `false`, that
         means the underlying services are served by another program. As we can see from the above
         example, the `user-server` sets this property to `false`, because it's served in a

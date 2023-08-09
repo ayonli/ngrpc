@@ -32,6 +32,8 @@ import humanizeDuration = require("humanize-duration");
 
 export type { ServiceClient };
 
+let xdsEnabled = false;
+
 /** These type represents the structures and properties set in the config file. */
 export type Config = {
     $schema?: string;
@@ -597,6 +599,22 @@ export default class App {
 
         ins.config = absPath(config || "grpc-boot.json");
         ins.conf = await this.loadConfig(ins.config);
+        let xdsApp: Config["apps"][0];
+
+        if (!xdsEnabled &&
+            (xdsApp = ins.conf.apps?.find(item => !!item.serve && item.uri?.startsWith("xds:")))
+        ) {
+            try {
+                const _module = require("@grpc/grpc-js-xds");
+                _module.register();
+                xdsEnabled = true;
+            } catch (err) {
+                if (err["code"] === "MODULE_NOT_FOUND") {
+                    throw new Error(`'xds:' protocol is used in app [${xdsApp.name}]`
+                        + `, but package '@grpc/grpc-js-xds' is not installed`);
+                }
+            }
+        }
 
         // When starting, if no `app` is provided and no `require.main` is presented, that means the
         // the is running in the Node.js REPL and we're trying only to connect to services, in this
