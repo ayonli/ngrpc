@@ -112,7 +112,7 @@ It's just that simple.
         
         NOTE: We only need a pair of certificates for both the server and the client, since they are
         inside one project, using different certificates makes no sense.
-    - `connectTimeout` Connection timeout is milliseconds, the default value is `5_000` ms.
+    - `connectTimeout` Connection timeout in milliseconds, the default value is `5_000` ms.
     - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
     - `stderr` Log file used for stderr.
     - `env` The environment variables passed to the `entry` file.
@@ -178,8 +178,7 @@ inconsistency between the two files and causing program failure. So this package
 ### About Process Management
 
 A server app may be automatically respawned if it is crashed, but this behavior requires at least
-one server app is still running. If our project only have one app that serves as a server, this
-feature will not function. 
+one app is still running. If our project only have one app, this feature will not function. 
 
 On the other hand, the CLI tool only works for the app instance, if the process contain other
 objects that prevent the process to exit, the `stop` command won't be able to terminate the process.
@@ -418,7 +417,7 @@ export default class ExampleService implements LifecycleSupportInterface {
     }
 
     async destroy(): Promise<void> {
-        // when the app is about to stop, or the service is about to be reloaded, the `destroy()`
+        // When the app is about to stop, or the service is about to be reloaded, the `destroy()`
         // method will be called, which gives the ability to clean up and release resource.
     }
 }
@@ -481,7 +480,7 @@ entry file, just like this.
 }
 ```
 
-Moreover, instead of given the extension name, we can omitted (for example `./main`) and allow the
+Moreover, instead of giving the extension name, we can omit it (for example `./main`) and allow the
 CLI tool to determine whether to use `node` or `ts-node` according the file presented. If `main.js`
 is presented, `node` is used, otherwise, `ts-node` is used.
 
@@ -515,7 +514,7 @@ from it. To do this, we can create a custom config file `helloworld.grpc-boot.js
 }
 ```
 
-Then create a folder named `helloworld`, inside it, we create a TypeScript declaration
+Then create a folder named `helloworld`, inside it, we create a TypeScript declaration file
 `GreeterService.d.ts`:
 
 ```ts
