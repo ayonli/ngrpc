@@ -22,6 +22,7 @@ import {
     ServerConfig
 } from "@hyurl/grpc-async";
 import get = require("lodash/get");
+import set = require("lodash/set");
 import isEqual = require("lodash/isEqual");
 import hash = require("string-hash");
 import * as net from "net";
@@ -38,6 +39,7 @@ let xdsEnabled = false;
 export type Config = {
     $schema?: string;
     package: string;
+    namespace?: string;
     entry?: string;
     importRoot?: string;
     protoDirs: string[];
@@ -318,13 +320,15 @@ export default class App {
         }
 
         for (const serviceName of app.services) {
-            const protoCtor: ServiceClientConstructor = get(this.pkgDef as object, serviceName);
+            const nameParts = serviceName.split(".");
+            const _serviceName = this.conf.package + "." + nameParts.slice(1).join(".");
+            const protoCtor: ServiceClientConstructor = get(this.pkgDef as object, _serviceName);
 
             if (!protoCtor) {
                 console.error(`service '${serviceName}' is not correctly declared`);
             }
 
-            let filename = serviceName.split(".").join(path.sep);
+            let filename = nameParts.join(path.sep);
 
             if (this.conf.importRoot) {
                 filename = path.join(this.conf.importRoot, filename);
@@ -424,9 +428,8 @@ export default class App {
 
         this.manager?.close(); // close old clients
         this.manager = new ConnectionManager();
-        const rootNsp = this.conf.package;
-        // @ts-ignore
-        global[rootNsp] = this.manager.useChainingSyntax(rootNsp);
+        const nsp = this.conf.namespace || this.conf.package;
+        set(global, nsp, this.manager.useChainingSyntax(this.conf.package));
 
         // Reorganize client-side configuration based on the service name since the gRPC clients are
         // created based on the service.
@@ -487,11 +490,14 @@ export default class App {
         };
 
         this.clientRegistry.forEach((apps, serviceName) => {
+            const index = serviceName.indexOf(".") + 1;
+            const _serviceName = this.conf.package + "." + serviceName.slice(index);
+            const protoCtor = get(this.pkgDef as object, _serviceName) as ServiceClientConstructor;
+
             if (apps.length === 1) {
                 const [app] = apps;
                 const { address, credentials: cred } = getConnectConfig(app);
-
-                const client = connect(get(this.pkgDef as object, serviceName), address, cred, {
+                const client = connect(protoCtor, address, cred, {
                     ...(app.options ?? null),
                     connectTimeout: app.connectTimeout || 5_000,
                 });
@@ -511,51 +517,47 @@ export default class App {
                         },
                     } satisfies ServerConfig;
                 });
-                const balancer = new LoadBalancer(
-                    get(this.pkgDef as object, serviceName) as ServiceClientConstructor,
-                    servers,
-                    (ctx) => {
-                        const addresses: string[] = ctx.servers
-                            .filter(item => item.state !== connectivityState.SHUTDOWN)
-                            .map(item => item.address);
-                        let route: string;
+                const balancer = new LoadBalancer(protoCtor, servers, (ctx) => {
+                    const addresses: string[] = ctx.servers
+                        .filter(item => item.state !== connectivityState.SHUTDOWN)
+                        .map(item => item.address);
+                    let route: string;
 
-                        if (typeof ctx.params === "string") {
-                            route = ctx.params;
-                        } else if (ctx.params &&
-                            typeof ctx.params === "object" &&
-                            !Array.isArray(ctx.params) &&
-                            typeof ctx.params.route === "string"
-                        ) {
-                            route = ctx.params.route;
-                        }
+                    if (typeof ctx.params === "string") {
+                        route = ctx.params;
+                    } else if (ctx.params &&
+                        typeof ctx.params === "object" &&
+                        !Array.isArray(ctx.params) &&
+                        typeof ctx.params.route === "string"
+                    ) {
+                        route = ctx.params.route;
+                    }
 
-                        if (route) {
-                            if (addresses.includes(route)) {
-                                return route; // explicitly use a server instance
-                            } else {
-                                const app = apps.find(
-                                    app => app.name === route || app.uri === route
-                                );
+                    if (route) {
+                        if (addresses.includes(route)) {
+                            return route; // explicitly use a server instance
+                        } else {
+                            const app = apps.find(
+                                app => app.name === route || app.uri === route
+                            );
 
-                                if (app) {
-                                    const address = getAddress(app);
+                            if (app) {
+                                const address = getAddress(app);
 
-                                    if (addresses.includes(address)) {
-                                        return address;
-                                    }
+                                if (addresses.includes(address)) {
+                                    return address;
                                 }
                             }
-
-                            // use hash
-                            const id = hash(route);
-                            return addresses[id % addresses.length];
                         }
 
-                        // use round-robin
-                        return addresses[ctx.acc % addresses.length];
+                        // use hash
+                        const id = hash(route);
+                        return addresses[id % addresses.length];
                     }
-                );
+
+                    // use round-robin
+                    return addresses[ctx.acc % addresses.length];
+                });
 
                 this.manager.register(balancer);
             }

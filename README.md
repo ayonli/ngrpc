@@ -72,8 +72,10 @@ It's just that simple.
 
 ### Explanation
 
-- `package` This is the directory that stores the service class files, and is the root namespace of
-    the services, as well as the package name in the `.proto` files.
+- `package` This is the package name in the `.proto` files.
+- `namespace` This is the directory that stores the service class (`.ts`) files, and is the root
+    namespace of the services. Normally, this option is omitted or set to the same value as
+    `package`, but it can be set to a different value to achieve aliasing.
 - `entry` The entry file that is used to spawn apps.
     Normally, this property is not required because the CLI command will use the default entry
     file for us.
@@ -84,8 +86,9 @@ It's just that simple.
 - `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
     given, we need to set this property the same value as the `outDir` compiler option in the
     `tsconfig.json` file.
-- `protoDirs` These directories stores the `.proto` files, normally, they reside with the service
-    class files, so we set to `services` as well.
+- `protoDirs` These directories stores the `.proto` files. Normally, `.proto` files reside with the
+    service class (`.ts`) files, but they can be placed in a different place, say a `proto` folder,
+    just set this option to the correct directory so the program can find and load them.
 - `protoOptions` These options are used when loading the `.proto` files.
 - `apps` This property configures the apps that this project serves and connects.
     - `name` The name of the app.
@@ -362,6 +365,9 @@ declare global {
 }
 ```
 
+*NOTE: this rule doesn't apply to the situation when multiple projects are*
+*[sharing the same `.proto` files](#sharing-proto-files-across-projects).*
+
 2. The package name / namespace is the directory name that store the `.proto` files and `.ts` files.
     For example, package name `services` uses `./services` directory, and `services.sub` uses
     `./services/sub`. This is required for discovering and importing files.
@@ -538,6 +544,72 @@ Then in our entry file, add the following code:
 ```ts
 await App.boot(null, "helloworld.grpc-boot.json");
 ```
+
+## Sharing `.proto` Files Across Projects
+
+Multiple projects can use each other's services to form a bigger architecture. To do this, one
+project needs to download and import the `.proto` files from the other project. During the process,
+we need to prevent naming conflict. For example, both project A and project B uses `services` as
+their namespaces and the folder to place service class files, and they both have their own
+`services.UserService`. It's impossible for us to store two `.proto` files with the same name in one
+place, and impossible to have two `UserService` under the same namespace.
+
+In order to prevent this and have a better coding experience, we need a better practice, to name our
+packages in the `.proto` files, as well as the service namespaces in the `.ts` files. We can do this
+by settings different names for the `package` option and the `namespace` option in the config file
+(and the corresponding `.proto` and `.ts` files).
+For Example, in project A:
+
+```json
+// grpc-boot.json
+{
+    "package": "hyurl.grpcBoot.services",
+    "namespace": "services",
+    // ...
+    "apps": [
+        {
+            // ...
+            "services": [
+                "services.UserService"
+            ]
+        }
+    ]
+}
+```
+
+This tells that our `.proto` files uses the package name `hyurl.grpcBoot.services`, while the `.ts`
+files uses namespace `services`.
+
+When project B uses the `.proto` files from this project, in its
+config file (a custom one), we set this:
+
+```json
+// extra-grpc-boot.json
+{
+    "package": "hyurl.grpcBoot.services",
+    "namespace": "projectA",
+    // ...
+    "apps": [
+        {
+            // ...
+            "services": [
+                "projectA.UserService"
+            ]
+        }
+    ]
+}
+```
+
+Then in project A we are comfortably using `services.UserService` while in project B we use
+`projectA.UserService` to refer to the same service.
+
+Naming the package with prefixed domains gives a clear indication of where the services and messages
+are coming from. The `namespace`, on the other hand, creates an alias of the package in the `.ts`
+files and for auto-loading. It practically just gives a shorter name of the package (as well as a
+shallower path of the directory structure). However this is optional, if we'd prefer, we can create
+all the subfolders for the `package` name and leave `namespace` unset (and reference the services
+respectively).
+
 
 ## 0-Services App
 

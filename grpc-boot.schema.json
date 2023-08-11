@@ -9,6 +9,10 @@
             "type": "string",
             "description": "The same package name as in the `.proto` files."
         },
+        "namespace": {
+            "type": "string",
+            "description": "The same root namespace as in the `.ts` files"
+        },
         "entry": {
             "type": "string",
             "description": "The entry file that is used to spawn apps."
