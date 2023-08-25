@@ -1,6 +1,6 @@
 # gRPC Boot
 
-Make it easy to create standalone and elegant gRPC based applications.
+Make it easy to create clear, expressive and elegant gRPC based applications.
 
 *NOTE: this package uses [@hyurl/grpc-async](https://github.com/hyurl/grpc-async) to make life with*
 *gRPC easier.*
@@ -22,7 +22,6 @@ Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
 ```json
 {
     "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
-    "package": "services",
     "protoDirs": [
         "./services"
     ],
@@ -43,20 +42,26 @@ Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
         },
         {
             "name": "user-server",
-            "uri": "grpc://localhost:4001",
+            "uri": "grpcs://localhost:4001",
             "serve": false,
             "services": [
                 "services.UserService"
-            ]
+            ],
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
         },
         {
             "name": "post-server",
-            "uri": "grpc://localhost:4002",
+            "uri": "grpcs://localhost:4002",
             "serve": true,
             "services": [
                 "services.PostService"
             ],
-            "stdout": "./out.log"
+            "stdout": "./out.log",
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
         }
     ]
 }
@@ -72,17 +77,14 @@ It's just that simple.
 
 ### Explanation
 
-- `package` This is the package name in the `.proto` files.
 - `namespace` This is the directory that stores the service class (`.ts`) files, and is the root
-    namespace of the services. Normally, this option is omitted or set to the same value as
-    `package`, but it can be set to a different value to achieve aliasing.
+    namespace of the services. Normally, this option is omitted and use `services` by default.
 - `entry` The entry file that is used to spawn apps.
     Normally, this property is not required because the CLI command will use the default entry
     file for us.
 
-    If a custom entry file is provided, it's spawned with the arguments `appName [config]`, we
-    can use `process.argv[2]` to get the app's name and `process.argv[3]` to get the config
-    filename (if provided). Please take a look at the example [main.ts](./main.ts).
+    If a custom entry file is provided, it's spawned with the arguments `appName`, we can use
+    `process.argv[2]` to get the app's name. Please take a look at the example [main.ts](./main.ts).
 - `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
     given, we need to set this property the same value as the `outDir` compiler option in the
     `tsconfig.json` file.
@@ -99,8 +101,8 @@ It's just that simple.
         means the underlying services are served by another program. As we can see from the above
         example, the `user-server` sets this property to `false`, because it's served in a
         [`golang` program](./main.go). If we take a look at the
-        [services.UserService](./services/UserService.d.ts), we will just see a very simple
-        TypeScript declaration file.
+        [services.UserService](./services/UserService.ts), we will just see a very simple
+        TypeScript file that contains an abstract class.
     - `services` The services served by this app. if we take a look at the
         [services.ExampleService](./services/ExampleService.ts) and the
         [services.PostService](./services/PostService.ts), we will see that they're very simple
@@ -118,6 +120,8 @@ It's just that simple.
     - `connectTimeout` Connection timeout in milliseconds, the default value is `5_000` ms.
     - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
     - `stderr` Log file used for stderr.
+    - `entry` The entry file that is used to spawn this app. This option overwrites the one set in
+        the head.
     - `env` The environment variables passed to the `entry` file.
 
 With these simple configurations, we can write our gRPC application straightforwardly in a `.proto`
@@ -126,34 +130,21 @@ or connect to the services, all is properly handled internally by the gRPC Boot 
 
 ## CLI Commands
 
-- `init [options] [package]` initiate a new gRPC project
-    - `options`
-        - `-c, --config <filename>` create a custom config file
-    - `package` The package name / root namespace of the services, default 'services'
+- `init` initiate a new gRPC project
 
-- `start [options] [app]` start an app or all apps (exclude non-served ones)
-    - `options`
-        - `-c, --config <filename>` use a custom config file
+- `start [app]` start an app or all apps (exclude non-served ones)
     - `app` the app name in the config file
 
-- `restart [options] [app]` restart an app or all apps (exclude non-served ones)
-    - `options`
-        - `-c, --config <filename>` use a custom config file
+- `restart [app]` restart an app or all apps (exclude non-served ones)
     - `app` the app name in the config file
 
-- `reload [options] [app]` reload an app or all apps
-    - `options`
-        - `-c, --config <filename>` use a custom config file
+- `reload [app]` reload an app or all apps
     - `app` the app name in the config file
 
-- `stop [options] [app]` stop an app or all apps
-    - `options`
-        - `-c, --config <filename>` use a custom config file
+- `stop [app]` stop an app or all apps
     - `app` the app name in the config file
 
-- `list [options]` list all apps (exclude non-served ones)
-    - `options`
-        - `-c, --config <filename>` use a custom config file
+- `list` list all apps (exclude non-served ones)
 
 ### Hot-Reloading
 
@@ -192,13 +183,18 @@ us more control of our program and provides more features such as monitoring. An
 
 ## Programmatic API
 
-**`App.boot(app?: string, config?: string): Promise<void>`**
+**service(name: string): ClassDecorator**
+
+This decorator function is used to link the service class to a gRPC service.
+
+- `name` The service name defined in the `.proto` file.
+
+**`App.boot(app?: string): Promise<void>`**
 
 Starts the app programmatically.
 
-- `app` The app's name that should be started as a server. If not provided, the app only  connects
+- `app` The app's name that should be started as a server. If not provided, the app only connects
     to other servers but not serves as one.
-- `config` Use a custom config file.
 
 **Example**
 
@@ -207,18 +203,12 @@ import App from "@hyurl/grpc-boot";
 
 (async () => {
     // This app starts a gRPC server named 'example-server' and connects to all services.
-    const serverApp1 = await App.boot("example-server");
-
-    // This app starts a gRPC server with a custom config file.
-    const serverApp2 = await App.boot("example-server", "my.config.json");
+    const serverApp = await App.boot("example-server");
 })();
 
 (async () => {
     // This app won't start a gRPC server, but connects to all services.
     const clientApp1 = await App.boot();
-
-    // This app connects to all services with a custom config file.
-    const clientApp2 = await App.boot(null, "my.config.json");
 })();
 ```
 
@@ -292,35 +282,30 @@ App.boot("example-server").then(app => {
 
 ----
 
-**`App.loadConfig(config?: string): Promise<Config>`**
+**`App.loadConfig(): Promise<Config>`**
 
 Loads the configurations.
 
-- `config` Use a custom config file.
-
 ----
 
-**`App.loadConfigForPM2(config?: string): Promise<{ apps: any[] }>`**
+**`App.loadConfigForPM2(): Promise<{ apps: any[] }>`**
 
 Loads the configurations and reorganize them so that the same configuration can be used in PM2's
 configuration file.
 
-- `config` Use a custom config file.
-
 ----
 
-**`App.sendCommand(cmd: "reload" | "stop" | "list", app?: string, config?: string): Promise<void>`**
+**`App.sendCommand(cmd: "reload" | "stop" | "list", app?: string): Promise<void>`**
 
 Sends control command to the apps. This function is mainly used in the CLI tool.
 
 - `cmd`
 - `app` The app's name that should received the command. If not provided, the
     command is sent to all apps.
-- `config` Use a custom config file.
 
 ----
 
-**`App.runSnippet(fn: () => void | Promise<void>, config?: string): Promise<void>`**
+**`App.runSnippet(fn: () => void | Promise<void>): Promise<void>`**
 
 Runs a snippet inside the apps context.
 
@@ -329,7 +314,6 @@ the services as we normally do in our program, and after the main `fn` function 
 automatically stopped.
 
 - `fn` The function to be run.
-- `config` Use a custom config file.
 
 **Example**
 
@@ -340,6 +324,46 @@ App.runSnippet(async () => {
     const post = await services.PostService.getPost({ id: 1 });
     console.log(post);
 });
+```
+
+## Implement a Service
+
+To allow gRPC Boot to handle the serving and connecting process of our services, we need to
+implement our service in a well-designed fashion.
+
+For example, a typical service should be designed like this:
+
+```ts
+import { ServiceClient, service } from "@hyurl/grpc-boot";
+
+declare global {
+    namespace services {
+        const ExampleService: ServiceClient<ExampleService>;
+    }
+}
+
+@service("services.ExampleService")
+export default class ExampleService {
+    // methods and private fields...
+}
+```
+
+If this is a client-side service representation (only for referencing), it should be defined as an
+abstract class, like this:
+
+```ts
+import { ServiceClient, service } from "@hyurl/grpc-boot";
+
+declare global {
+    namespace services {
+        const UserService: ServiceClient<UserService>;
+    }
+}
+
+@service("services.github.ayonli.UserService")
+export default abstract class UserService {
+    // abstract methods...
+}
 ```
 
 ## Good Practices
@@ -429,43 +453,6 @@ export default class ExampleService implements LifecycleSupportInterface {
 }
 ```
 
-## Routing According to the Message
-
-If a service is served in multiple apps, gRPC Boot uses a client-side load balancer to connect to it,
-the load balancer is configured with a custom routing resolver which allows us redirect traffic
-according to the message we sent when calling RPC functions.
-
-To use this feature, define the request message that extends / augments the interface
-`RoutableMessageStruct`, it contains a `route` key that can be used in the internal client load
-balancer. When the client sending a request which implements this interface, the program will
-automatically route the traffic to a certain server evaluated by the `route` key, which can be set
-in the following forms:
-
-- a URI or address that corresponds to the ones that set in the config file;
-- an app's name that corresponds to the ones that set in the config file;
-- if none of the above matches, use the hash algorithm on the `route` value;
-- if `route` value is not set, then the default round-robin algorithm is used for routing.
-
-For Example:
-
-```proto
-// the .proto file
-
-message RequestMessage = {
-    string route = 1;
-    // other fields
-};
-```
-
-```ts
-// the .ts file
-import { RoutableMessageStruct } from "@hyurl/grpc-boot";
-
-export interface RequestMessage extends RoutableMessageStruct {
-    // other fields
-}
-```
-
 ## Running the Program in TS-Node
 
 The CLI tools starts the program either with `node` or `ts-node` according to the entry file. If the
@@ -490,133 +477,72 @@ Moreover, instead of giving the extension name, we can omit it (for example `./m
 CLI tool to determine whether to use `node` or `ts-node` according the file presented. If `main.js`
 is presented, `node` is used, otherwise, `ts-node` is used.
 
-## Multi-Config Project
+## Load Balancing and Routing
 
-It's possible to define a project with multiple gRPC Boot configurations, just pass the custom
-config filename everywhere we need. This suits the scenario that the gRPC servers from other
-projects uses other package names that is different from ours (commonly `services`).
+If a service is served in multiple apps, gRPC Boot uses a client-side load balancer to connect to it,
+the load balancer is configured with a custom routing resolver which allows us redirect traffic
+according to the message we sent when calling RPC functions.
 
-For example, another project uses the package name `helloworld`, and we use the `GreeterService`
-from it. To do this, we can create a custom config file `helloworld.grpc-boot.json` like this:
+To use this feature, define the request message that extends / augments the interface
+`RoutableMessageStruct`, it contains a `route` key that can be used in the internal client load
+balancer. When the client sending a request which implements this interface, the program will
+automatically route the traffic to a certain server evaluated by the `route` key, which can be set
+in the following forms:
 
-```json
-{
-    "package": "helloworld",
-    "protoDirs": ["helloworld"],
-    "protoOptions": {
-        "longs": "String",
-        "defaults": true,
-        "oneofs": true
-    },
-    "apps": [
-        {
-            "name": "greeter-server",
-            "uri": "grpc://greeter-server:4000",
-            "services": [
-                "helloworld.GreeterService"
-            ]
-        },
-    ]
-}
+- a URI that matches the ones that set in the config file;
+- an app's name that matches the ones that set in the config file;
+- if none of the above matches, use the hash algorithm on the `route` value;
+- if `route` value is not set, then the default round-robin algorithm is used for routing.
+
+For Example:
+
+```proto
+// the .proto file
+
+message RequestMessage = {
+    string route = 1;
+    // other fields
+};
 ```
-
-Then create a folder named `helloworld`, inside it, we create a TypeScript declaration file
-`GreeterService.d.ts`:
 
 ```ts
-import { ServiceClient } from "@hyurl/grpc-boot";
+// the .ts file
+import { RoutableMessageStruct } from "@hyurl/grpc-boot";
 
-declare global {
-    namespace helloworld {
-        const GreeterService: ServiceClient<GreeterService>;
-    }
-}
-
-// declare message types ...
-
-export default class GreeterService {
-    // declare methods ...
+export interface RequestMessage extends RoutableMessageStruct {
+    // other fields
 }
 ```
 
-Then in our entry file, add the following code:
+Apart from the client-side load balancing, server-side load balancing is automatically supported by
+gRPC, either by reverse proxy like NGINX or using the `xds:` protocol for Envoy Proxy.
+
+## Unnamed App
+
+It it possible to boot an app without providing the name, such an app will not start the server, but
+only connects to the services. This is useful when we're using gRPC services in a frontend server,
+for example, a web server, which only handles client requests and direct calls to the backend gRPC
+services, we need to establish connection between the web server and the RPC servers, but we don't
+won't to serve any service in the web server.
+
+The following app do not serve, but connects to all the services according to the configuration file.
+We can do all the stuffs provided by GoRPC in the web server as we would in the RPC server,
+because all the differences between the gRPC client and the gRPC server are hidden behind the scene.
 
 ```ts
-await App.boot(null, "helloworld.grpc-boot.json");
+import App from "@hyurl/grpc-boot";
+
+(async () => {
+    const app = await App.boot();
+})()
 ```
-
-## Sharing `.proto` Files Across Projects
-
-Multiple projects can use each other's services to form a bigger architecture. To do this, one
-project needs to download and import the `.proto` files from the other project. During the process,
-we need to prevent naming conflict. For example, both project A and project B uses `services` as
-their namespaces and the folder to place service class files, and they both have their own
-`services.UserService`. It's impossible for us to store two `.proto` files with the same name in one
-place, and impossible to have two `UserService` under the same namespace.
-
-In order to prevent this and have a better coding experience, we need a better practice, to name our
-packages in the `.proto` files, as well as the service namespaces in the `.ts` files. We can do this
-by settings different names for the `package` option and the `namespace` option in the config file
-(and the corresponding `.proto` and `.ts` files).
-For Example, in project A:
-
-```json
-// grpc-boot.json
-{
-    "package": "hyurl.grpcBoot.services",
-    "namespace": "services",
-    // ...
-    "apps": [
-        {
-            // ...
-            "services": [
-                "services.UserService"
-            ]
-        }
-    ]
-}
-```
-
-This tells that our `.proto` files uses the package name `hyurl.grpcBoot.services`, while the `.ts`
-files uses namespace `services`.
-
-When project B uses the `.proto` files from this project, in its
-config file (a custom one), we set this:
-
-```json
-// extra-grpc-boot.json
-{
-    "package": "hyurl.grpcBoot.services",
-    "namespace": "projectA",
-    // ...
-    "apps": [
-        {
-            // ...
-            "services": [
-                "projectA.UserService"
-            ]
-        }
-    ]
-}
-```
-
-Then in project A we are comfortably using `services.UserService` while in project B we use
-`projectA.UserService` to refer to the same service.
-
-Naming the package with prefixed domains gives a clear indication of where the services and messages
-are coming from. The `namespace`, on the other hand, creates an alias of the package in the `.ts`
-files and for auto-loading. It practically just gives a shorter name of the package (as well as a
-shallower path of the directory structure). However this is optional, if we'd prefer, we can create
-all the subfolders for the `package` name and leave `namespace` unset (and reference the services
-respectively).
-
 
 ## 0-Services App
 
-An app can be configured with `serve: true` but no services, such an app does not actually start the
-gRPC server neither consume the port. But such an app can be used, say, to start a web server, which
-connects to the gRPC services and uses the facility this package provides, such as the CLI tool and
-the reloading hook.
+Apart from the unnamed app, an app can be configured with `serve: true` but no services, such an app
+does not actually start the gRPC server neither consume the port. But such an app can be used, say,
+to start a web server, which connects to the gRPC services and uses the facility this package
+provides, such as the CLI tool and the reloading hook.
 
 For example:
 
@@ -639,7 +565,7 @@ For example:
 
 ```ts
 // main.ts
-import App from "@hyurl/grpc-boot";
+import App, { Config } from "@hyurl/grpc-boot";
 import * as http from "http";
 import * as https from "https";
 import * as fs from "fs/promises";
@@ -647,22 +573,21 @@ import * as fs from "fs/promises";
 if (require.main?.filename === __filename) {
     (async () => {
         const appName = process.argv[2];
-        const config = process.argv[3];
 
-        const app = await App.boot(appName, config);
+        const app = await App.boot(appName);
         let httpServer: http.Server;
         let httpsServer: https.Server;
         
         if (appName === "web-server") {
-            const conf = await App.loadConfig(config);
-            const _app = conf.apps.find(app => app.name === appName);
+            const conf = await App.loadConfig();
+            const _app = conf.apps.find(app => app.name === appName) as Config["apps"][0];
             let { protocol, port } = new URL(_app.uri);
 
             if (protocol === "https:") {
                 port ||= "443";
                 httpsServer = https.createServer({
-                    cert: await fs.readFile(_app.cert),
-                    key: await fs.readFile(_app.key),
+                    cert: await fs.readFile(_app.cert as string),
+                    key: await fs.readFile(_app.key as string),
                 }, (req, res) => {
                     // ...
                 }).listen(port);
@@ -682,10 +607,30 @@ if (require.main?.filename === __filename) {
             httpsServer?.close();
         });
 
-        process.send("ready");
+        process.send?.("ready");
     })().catch(err => {
         console.error(err);
         process.exit(1);
     });
 }
 ```
+
+## Good Practices
+
+In order to code a clear, expressive and elegant gRPC based application, apart from the features
+that gRPC Boot provides, we can order our project by performing the following steps.
+
+1. Create a `proto` folder to store all the `.proto` files in one place.
+
+2. Create a `services` folder for all the service files, the namespace of those files should be
+    the same as the folder's name (which is also `services`). Sub-folders and sub-namespaces are
+    also supported.
+
+3. Design the `.proto` files with a reasonable scoped package name, don't just name it `services`, 
+    instead, name it something like `services.[website].[provider]`, the `.proto` files should be
+    shared and reused across different projects, using a long name to prevent collision and provide
+    useful information about the services. Respectively, the directory path should reflect the
+    package name. See the [proto](./proto) files of this project as examples.
+
+4. Use the same file structures and symbol names (as possible as we can) in the class files to
+    reflect the ones in the `.proto` files, create a consistent development experience.

@@ -1,0 +1,27 @@
+{
+    "$schema": "./gorpc.schema.json",
+    "apps": [
+        {
+            "name": "user-server",
+            "uri": "grpcs://localhost:4001",
+            "serve": true,
+            "services": [
+                "services.UserService"
+            ],
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
+        },
+        {
+            "name": "post-server",
+            "uri": "grpcs://localhost:4002",
+            "serve": false,
+            "services": [
+                "services.PostService"
+            ],
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
+        }
+    ]
+}

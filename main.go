@@ -2,26 +2,30 @@ package main
 
 import (
 	"log"
-	"net"
 
+	"github.com/ayonli/gorpc"
 	"github.com/hyurl/grpc-boot/services"
-	"google.golang.org/grpc"
 )
 
 func main() {
-	addr := "localhost:4001"
-	tcpSrv, err := net.Listen("tcp", addr)
+	gorpc.Use(&services.UserService{})
+	gorpc.Use(&services.PostService{})
+
+	app, err := gorpc.Boot("user-server")
 
 	if err != nil {
-		log.Fatalf("Failed to listen on port %s", addr)
+		log.Fatal(err)
+	} else {
+		defer app.WaitForExit()
 	}
 
-	grpcSrv := grpc.NewServer()
-	services.RegisterUserServiceServer(grpcSrv, services.NewUserService())
+	// postSrv := gorpc.GetServiceClient(&services.PostService{}, "")
+	// ctx := context.Background()
+	// post, err := postSrv.GetPost(ctx, &ayonli.PostQuery{Id: 1})
 
-	log.Printf("server listening at %v", tcpSrv.Addr())
-
-	if err := grpcSrv.Serve(tcpSrv); err != nil {
-		log.Fatalln("Failed to start the gRPC server")
-	}
+	// if err != nil {
+	// 	log.Fatal(err)
+	// } else {
+	// 	fmt.Println(post)
+	// }
 }

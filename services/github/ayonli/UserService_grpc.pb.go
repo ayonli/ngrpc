@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v4.23.4
-// source: services/UserService.proto
+// source: proto/github/ayonli/UserService.proto
 
-package services
+package ayonli
 
 import (
 	context "context"
@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	UserService_GetUser_FullMethodName    = "/services.UserService/GetUser"
-	UserService_GetMyPosts_FullMethodName = "/services.UserService/GetMyPosts"
+	UserService_GetUser_FullMethodName    = "/services.github.ayonli.UserService/GetUser"
+	UserService_GetMyPosts_FullMethodName = "/services.github.ayonli.UserService/GetMyPosts"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -129,7 +129,7 @@ func _UserService_GetMyPosts_Handler(srv interface{}, ctx context.Context, dec f
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var UserService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "services.UserService",
+	ServiceName: "services.github.ayonli.UserService",
 	HandlerType: (*UserServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -142,5 +142,5 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "services/UserService.proto",
+	Metadata: "proto/github/ayonli/UserService.proto",
 }

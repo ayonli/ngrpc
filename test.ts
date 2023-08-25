@@ -1,10 +1,10 @@
 /// <reference path="./services/ExampleService.ts" />
-/// <reference path="./services/UserService.d.ts" />
+/// <reference path="./services/UserService.ts" />
 /// <reference path="./services/PostService.ts" />
 
 import { deepStrictEqual, ok } from "assert";
 import { it } from "mocha";
-import App, { ServiceClient } from ".";
+import App from ".";
 import { isTsNode } from "./util";
 import { spawn, execSync, ChildProcess, SpawnOptions } from "child_process";
 import { unlinkSync } from "fs";
@@ -31,30 +31,6 @@ async function runCommand(cmd: string, args: string[] = [], options: SpawnOption
 let goProcess: ChildProcess;
 
 before(async function () {
-    await fs.writeFile("test.config.json", JSON.stringify({
-        "$schema": "./grpc-boot.schema.json",
-        "package": "services",
-        "protoDirs": [
-            "services"
-        ],
-        "protoOptions": {
-            "longs": "String",
-            "defaults": true,
-            "oneofs": true
-        },
-        "apps": [
-            {
-                "name": "test-server",
-                "uri": "grpc://localhost:3000",
-                "serve": true,
-                "services": [
-                    "services.ExampleService"
-                ],
-                "stdout": "out.log"
-            }
-        ]
-    }, null, "    "), "utf8");
-
     // Must build the go program before running it, otherwise the
     // goProcess.kill() won"t be able to release the port, since
     // the server process isn't the real process the start the gRPC server
@@ -74,8 +50,7 @@ before(async function () {
 });
 
 after(async function () {
-    await fs.rm("test.config.json");
-    goProcess.kill();
+    goProcess.kill("SIGINT");
 
     setTimeout(() => {
         unlinkSync(__dirname + "/user-server");
@@ -85,24 +60,10 @@ after(async function () {
 
 describe("App.boot", () => {
     it("App.boot(app)", async () => {
-        let app: App;
+        let app: App | undefined;
 
         try {
             app = await App.boot("example-server");
-            const reply = await services.ExampleService.sayHello({ name: "World" });
-            deepStrictEqual(reply, { message: "Hello, World" });
-            await app.stop();
-        } catch (err) {
-            await app?.stop();
-            throw err;
-        }
-    });
-
-    it("App.boot(app, config)", async () => {
-        let app: App;
-
-        try {
-            app = await App.boot("test-server", "test.config.json");
             const reply = await services.ExampleService.sayHello({ name: "World" });
             deepStrictEqual(reply, { message: "Hello, World" });
             await app.stop();
@@ -180,33 +141,15 @@ describe("App.boot", () => {
             throw err;
         }
     });
-
-    it("App.boot(null, config)", async function () {
-        this.timeout(20_000);
-
-        await runCommand("start", ["-c", "test.config.json"]);
-
-        try {
-            await App.boot(null, "test.config.json");
-            const reply = await services.ExampleService.sayHello({ name: "World" });
-
-            deepStrictEqual(reply, { message: "Hello, World" });
-
-            await App.sendCommand("stop", null, "test.config.json");
-        } catch (err) {
-            await App.sendCommand("stop", null, "test.config.json");
-            throw err;
-        }
-    });
 });
 
 describe("app.[method]", () => {
     it("app.stop()", async function () {
         this.timeout(20_000); // prolong test for gRPC connection timeout
-        let app: App;
-        let reply: any;
-        let reply2: any;
-        let err: Error;
+        let app: App | undefined;
+        let reply: any | undefined;
+        let reply2: any | undefined;
+        let err: Error | undefined;
 
         try {
             app = await App.boot("example-server");
@@ -222,15 +165,15 @@ describe("app.[method]", () => {
 
         deepStrictEqual(reply, { message: "Hello, World" });
         deepStrictEqual(reply2, void 0);
-        deepStrictEqual(String(err), "Error: Failed to connect before the deadline");
+        deepStrictEqual(String(err), "Error: service services.ExampleService is not available");
     });
 
     it("app.reload()", async function () {
         this.timeout(20_000);
 
-        let app: App;
-        let reply: any;
-        let reply2: any;
+        let app: App | undefined;
+        let reply: any | undefined;
+        let reply2: any | undefined;
 
         const filename = path.join(__dirname, "services", "ExampleService" + (isTsNode ? ".ts" : ".js"));
         let contents = await fs.readFile(filename, "utf8");
@@ -259,8 +202,8 @@ describe("app.[method]", () => {
     });
 
     it("app.onReload(callback)", async () => {
-        let app: App;
-        let log: string;
+        let app: App | undefined;
+        let log: string | undefined;
 
         try {
             app = await App.boot("example-server");
@@ -279,8 +222,8 @@ describe("app.[method]", () => {
     });
 
     it("app.onStop(callback)", async () => {
-        let app: App;
-        let log: string;
+        let app: App | undefined;
+        let log: string | undefined;
 
         try {
             app = await App.boot("example-server");
@@ -308,15 +251,6 @@ describe("App.loadConfig*", () => {
         deepStrictEqual(conf, conf1);
     });
 
-    it("App.loadConfig(config)", async () => {
-        const conf = await App.loadConfig("./test.config.json");
-        const conf1 = require("./test.config.json");
-
-        conf1.protoOptions.longs = String;
-
-        deepStrictEqual(conf, conf1);
-    });
-
     it("App.loadConfigForPM2()", async () => {
         const conf = await App.loadConfigForPM2();
 
@@ -325,14 +259,14 @@ describe("App.loadConfig*", () => {
                 {
                     name: "example-server",
                     script: path.join(__dirname, "cli.js"),
-                    args: `example-server ${path.join(__dirname, "grpc-boot.json")}`,
+                    args: `example-server`,
                     env: {},
                     log_file: "./out.log",
                 },
                 {
                     name: "post-server",
                     script: path.join(__dirname, "cli.js"),
-                    args: `post-server ${path.join(__dirname, "grpc-boot.json")}`,
+                    args: `post-server`,
                     env: {},
                     log_file: "./out.log",
                 }
@@ -353,21 +287,6 @@ describe("App.runSnippet", () => {
             reply = await services.ExampleService.sayHello({ name: "World" });
         });
         await App.sendCommand("stop");
-
-        deepStrictEqual(reply, { message: "Hello, World" });
-    });
-
-    it("App.runSnippet(fn, config)", async function () {
-        this.timeout(20_000);
-
-        await runCommand("start", ["-c", "test.config.json"]);
-
-        let reply: any;
-
-        await App.runSnippet(async () => {
-            reply = await services.ExampleService.sayHello({ name: "World" });
-        }, "test.config.json");
-        await App.sendCommand("stop", null, "test.config.json");
 
         deepStrictEqual(reply, { message: "Hello, World" });
     });
@@ -402,83 +321,10 @@ describe("CLI:init", () => {
         ok((await fs.stat(testDir)).isDirectory());
         ok((await fs.stat(path.join(testDir, "tsconfig.json"))).isFile());
         ok((await fs.stat(path.join(testDir, "grpc-boot.json"))).isFile());
+        ok((await fs.stat(path.join(testDir, "proto"))).isDirectory());
         ok((await fs.stat(path.join(testDir, "services"))).isDirectory());
-        ok((await fs.stat(path.join(testDir, "services", "ExampleService.proto"))).isFile());
+        ok((await fs.stat(path.join(testDir, "proto", "ExampleService.proto"))).isFile());
         ok((await fs.stat(path.join(testDir, "services", "ExampleService.ts"))).isFile());
-
-        await fs.rm(testDir, { recursive: true });
-    });
-
-    it("init <package>", async () => {
-        await fs.mkdir(testDir);
-
-        await runInitCommandInTestDir(["grpc"]);
-
-        const confFile = path.join(testDir, "grpc-boot.json");
-        const protoFile = path.join(testDir, "grpc", "ExampleService.proto");
-        const tsFile = path.join(testDir, "grpc", "ExampleService.ts");
-
-        ok((await fs.stat(testDir)).isDirectory());
-        ok((await fs.stat(path.join(testDir, "tsconfig.json"))).isFile());
-        ok((await fs.stat(confFile)).isFile());
-        ok((await fs.stat(path.join(testDir, "grpc"))).isDirectory());
-        ok((await fs.stat(protoFile)).isFile());
-        ok((await fs.stat(tsFile)).isFile());
-
-        const conf = JSON.parse(await fs.readFile(confFile, "utf8"));
-        deepStrictEqual(conf.package, "grpc");
-        deepStrictEqual(conf.apps, [
-            {
-                "name": "example-server",
-                "uri": "grpc://localhost:4000",
-                "serve": true,
-                "services": [
-                    `grpc.ExampleService`
-                ],
-                "stdout": "./out.log"
-            }
-        ]);
-
-        const proto = await fs.readFile(protoFile, "utf8");
-        ok(proto.includes("package grpc;"));
-
-        const ts = await fs.readFile(tsFile, "utf8");
-        ok(ts.includes("namespace grpc {"));
-
-        await fs.rm(testDir, { recursive: true });
-    });
-
-    it("init --config <filename>", async () => {
-        await fs.mkdir(testDir);
-
-        await runInitCommandInTestDir(["-c", "test.config.json"]);
-
-        ok((await fs.stat(path.join(testDir, "test.config.json"))).isFile());
-
-        await fs.rm(testDir, { recursive: true });
-    });
-
-    it("init --config <filename> <package>", async () => {
-        await fs.mkdir(testDir);
-
-        await runInitCommandInTestDir(["-c", "test.config.json", "grpc"]);
-
-        const confFile = path.join(testDir, "test.config.json");
-        ok((await fs.stat(confFile)).isFile());
-
-        const conf = JSON.parse(await fs.readFile(confFile, "utf8"));
-        deepStrictEqual(conf.package, "grpc");
-        deepStrictEqual(conf.apps, [
-            {
-                "name": "example-server",
-                "uri": "grpc://localhost:4000",
-                "serve": true,
-                "services": [
-                    `grpc.ExampleService`
-                ],
-                "stdout": "./out.log"
-            }
-        ]);
 
         await fs.rm(testDir, { recursive: true });
     });
@@ -532,7 +378,7 @@ describe("CLI:restart", () => {
 
         try {
             await runCommand("start");
-            await App.boot();
+            const app = await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
@@ -541,6 +387,7 @@ describe("CLI:restart", () => {
 
             await runCommand("restart");
 
+            await app.reload();
             reply2 = await services.ExampleService.sayHello({ name: "World" });
 
             await fs.writeFile(filename, contents, "utf8"); // recover the file
@@ -607,7 +454,6 @@ describe("CLI:reload", () => {
 
         try {
             await runCommand("start");
-            await App.boot();
             await App.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
@@ -748,19 +594,11 @@ describe("config options", () => {
         this.timeout(20_000);
         await fs.mkdir(testDir);
 
-        await runCommandInTestDir("init", ["grpc"]);
-        await fs.writeFile("test/main.ts", `
-import App from "@hyurl/grpc-boot";
+        await runCommandInTestDir("init");
 
-if (require.main?.filename === __filename) {
-    const appName = process.argv[2];
-    const config = process.argv[3];
-
-    App.boot(appName, config).catch(console.error).finally(() => {
-        process.send("ready");
-    });
-}
-        `, "utf8");
+        const mainTs = (await fs.readFile("main.ts", "utf8"))
+            .replace(`"."`, `"@hyurl/grpc-boot"`);
+        await fs.writeFile("test/main.ts", mainTs, "utf8");
 
         const conf = JSON.parse(await fs.readFile("test/grpc-boot.json", "utf8"));
         conf.entry = "dist/main.js";
@@ -802,24 +640,36 @@ if (require.main?.filename === __filename) {
                 // ignore
             }
 
-            let mainJs = (await fs.readFile("test/dist/main.js", "utf8"));
+            { // rewrite entry file
+                let mainJs = await fs.readFile("test/dist/main.js", "utf8");
 
-            if (isTsNode) {
-                mainJs = mainJs.replace("@hyurl/grpc-boot", "../../dist");
-            } else {
-                mainJs = mainJs.replace("@hyurl/grpc-boot", "../..");
+                if (isTsNode) {
+                    mainJs = mainJs.replace("@hyurl/grpc-boot", "../../dist");
+                } else {
+                    mainJs = mainJs.replace("@hyurl/grpc-boot", "../..");
+                }
+
+                await fs.writeFile("test/dist/main.js", mainJs, "utf8");
             }
 
-            await fs.writeFile("test/dist/main.js", mainJs, "utf8");
+            { // rewrite ExampleService
+                let exampleService = await fs.readFile("test/dist/services/ExampleService.js", "utf8");
+
+                if (isTsNode) {
+                    exampleService = exampleService.replace("@hyurl/grpc-boot", "../../../dist/util");
+                } else {
+                    exampleService = exampleService.replace("@hyurl/grpc-boot", "../../../util");
+                }
+
+                await fs.writeFile("test/dist/services/ExampleService.js", exampleService, "utf8");
+            }
         })();
 
         const conf2 = cloneDeep(conf);
 
         conf2.entry = "test/dist/main.js";
         conf2.importRoot = "test/dist";
-        conf2.protoDirs = ["test/grpc"];
-
-        await fs.writeFile("grpc.config.json", JSON.stringify(conf2, null, "    "), "utf8");
+        conf2.protoDirs = ["test/proto"];
 
         await runCommandInTestDir("start");
     });
@@ -828,7 +678,6 @@ if (require.main?.filename === __filename) {
         this.timeout(20_000);
         await runCommandInTestDir("stop");
         await fs.rm(testDir, { recursive: true });
-        await fs.rm("grpc.config.json");
 
         if (isTsNode) {
             await fs.rm("dist", { recursive: true });
@@ -837,13 +686,13 @@ if (require.main?.filename === __filename) {
 
     it("run the example", async function () {
         this.timeout(20_000);
-        let app: App;
+        let app: App | undefined;
 
         try {
-            app = await App.boot(null, "grpc.config.json");
+            app = await App.boot();
 
             // @ts-ignore
-            const reply = await grpc.ExampleService.sayHello({ name: "World" });
+            const reply = await services.ExampleService.sayHello({ name: "World" });
 
             deepStrictEqual(reply, { message: "Hello, World" });
             await app.stop();
@@ -853,9 +702,3 @@ if (require.main?.filename === __filename) {
         }
     });
 });
-
-declare global {
-    namespace grpc {
-        const ExampleService: ServiceClient<import("./services/ExampleService").default>;
-    }
-}

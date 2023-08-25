@@ -4,7 +4,7 @@
         "target": "es2018",
         "newLine": "LF",
         "importHelpers": true,
-        "experimentalDecorators": true,
+        "strictNullChecks": true,
         "noUnusedParameters": true,
         "noUnusedLocals": true,
         "noImplicitThis": true,

@@ -2,14 +2,15 @@ import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
 import { spawn, SpawnOptions } from "child_process";
-import { Config } from ".";
+import { Config } from "./app";
 
 export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
+export const sServiceName = Symbol.for("serviceName");
 
 export type CpuUsage = NodeJS.CpuUsage & {
     uptime: number;
     percent: number;
-    _start: { cpuUsage: NodeJS.CpuUsage; time: number; };
+    readonly _start?: { cpuUsage: NodeJS.CpuUsage; time: number; };
 };
 
 export const open = promisify(fs.open);
@@ -51,12 +52,12 @@ export function absPath(filename: string, withPipe = false): string {
     return filename;
 }
 
-export async function spawnProcess(app: Config["apps"][0], config = "", entry = "") {
-    entry ||= path.join(__dirname, "cli");
+export async function spawnProcess(app: Config["apps"][0], defaultEntry = "") {
+    const entry = app.entry || defaultEntry || path.join(__dirname, "cli");
     const ext = path.extname(entry).toLowerCase();
     let execCmd: "node" | "ts-node";
-    let stdout: number;
-    let stderr: number;
+    let stdout: number | undefined;
+    let stderr: number | undefined;
     const options: SpawnOptions = {
         detached: true,
     };
@@ -83,7 +84,7 @@ export async function spawnProcess(app: Config["apps"][0], config = "", entry = 
         const filename = absPath(app.stderr);
         await ensureDir(path.dirname(filename));
         stderr = await open(filename, "a");
-    } else if (stdout) {
+    } else if (app.stdout) {
         stderr = await open(absPath(app.stdout), "a");
     }
 
@@ -98,10 +99,6 @@ export async function spawnProcess(app: Config["apps"][0], config = "", entry = 
     }
 
     const args: string[] = [entry, app.name];
-
-    if (config) {
-        args.push(config);
-    }
 
     if (execCmd === "ts-node") {
         args.unshift("-r", "ts-node/register");
@@ -121,18 +118,20 @@ export async function spawnProcess(app: Config["apps"][0], config = "", entry = 
     });
 }
 
-export function getCpuUsage(oldUsage: CpuUsage) {
-    let usage: Partial<CpuUsage>;
+export function getCpuUsage(oldUsage: CpuUsage | null = null) {
+    let usage: CpuUsage;
 
     if (oldUsage?._start) {
         usage = {
             ...process.cpuUsage(oldUsage._start.cpuUsage),
             uptime: Date.now() - oldUsage._start.time,
+            percent: 0,
         };
     } else {
         usage = {
             ...process.cpuUsage(),
             uptime: process.uptime() * 1000,
+            percent: 0
         };
     }
 
@@ -146,4 +145,18 @@ export function getCpuUsage(oldUsage: CpuUsage) {
     });
 
     return usage as CpuUsage;
+}
+
+/**
+ * This decorator function is used to link the service class to a gRPC service.
+ * 
+ * @param name The service name defined in the `.proto` file.
+ */
+export function service(name: string): (target: Function, ctx: ClassDecoratorContext) => void;
+export function service(name: string, ): ClassDecorator;
+export function service(name: string): ClassDecorator {
+    return (target) => {
+        target[Symbol.for("serviceName")] = name;
+        return target;
+    };
 }

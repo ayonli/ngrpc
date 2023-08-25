@@ -1,4 +1,5 @@
-import { ServiceClient } from "@hyurl/grpc-async";
+import { ServiceClient } from "..";
+import { service } from "../util";
 import { Post, User } from "./struct";
 
 declare global {
@@ -17,7 +18,8 @@ export type UserPostList = {
     posts: Post[];
 };
 
-export default interface UserService {
-    getUser(query: UserQuery): Promise<User>;
-    getMyPosts(query: UserQuery): Promise<UserPostList>;
+@service("services.github.ayonli.UserService")
+export default abstract class UserService {
+    abstract getUser(query: UserQuery): Promise<User>;
+    abstract getMyPosts(query: UserQuery): Promise<UserPostList>;
 }

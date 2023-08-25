@@ -1,12 +1,12 @@
 {
   "name": "@hyurl/grpc-boot",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Make it easy to create standalone and elegant gRPC based applications.",
   "main": "index",
   "scripts": {
     "prepublishOnly": "tsc",
     "postpublish": "node postpublish.js",
-    "protoc:go": "protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative services/*.proto",
+    "protoc:go": "protoc --go_out=./services --go-grpc_out=./services proto/github/ayonli/*.proto",
     "pretest": "tsc",
     "posttest": "node postpublish.js",
     "test": "mocha -r source-map-support/register test.js",
@@ -38,6 +38,7 @@
     "commander": "^11.0.0",
     "humanize-duration": "^3.29.0",
     "is-socket-reset-error": "^0.1.1",
+    "js-magic": "^1.3.0",
     "lodash": "^4.17.21",
     "require-chain": "^2.0.0",
     "string-hash": "^1.1.3"

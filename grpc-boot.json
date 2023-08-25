@@ -1,8 +1,7 @@
 {
     "$schema": "./grpc-boot.schema.json",
-    "package": "services",
     "protoDirs": [
-        "services"
+        "proto"
     ],
     "protoOptions": {
         "longs": "String",
@@ -21,11 +20,14 @@
         },
         {
             "name": "user-server",
-            "uri": "grpc://localhost:4001",
+            "uri": "grpcs://localhost:4001",
             "serve": false,
             "services": [
                 "services.UserService"
-            ]
+            ],
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
         },
         {
             "name": "post-server",

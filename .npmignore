@@ -24,6 +24,6 @@ services/*.js
 services/*.js.map
 services/*.d.ts
 services/*.ts
-services/*.proto
+proto/github/ayonli/*.proto
 !services/ExampleService.ts
-!services/ExampleService.proto
+!proto/github/ayonli/ExampleService.proto

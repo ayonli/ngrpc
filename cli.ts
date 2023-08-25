@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 try {
     require("source-map-support/register");
-} catch {}
+} catch { }
 import * as commander from "commander";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -16,13 +16,11 @@ program.description("start, reload or stop apps")
 
 program.command("init")
     .description("initiate a new gRPC project")
-    .argument("[package]", "The package name / root namespace of the services, default 'services'")
-    .option("-c, --config <filename>", "create a custom config file")
-    .action(async (pkg: string, options: { config?: string; }) => {
-        pkg ||= "services";
+    .action(async () => {
         const tsConfig = absPath("tsconfig.json");
-        const config = absPath(options.config || "grpc-boot.json");
-        const dir = absPath(pkg);
+        const config = absPath("grpc-boot.json");
+        const servicesDir = absPath("services");
+        const protoDir = absPath("proto");
 
         if (await exists(tsConfig)) {
             console.warn(`File '${path.basename(config)}' already exists`);
@@ -54,8 +52,8 @@ program.command("init")
         } else {
             const conf: Config = {
                 "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
-                "package": pkg,
-                "protoDirs": ["./" + pkg],
+                "namespace": "services",
+                "protoDirs": ["proto"],
                 "protoOptions": {
                     // @ts-ignore
                     "longs": "String",
@@ -68,7 +66,7 @@ program.command("init")
                         "uri": "grpc://localhost:4000",
                         "serve": true,
                         "services": [
-                            `${pkg}.ExampleService`
+                            "services.ExampleService"
                         ],
                         "stdout": "./out.log"
                     }
@@ -78,21 +76,27 @@ program.command("init")
             console.info(`Config file written to '${path.basename(config)}'`);
         }
 
-        if (await exists(dir)) {
-            console.warn(`Path '${dir}' already exists`);
+        if (await exists(servicesDir)) {
+            console.warn(`Path '${servicesDir}' already exists`);
         } else {
-            await ensureDir(dir);
-            console.info(`Path '${dir}' created`);
+            await ensureDir(servicesDir);
+            console.info(`Path '${servicesDir}' created`);
         }
 
-        const exampleProtoSrc = path.join(__dirname, "services", "ExampleService.proto");
+        if (await exists(protoDir)) {
+            console.warn(`Path '${protoDir}' already exists`);
+        } else {
+            await ensureDir(protoDir);
+            console.info(`Path '${protoDir}' created`);
+        }
+
+        const exampleProtoSrc = path.join(__dirname, "proto", "ExampleService.proto");
         const exampleTsSrc = path.join(__dirname, "services", "ExampleService.ts");
-        const exampleProtoDest = absPath(pkg + path.sep + "ExampleService.proto");
-        const exampleTsDest = absPath(pkg + path.sep + "ExampleService.ts");
-        const ExampleServiceProto = (await fs.readFile(exampleProtoSrc, "utf8"))
-            .replace("package services;", `package ${pkg};`);
+        const exampleProtoDest = path.join(protoDir, "ExampleService.proto");
+        const exampleTsDest = path.join(servicesDir, "ExampleService.ts");
+        const ExampleServiceProto = await fs.readFile(exampleProtoSrc, "utf8")
         const ExampleServiceTs = (await fs.readFile(exampleTsSrc, "utf8"))
-            .replace("namespace services {", `namespace ${pkg} {`);
+            .replace(`"../util"`, `"@hyurl/grpc-boot"`);
 
         if (!(await exists(exampleProtoDest))) {
             await fs.writeFile(exampleProtoDest, ExampleServiceProto, "utf8");
@@ -105,14 +109,12 @@ program.command("init")
         }
     });
 
-async function handleStart(appName: string | undefined, options: {
-    config?: string;
-}) {
-    const conf = await App.loadConfig(options.config);
+async function handleStart(appName: string | undefined) {
+    const conf = await App.loadConfig();
 
     const start = async (app: Config["apps"][0]) => {
         try {
-            await spawnProcess(app, options.config, conf.entry);
+            await spawnProcess(app, conf.entry);
             console.info(`App [${app.name}] started at '${app.uri}'`);
         } catch (err) {
             const reason = err.message || String(err);
@@ -124,9 +126,9 @@ async function handleStart(appName: string | undefined, options: {
         const app = conf.apps?.find(app => app.name === appName);
 
         if (!app) {
-            throw new Error(`App [${app.name}] doesn't exist in the config file`);
+            throw new Error(`App [${appName}] doesn't exist in the config file`);
         } else if (!app.serve) {
-            throw new Error(`App [${app.name}] is not intended to be served`);
+            throw new Error(`App [${appName}] is not intended to be served`);
         }
 
         await start(app);
@@ -140,17 +142,15 @@ async function handleStart(appName: string | undefined, options: {
 program.command("start")
     .description("start an app or all apps (exclude non-served ones)")
     .argument("[app]", "the app name in the config file")
-    .option("-c, --config <filename>", "use a custom config file")
     .action(handleStart);
 
 program.command("restart")
     .description("restart an app or all apps (exclude non-served ones)")
     .argument("[app]", "the app name in the config file")
-    .option("-c, --config <filename>", "use a custom config file")
-    .action(async (appName: string | undefined, options: { config?: string; }) => {
+    .action(async (appName: string | undefined) => {
         try {
-            await App.sendCommand("stop", appName, options.config);
-            await handleStart(appName, options);
+            await App.sendCommand("stop", appName);
+            await handleStart(appName);
         } catch (err) {
             console.error(err.message || String(err));
         }
@@ -159,10 +159,9 @@ program.command("restart")
 program.command("reload")
     .description("reload an app or all apps")
     .argument("[app]", "the app name in the config file")
-    .option("-c, --config <filename>", "use a custom config file")
-    .action(async (appName: string | undefined, options: { config?: string; }) => {
+    .action(async (appName: string | undefined) => {
         try {
-            await App.sendCommand("reload", appName, options.config);
+            await App.sendCommand("reload", appName);
         } catch (err) {
             console.error(err.message || String(err));
         }
@@ -171,10 +170,9 @@ program.command("reload")
 program.command("stop")
     .description("stop an app or all apps")
     .argument("[app]", "the app name in the config file")
-    .option("-c, --config <filename>", "use a custom config file")
-    .action(async (appName: string | undefined, options: { config?: string; }) => {
+    .action(async (appName: string | undefined) => {
         try {
-            await App.sendCommand("stop", appName, options.config);
+            await App.sendCommand("stop", appName);
         } catch (err) {
             console.error(err.message || String(err));
         }
@@ -182,10 +180,9 @@ program.command("stop")
 
 program.command("list")
     .description("list all apps (exclude non-served ones)")
-    .option("-c, --config <filename>", "use a custom config file")
-    .action(async (_, options: { config?: string; }) => {
+    .action(async () => {
         try {
-            await App.sendCommand("list", void 0, options.config);
+            await App.sendCommand("list");
         } catch (err) {
             console.error(err);
         }
@@ -194,10 +191,9 @@ program.command("list")
 if (process.send) {
     if (require.main?.filename === __filename) {
         const appName = process.argv[2];
-        const config = process.argv[3];
 
-        App.boot(appName, config).then(() => {
-            process.send("ready");
+        App.boot(appName).then(() => {
+            process.send?.("ready");
         }).catch((err) => {
             console.error(err);
             process.exit(1);

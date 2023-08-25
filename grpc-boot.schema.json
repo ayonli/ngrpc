@@ -5,13 +5,9 @@
     "description": "The configuration for @hyurl/grpc-boot",
     "type": "object",
     "properties": {
-        "package": {
-            "type": "string",
-            "description": "The same package name as in the `.proto` files."
-        },
         "namespace": {
             "type": "string",
-            "description": "The same root namespace as in the `.ts` files"
+            "description": "The namespace of the services files, default `services`."
         },
         "entry": {
             "type": "string",
@@ -109,8 +105,8 @@
                         "default": false
                     },
                     "services": {
-                        "type": "array",
                         "description": "The services served by this app.",
+                        "type": "array",
                         "items": {
                             "type": "string"
                         }
@@ -142,6 +138,10 @@
                     "stderr": {
                         "type": "string",
                         "description": "Log file used for stderr."
+                    },
+                    "entry": {
+                        "type": "string",
+                        "description": "The entry file that is used to spawn this app."
                     },
                     "env": {
                         "type": "object",
@@ -175,7 +175,6 @@
         }
     },
     "required": [
-        "package",
         "protoDirs",
         "apps"
     ]

@@ -1,20 +1,21 @@
 module github.com/hyurl/grpc-boot
 
-go 1.20
+go 1.21.0
 
 require (
-	github.com/hyurl/grpc-boot/services v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.57.0
+	google.golang.org/protobuf v1.31.0
 )
 
+require github.com/ayonli/goext v0.2.0 // indirect
+
 require (
+	github.com/ayonli/gorpc v0.0.0-20230824160208-8faea969125e
 	github.com/golang/protobuf v1.5.3 // indirect
-	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b // indirect
 	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230731193218-e0aa005b6bdf // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
 )
 
-replace github.com/hyurl/grpc-boot/services => ./services
+replace github.com/ayonli/gorpc => ../../gorpc

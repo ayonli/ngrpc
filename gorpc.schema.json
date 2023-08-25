@@ -1,0 +1,66 @@
+{
+    "$schema": "http://json-schema.org/schema",
+    "$id": "https://github.com/ayonli/gorpc/blob/main/gorpc.schema.json",
+    "title": "GoRPC Config",
+    "description": "The configuration for GoRPC",
+    "type": "object",
+    "properties": {
+        "apps": {
+            "type": "array",
+            "description": "This property configures the apps that this project serves and connects.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the app."
+                    },
+                    "uri": {
+                        "type": "string",
+                        "description": "The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or `xds:`.",
+                        "pattern": "^(grpc|grpcs|xds)://*"
+                    },
+                    "serve": {
+                        "type": "boolean",
+                        "description": "If this app can be served by as the gRPC server by GoRPC.",
+                        "default": false
+                    },
+                    "services": {
+                        "description": "The services served by this app.",
+                        "oneOf": [
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            {
+                                "type": "object"
+                            }
+                        ]
+                    },
+                    "ca": {
+                        "type": "string",
+                        "description": "The CA filename when using TLS/SSL."
+                    },
+                    "cert": {
+                        "type": "string",
+                        "description": "The certificate filename when using TLS/SSL."
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "The private key filename when using TLS/SSL."
+                    }
+                },
+                "required": [
+                    "name",
+                    "uri",
+                    "services"
+                ]
+            }
+        }
+    },
+    "required": [
+        "apps"
+    ]
+}

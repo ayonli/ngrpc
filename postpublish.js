@@ -15,7 +15,7 @@ for (const file of files1) {
 const files2 = fs.readdirSync("./services");
 
 for (const file of files2) {
-    if (/(.js|\.js\.map|\.d\.ts)$/.test(file) && file !== "UserService.d.ts") {
+    if (/(.js|\.js\.map|\.d\.ts)$/.test(file)) {
         fs.unlinkSync(path.join(__dirname, "services", file));
     }
 }
