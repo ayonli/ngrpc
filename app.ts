@@ -12,7 +12,7 @@ import {
     credentials,
     loadPackageDefinition
 } from "@grpc/grpc-js";
-import { serve, unserve, connect, ServiceClient } from "@hyurl/grpc-async";
+import { serve, unserve, connect, ServiceClient } from "@ayonli/grpc-async";
 import get = require("lodash/get");
 import set = require("lodash/set");
 import isEqual = require("lodash/isEqual");

@@ -2,7 +2,7 @@
 
 Make it easy to create clear, expressive and elegant gRPC based applications in Node.js.
 
-*NOTE: this package uses [@hyurl/grpc-async](https://github.com/hyurl/grpc-async) to make life with*
+*NOTE: this package uses [@ayonli/grpc-async](https://github.com/ayonli/grpc-async) to make life with*
 *gRPC easier.*
 
 *NOTE: the NPM package only contains the minimal file base,*
