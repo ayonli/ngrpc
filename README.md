@@ -9,8 +9,8 @@ Make it easy to create clear, expressive and elegant gRPC based applications in 
 *[go to GitHub for this Doc](https://github.com/ayonli/ngrpc) and the related files.*
 *By combining these files, this project itself serves as an example of using NgRPC in real world.*
 
-*TIP: there is a sister project [GoRPC](https://github.com/ayonli/gorpc) which functions like this*
-*one but is written in and for Golang.*
+*TIP: there is a sister project [GoRPC](https://github.com/ayonli/gorpc) which functions similar to*
+*this one but is written in and for Golang.*
 
 ## Install
 
