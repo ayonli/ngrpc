@@ -77,8 +77,8 @@ It's just that simple.
 
 ### Explanation
 
-- `namespace` This is the directory that stores the service class (`.ts`) files, and is the root
-    namespace of the services. Normally, this option is omitted and use `services` by default.
+- `namespace` This is the root namespace of the services, and the directory that stores the service
+    class (`.ts`) files. Normally, this option is omitted and use `services` by default.
 - `entry` The entry file that is used to spawn apps.
     Normally, this property is not required because the CLI command will use the default entry
     file for us.
@@ -88,10 +88,13 @@ It's just that simple.
 - `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
     given, we need to set this property the same value as the `outDir` compiler option in the
     `tsconfig.json` file.
-- `protoPaths` These directories stores the `.proto` files. Normally, `.proto` files reside with the
-    service class (`.ts`) files, but they can be placed in a different place, say a `proto` folder,
-    just set this option to the correct directory so the program can find and load them.
-- `protoOptions` These options are used when loading the `.proto` files.
+- `protoPaths` The directories that stores the `.proto` files. Normally, `.proto` files are stored
+    in the `proto` folder.'
+
+    TIP: don't forget add `--proto_path=${workspaceRoot}/proto` to the `protoc.options` in VSCode's
+    settings in order for the **vscode-proto3** plugin to work properly.
+- `protoOptions` These options are used when loading the `.proto` files. Check
+    [ngrpc.schema.json](./ngrpc.schema.json) for more details.
 - `apps` This property configures the apps that this project serves and connects.
     - `name` The name of the app.
     - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:`
@@ -119,32 +122,33 @@ It's just that simple.
         inside one project, using different certificates makes no sense.
     - `connectTimeout` Connection timeout in milliseconds, the default value is `5_000` ms.
     - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
-    - `stderr` Log file used for stderr.
+    - `stderr` Log file used for stderr. If omitted and `stdout` is set, the program uses `stdout`
+        for `stderr` as well.
     - `entry` The entry file that is used to spawn this app. This option overwrites the one set in
         the head.
     - `env` The environment variables passed to the `entry` file.
 
-With these simple configurations, we can write our gRPC application straightforwardly in a `.proto`
-file and a `.ts` file in the `services` directory, without any headache of how to start the server
-or connect to the services, all is properly handled internally by the NgRPC framework.
+With these simple configurations, we can write our gRPC application straightforwardly in `.proto`
+files and a `.ts` files, without any headache of when and where to start the server or connect to
+the services, all is properly handled internally by the NgRPC framework.
 
 ## CLI Commands
 
-- `init` initiate a new gRPC project
+- `ngrpc init` initiate a new gRPC project
 
-- `start [app]` start an app or all apps (exclude non-served ones)
+- `ngrpc start [app]` start an app or all apps (exclude non-served ones)
     - `app` the app name in the config file
 
-- `restart [app]` restart an app or all apps (exclude non-served ones)
+- `ngrpc restart [app]` restart an app or all apps (exclude non-served ones)
     - `app` the app name in the config file
 
-- `reload [app]` reload an app or all apps
+- `ngrpc reload [app]` reload an app or all apps
     - `app` the app name in the config file
 
-- `stop [app]` stop an app or all apps
+- `ngrpc stop [app]` stop an app or all apps
     - `app` the app name in the config file
 
-- `list` list all apps (exclude non-served ones)
+- `ngrpc list` list all apps (exclude non-served ones)
 
 ### Hot-Reloading
 
@@ -189,7 +193,7 @@ This decorator function is used to link the service class to a gRPC service.
 
 - `name` The service name defined in the `.proto` file.
 
-**`ngrpc.boot(app?: string): Promise<void>`**
+**`ngrpc.boot(app?: string): Promise<RpcApp>`**
 
 Starts the app programmatically.
 
@@ -360,73 +364,9 @@ declare global {
     }
 }
 
-@service("services.github.ayonli.UserService")
+@service("github.ayonli.services.UserService")
 export default abstract class UserService {
     // abstract methods...
-}
-```
-
-## Good Practices
-
-1. The package name of the `.proto` file for services is the same namespace in the `.ts` service
-    class files.
-
-    For example:
-
-```proto
-// the .proto file
-syntax = "proto3";
-
-package services;
-```
-
-```ts
-// the .ts file
-declare global {
-    namespace services {
-
-    }
-}
-```
-
-*NOTE: this rule doesn't apply to the situation when multiple projects are*
-*[sharing the same `.proto` files](#sharing-proto-files-across-projects).*
-
-2. The package name / namespace is the directory name that store the `.proto` files and `.ts` files.
-    For example, package name `services` uses `./services` directory, and `services.sub` uses
-    `./services/sub`. This is required for discovering and importing files.
-
-3. The base name of the `.proto` file (without extension) should have a correspondent `.ts` file (or
-    `.d.ts` file). For example, `ExampleService.proto` maps to the `ExampleService.ts` file.
-
-4. The `.proto` file should contain only one service and its name is the same name as the file,
-    respectively, the correspondent `.ts` file export the default class with the same name.
-
-    For example
-
-```proto
-// the ExampleService.proto file
-syntax = "proto3";
-
-package services;
-
-service ExampleService {
-    // ...
-}
-```
-
-```ts
-// the ExampleService.ts file
-import { ServiceClient } from "ngrpc";
-
-declare global {
-    namespace services {
-        const ExampleService: ServiceClient<ExampleService>;
-    }
-}
-
-export default class ExampleService {
-
 }
 ```
 
