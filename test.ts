@@ -669,7 +669,7 @@ describe("config options", () => {
 
         conf2.entry = "test/dist/main.js";
         conf2.importRoot = "test/dist";
-        conf2.protoDirs = ["test/proto"];
+        conf2.protoPaths = ["test/proto"];
 
         await runCommandInTestDir("start");
     });

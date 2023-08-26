@@ -6,31 +6,31 @@ import (
 	"slices"
 
 	"github.com/ayonli/gorpc"
-	"github.com/hyurl/grpc-boot/services/github/ayonli"
+	"github.com/hyurl/grpc-boot/services/github/ayonli/services_proto"
 	"google.golang.org/grpc"
 )
 
 type UserService struct {
-	ayonli.UnimplementedUserServiceServer
-	userStore []*ayonli.User
+	services_proto.UnimplementedUserServiceServer
+	userStore []*services_proto.User
 	PostSrv   *PostService // set as exported field for dependency injection
 }
 
 func (self *UserService) Serve(s grpc.ServiceRegistrar) {
-	ayonli.RegisterUserServiceServer(s, self)
+	services_proto.RegisterUserServiceServer(s, self)
 
-	self.userStore = []*ayonli.User{
+	self.userStore = []*services_proto.User{
 		{
 			Id:     "ayon.li",
 			Name:   "A-yon Lee",
-			Gender: ayonli.Gender_MALE,
+			Gender: services_proto.Gender_MALE,
 			Age:    28,
 			Email:  "the@ayon.li",
 		},
 		{
 			Id:     "john.doe",
 			Name:   "John Doe",
-			Gender: ayonli.Gender_UNKNOWN,
+			Gender: services_proto.Gender_UNKNOWN,
 			Age:    -1,
 			Email:  "john.doe@example.com",
 		},
@@ -42,53 +42,53 @@ func (self *UserService) Stop() {
 	self.PostSrv = nil
 }
 
-func (self *UserService) Connect(cc grpc.ClientConnInterface) ayonli.UserServiceClient {
-	return ayonli.NewUserServiceClient(cc)
+func (self *UserService) Connect(cc grpc.ClientConnInterface) services_proto.UserServiceClient {
+	return services_proto.NewUserServiceClient(cc)
 }
 
-func (self *UserService) GetClient(route string) ayonli.UserServiceClient {
+func (self *UserService) GetClient(route string) services_proto.UserServiceClient {
 	return gorpc.GetServiceClient(self, route)
 }
 
-func (self *UserService) GetUser(ctx context.Context, query *ayonli.UserQuery) (*ayonli.User, error) {
+func (self *UserService) GetUser(ctx context.Context, query *services_proto.UserQuery) (*services_proto.User, error) {
 	if *query.Id != "" {
-		idx := slices.IndexFunc[[]*ayonli.User](self.userStore, func(u *ayonli.User) bool {
+		idx := slices.IndexFunc[[]*services_proto.User](self.userStore, func(u *services_proto.User) bool {
 			return u.Id == *query.Id
 		})
 
 		if idx != -1 {
 			return self.userStore[idx], nil
 		} else {
-			return &ayonli.User{}, fmt.Errorf("User '%s' not found", *query.Id)
+			return &services_proto.User{}, fmt.Errorf("User '%s' not found", *query.Id)
 		}
 	} else if *query.Email != "" {
-		idx := slices.IndexFunc[[]*ayonli.User](self.userStore, func(u *ayonli.User) bool {
+		idx := slices.IndexFunc[[]*services_proto.User](self.userStore, func(u *services_proto.User) bool {
 			return u.Email == *query.Email
 		})
 
 		if idx != -1 {
 			return self.userStore[idx], nil
 		} else {
-			return &ayonli.User{}, fmt.Errorf("User of '%s' not found", *query.Email)
+			return &services_proto.User{}, fmt.Errorf("User of '%s' not found", *query.Email)
 		}
 	} else {
-		return &ayonli.User{}, fmt.Errorf("One of the 'id' and 'email' must be provided")
+		return &services_proto.User{}, fmt.Errorf("One of the 'id' and 'email' must be provided")
 	}
 }
 
-func (self *UserService) GetMyPosts(ctx context.Context, query *ayonli.UserQuery) (*ayonli.PostQueryResult, error) {
+func (self *UserService) GetMyPosts(ctx context.Context, query *services_proto.UserQuery) (*services_proto.PostQueryResult, error) {
 	user, err := self.GetUser(ctx, query)
 
 	if err != nil {
-		return &ayonli.PostQueryResult{}, err
+		return &services_proto.PostQueryResult{}, err
 	}
 
 	ins := self.PostSrv.GetClient(user.Id)
-	result, err := ins.SearchPosts(ctx, &ayonli.PostsQuery{Author: &user.Id})
+	result, err := ins.SearchPosts(ctx, &services_proto.PostsQuery{Author: &user.Id})
 
 	if err != nil {
-		return &ayonli.PostQueryResult{}, err
+		return &services_proto.PostQueryResult{}, err
 	}
 
-	return (*ayonli.PostQueryResult)(result), nil
+	return (*services_proto.PostQueryResult)(result), nil
 }

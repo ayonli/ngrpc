@@ -22,8 +22,8 @@ Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
 ```json
 {
     "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
-    "protoDirs": [
-        "./services"
+    "protoPaths": [
+        "./proto"
     ],
     "protoOptions": {
         "longs": "String",
@@ -47,9 +47,9 @@ Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
             "services": [
                 "services.UserService"
             ],
-            "ca": "certs/ca.pem",
-            "cert": "certs/cert.pem",
-            "key": "certs/cert.key"
+            "ca": "./certs/ca.pem",
+            "cert": "./certs/cert.pem",
+            "key": "./certs/cert.key"
         },
         {
             "name": "post-server",
@@ -59,9 +59,9 @@ Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
                 "services.PostService"
             ],
             "stdout": "./out.log",
-            "ca": "certs/ca.pem",
-            "cert": "certs/cert.pem",
-            "key": "certs/cert.key"
+            "ca": "./certs/ca.pem",
+            "cert": "./certs/cert.pem",
+            "key": "./certs/cert.key"
         }
     ]
 }
@@ -88,7 +88,7 @@ It's just that simple.
 - `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
     given, we need to set this property the same value as the `outDir` compiler option in the
     `tsconfig.json` file.
-- `protoDirs` These directories stores the `.proto` files. Normally, `.proto` files reside with the
+- `protoPaths` These directories stores the `.proto` files. Normally, `.proto` files reside with the
     service class (`.ts`) files, but they can be placed in a different place, say a `proto` folder,
     just set this option to the correct directory so the program can find and load them.
 - `protoOptions` These options are used when loading the `.proto` files.
@@ -627,7 +627,7 @@ that gRPC Boot provides, we can order our project by performing the following st
     also supported.
 
 3. Design the `.proto` files with a reasonable scoped package name, don't just name it `services`, 
-    instead, name it something like `services.[website].[provider]`, the `.proto` files should be
+    instead, name it something like `[org].[repo].services`, the `.proto` files should be
     shared and reused across different projects, using a long name to prevent collision and provide
     useful information about the services. Respectively, the directory path should reflect the
     package name. See the [proto](./proto) files of this project as examples.

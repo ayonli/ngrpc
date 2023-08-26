@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-option go_package = "github/ayonli";
+option go_package = "github/ayonli/services_proto";
 
-package services.github.ayonli;
+package github.ayonli.services;
 
-import "proto/github/ayonli/struct.proto";
+import "github/ayonli/services/struct.proto";
 
 message UserQuery {
     optional string id = 1;

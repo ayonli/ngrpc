@@ -17,7 +17,7 @@
             "type": "string",
             "description": "Where to begin searching for TypeScript / JavaScript files, the default is `.`."
         },
-        "protoDirs": {
+        "protoPaths": {
             "type": "array",
             "description": "The directories that contains `.proto` files.",
             "items": {
@@ -175,7 +175,7 @@
         }
     },
     "required": [
-        "protoDirs",
+        "protoPaths",
         "apps"
     ]
 }

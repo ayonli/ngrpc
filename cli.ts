@@ -53,7 +53,7 @@ program.command("init")
             const conf: Config = {
                 "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
                 "namespace": "services",
-                "protoDirs": ["proto"],
+                "protoPaths": ["./proto"],
                 "protoOptions": {
                     // @ts-ignore
                     "longs": "String",

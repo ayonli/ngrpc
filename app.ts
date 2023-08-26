@@ -48,7 +48,9 @@ export type Config = {
     namespace?: string;
     entry?: string;
     importRoot?: string;
-    protoDirs: string[];
+    /** @deprecated use `protoPaths` instead. */
+    protoDirs?: string[];
+    protoPaths: string[];
     protoOptions?: ProtoOptions,
     apps: {
         name: string;
@@ -157,6 +159,11 @@ export default class App {
         }
 
         const conf: Config = JSON.parse(fileContent as string);
+
+        if (conf.protoDirs && !conf.protoPaths) {
+            conf.protoPaths = conf.protoDirs;
+            delete conf.protoDirs;
+        }
 
         if (conf.protoOptions) {
             // In the config file, we set the following properties in string format, whereas they
@@ -637,7 +644,7 @@ export default class App {
             }
         }
 
-        await this.loadProtoFiles(config.protoDirs, config.protoOptions);
+        await this.loadProtoFiles(config.protoPaths, config.protoOptions);
         await this.loadClassFiles(config.apps, config.importRoot);
 
         if (app?.serve && app?.services?.length) {
@@ -757,7 +764,7 @@ export default class App {
         this.oldConfig = this.config;
         this.config = await App.loadConfig();
 
-        await this.loadProtoFiles(this.config.protoDirs, this.config.protoOptions);
+        await this.loadProtoFiles(this.config.protoPaths, this.config.protoOptions);
 
         const app = this.config.apps.find(app => app.name === this.name);
 

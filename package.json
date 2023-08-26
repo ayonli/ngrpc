@@ -6,7 +6,6 @@
   "scripts": {
     "prepublishOnly": "tsc",
     "postpublish": "node postpublish.js",
-    "protoc:go": "protoc --go_out=./services --go-grpc_out=./services proto/github/ayonli/*.proto",
     "pretest": "tsc",
     "posttest": "node postpublish.js",
     "test": "mocha -r source-map-support/register test.js",

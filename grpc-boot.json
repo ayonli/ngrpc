@@ -1,7 +1,7 @@
 {
     "$schema": "./grpc-boot.schema.json",
-    "protoDirs": [
-        "proto"
+    "protoPaths": [
+        "./proto"
     ],
     "protoOptions": {
         "longs": "String",
@@ -25,9 +25,9 @@
             "services": [
                 "services.UserService"
             ],
-            "ca": "certs/ca.pem",
-            "cert": "certs/cert.pem",
-            "key": "certs/cert.key"
+            "ca": "./certs/ca.pem",
+            "cert": "./certs/cert.pem",
+            "key": "./certs/cert.key"
         },
         {
             "name": "post-server",

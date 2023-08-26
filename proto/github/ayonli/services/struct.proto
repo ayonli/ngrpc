@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option go_package = "github/ayonli";
+option go_package = "github/ayonli/services_proto";
 
-package services.github.ayonli;
+package github.ayonli.services;
 
 enum Gender {
     UNKNOWN = 0;
