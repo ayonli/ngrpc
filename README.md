@@ -5,7 +5,7 @@ Make it easy to create clear, expressive and elegant gRPC based applications in 
 *NOTE: this package uses [@hyurl/grpc-async](https://github.com/hyurl/grpc-async) to make life with*
 *gRPC easier.*
 
-*NOTE: The NPM package only contains the minimal file base,*
+*NOTE: the NPM package only contains the minimal file base,*
 *[go to GitHub for this Doc](https://github.com/ayonli/ngrpc) and the related files.*
 *By combining these files, this project itself serves as an example of using NgRPC in real world.*
 
