@@ -597,7 +597,7 @@ describe("config options", () => {
         await runCommandInTestDir("init");
 
         const mainTs = (await fs.readFile("main.ts", "utf8"))
-            .replace(`"."`, `"ngrpc"`);
+            .replace(`"."`, `"@ayonli/ngrpc"`);
         await fs.writeFile("test/main.ts", mainTs, "utf8");
 
         const conf = JSON.parse(await fs.readFile("test/ngrpc.json", "utf8"));
@@ -644,9 +644,9 @@ describe("config options", () => {
                 let mainJs = await fs.readFile("test/dist/main.js", "utf8");
 
                 if (isTsNode) {
-                    mainJs = mainJs.replace(`"ngrpc"`, `"../../dist"`);
+                    mainJs = mainJs.replace(`"@ayonli/ngrpc"`, `"../../dist"`);
                 } else {
-                    mainJs = mainJs.replace(`"ngrpc"`, `"../.."`);
+                    mainJs = mainJs.replace(`"@ayonli/ngrpc"`, `"../.."`);
                 }
 
                 await fs.writeFile("test/dist/main.js", mainJs, "utf8");
@@ -656,9 +656,9 @@ describe("config options", () => {
                 let exampleService = await fs.readFile("test/dist/services/ExampleService.js", "utf8");
 
                 if (isTsNode) {
-                    exampleService = exampleService.replace(`"ngrpc"`, `"../../../dist/util"`);
+                    exampleService = exampleService.replace(`"@ayonli/ngrpc"`, `"../../../dist/util"`);
                 } else {
-                    exampleService = exampleService.replace(`"ngrpc"`, `"../../../util"`);
+                    exampleService = exampleService.replace(`"@ayonli/ngrpc"`, `"../../../util"`);
                 }
 
                 await fs.writeFile("test/dist/services/ExampleService.js", exampleService, "utf8");

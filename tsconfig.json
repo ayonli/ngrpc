@@ -13,7 +13,7 @@
         "resolveJsonModule": true,
         "esModuleInterop": true,
         "paths": {
-            "ngrpc": [
+            "@ayonli/ngrpc": [
                 "./index"
             ]
         }

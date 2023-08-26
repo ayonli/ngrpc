@@ -96,7 +96,7 @@ program.command("init")
         const exampleTsDest = path.join(servicesDir, "ExampleService.ts");
         const ExampleServiceProto = await fs.readFile(exampleProtoSrc, "utf8");
         const ExampleServiceTs = [
-            `import { ServiceClient, service } from "ngrpc";`
+            `import { ServiceClient, service } from "@ayonli/ngrpc";`
         ].concat((await fs.readFile(exampleTsSrc, "utf8")).split("\n").slice(2)).join("\n");
 
         if (!(await exists(exampleProtoDest))) {

@@ -15,7 +15,7 @@ Make it easy to create clear, expressive and elegant gRPC based applications in 
 ## Install
 
 ```sh
-npm i ngrpc
+npm i @ayonli/ngrpc
 ```
 
 ## First Impression
@@ -206,7 +206,7 @@ Starts the app programmatically.
 **Example**
 
 ```ts
-import ngrpc from "ngrpc";
+import ngrpc from "@ayonli/ngrpc";
 
 (async () => {
     // This app starts a gRPC server named 'example-server' and connects to all services.
@@ -228,7 +228,7 @@ Stops the app programmatically.
 **Example**
 
 ```ts
-import ngrpc from "ngrpc";
+import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.boot("example-server").then(app => {
     process.on("exit", (code) => {
@@ -258,7 +258,7 @@ Registers a callback to run after the app is reloaded.
 **Example**
 
 ```ts
-import ngrpc from "ngrpc";
+import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.boot("example-server").then(app => {
     app.onReload(() => {
@@ -277,7 +277,7 @@ Registers a callback to run after the app is stopped.
 **Example**
 
 ```ts
-import ngrpc from "ngrpc";
+import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.boot("example-server").then(app => {
     app.onStop(() => {
@@ -325,7 +325,7 @@ automatically stopped.
 **Example**
 
 ```ts
-import ngrpc from "ngrpc";
+import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.runSnippet(async () => {
     const post = await services.PostService.getPost({ id: 1 });
@@ -341,7 +341,7 @@ implement our service in a well-designed fashion.
 For example, a typical service should be designed like this:
 
 ```ts
-import { ServiceClient, service } from "ngrpc";
+import { ServiceClient, service } from "@ayonli/ngrpc";
 
 declare global {
     namespace services {
@@ -359,7 +359,7 @@ If this is a client-side service representation (only for referencing), it shoul
 abstract class, like this:
 
 ```ts
-import { ServiceClient, service } from "ngrpc";
+import { ServiceClient, service } from "@ayonli/ngrpc";
 
 declare global {
     namespace services {
@@ -379,7 +379,7 @@ The service class served by NgRPC application supports lifecycle functions, to u
 simply implement the `LifecycleSupportInterface` for the service class, for example:
 
 ```ts
-import { LifecycleSupportInterface } from "ngrpc";
+import { LifecycleSupportInterface } from "@ayonli/ngrpc";
 
 export default class ExampleService implements LifecycleSupportInterface {
     async init(): Promise<void> {
@@ -450,7 +450,7 @@ message RequestMessage = {
 
 ```ts
 // the .ts file
-import { RoutableMessageStruct } from "ngrpc";
+import { RoutableMessageStruct } from "@ayonli/ngrpc";
 
 export interface RequestMessage extends RoutableMessageStruct {
     // other fields
@@ -473,7 +473,7 @@ We can do all the stuffs provided by GoRPC in the web server as we would in the 
 because all the differences between the gRPC client and the gRPC server are hidden behind the scene.
 
 ```ts
-import ngrpc from "ngrpc";
+import ngrpc from "@ayonli/ngrpc";
 
 (async () => {
     const app = await ngrpc.boot();
@@ -508,7 +508,7 @@ For example:
 
 ```ts
 // main.ts
-import ngrpc, { Config } from "ngrpc";
+import ngrpc, { Config } from "@ayonli/ngrpc";
 import * as http from "http";
 import * as https from "https";
 import * as fs from "fs/promises";

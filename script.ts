@@ -1,5 +1,5 @@
 /// <reference path="./services/PostService.ts" />
-import ngrpc from "."; // replace `.` with `ngrpc`
+import ngrpc from "."; // replace `.` with `@ayonli/ngrpc`
 
 if (require.main?.filename === __filename) {
     ngrpc.runSnippet(async () => {
