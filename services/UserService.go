@@ -46,7 +46,7 @@ func (self *UserService) Connect(cc grpc.ClientConnInterface) services_proto.Use
 	return services_proto.NewUserServiceClient(cc)
 }
 
-func (self *UserService) GetClient(route string) services_proto.UserServiceClient {
+func (self *UserService) GetClient(route string) (services_proto.UserServiceClient, error) {
 	return gorpc.GetServiceClient(self, route)
 }
 
@@ -59,7 +59,7 @@ func (self *UserService) GetUser(ctx context.Context, query *services_proto.User
 		if idx != -1 {
 			return self.userStore[idx], nil
 		} else {
-			return &services_proto.User{}, fmt.Errorf("User '%s' not found", *query.Id)
+			return nil, fmt.Errorf("user '%s' not found", *query.Id)
 		}
 	} else if *query.Email != "" {
 		idx := slices.IndexFunc[[]*services_proto.User](self.userStore, func(u *services_proto.User) bool {
@@ -69,10 +69,10 @@ func (self *UserService) GetUser(ctx context.Context, query *services_proto.User
 		if idx != -1 {
 			return self.userStore[idx], nil
 		} else {
-			return &services_proto.User{}, fmt.Errorf("User of '%s' not found", *query.Email)
+			return nil, fmt.Errorf("user of '%s' not found", *query.Email)
 		}
 	} else {
-		return &services_proto.User{}, fmt.Errorf("One of the 'id' and 'email' must be provided")
+		return nil, fmt.Errorf("one of the 'id' and 'email' must be provided")
 	}
 }
 
@@ -80,14 +80,19 @@ func (self *UserService) GetMyPosts(ctx context.Context, query *services_proto.U
 	user, err := self.GetUser(ctx, query)
 
 	if err != nil {
-		return &services_proto.PostQueryResult{}, err
+		return nil, err
 	}
 
-	ins := self.PostSrv.GetClient(user.Id)
+	ins, err := self.PostSrv.GetClient(user.Id)
+
+	if err != nil {
+		return nil, err
+	}
+
 	result, err := ins.SearchPosts(ctx, &services_proto.PostsQuery{Author: &user.Id})
 
 	if err != nil {
-		return &services_proto.PostQueryResult{}, err
+		return nil, err
 	}
 
 	return (*services_proto.PostQueryResult)(result), nil

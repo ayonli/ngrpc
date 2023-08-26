@@ -578,7 +578,7 @@ export class RpcApp {
         const remoteService = this.remoteServices.get(serviceName);
 
         if (!remoteService) {
-            throw new ReferenceError(`service ${serviceName} is not registered`);
+            throw new Error(`service ${serviceName} is not registered`);
         }
 
         const instances = remoteService.instances.filter(item => {

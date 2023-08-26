@@ -12,6 +12,6 @@ func (self *PostService) Connect(cc grpc.ClientConnInterface) services_proto.Pos
 	return services_proto.NewPostServiceClient(cc)
 }
 
-func (self *PostService) GetClient(route string) services_proto.PostServiceClient {
+func (self *PostService) GetClient(route string) (services_proto.PostServiceClient, error) {
 	return gorpc.GetServiceClient(self, route)
 }
