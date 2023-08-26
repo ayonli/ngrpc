@@ -1,8 +1,8 @@
 {
     "$schema": "http://json-schema.org/schema",
-    "$id": "https://github.com/hyurl/grpc-boot/blob/main/grpc-boot.schema.json",
-    "title": "gRPC Boot Config",
-    "description": "The configuration for @hyurl/grpc-boot",
+    "$id": "https://github.com/ayonli/ngrpc/blob/main/ngrpc.schema.json",
+    "title": "NgRPC Config",
+    "description": "The configuration for NgRPC",
     "type": "object",
     "properties": {
         "namespace": {
@@ -101,7 +101,7 @@
                     },
                     "serve": {
                         "type": "boolean",
-                        "description": "If this app is served by the gRPC Boot app server.",
+                        "description": "If this app is served by the NgRPC app server.",
                         "default": false
                     },
                     "services": {

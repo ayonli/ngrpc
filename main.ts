@@ -1,9 +1,9 @@
-import App from "."; // replace `.` with `@hyurl/grpc-boot`
+import ngrpc from "."; // replace `.` with `ngrpc`
 
 if (require.main?.filename === __filename) {
     const appName = process.argv[2];
 
-    App.boot(appName).then(() => {
+    ngrpc.boot(appName).then(() => {
         process.send?.("ready");
     }).catch(err => {
         console.error(err);

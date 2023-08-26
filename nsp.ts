@@ -1,14 +1,14 @@
 
 import { applyMagic } from "js-magic";
-import type App from "./app";
+import type { RpcApp } from "./app";
 
 @applyMagic
 class ChainingProxy {
     protected __target: string;
-    protected __app: App;
+    protected __app: RpcApp;
     protected __children: { [prop: string]: ChainingProxy; } = {};
 
-    constructor(target: string, app: App) {
+    constructor(target: string, app: RpcApp) {
         this.__target = target;
         this.__app = app;
     }
@@ -31,7 +31,7 @@ class ChainingProxy {
     }
 }
 
-export function createChainingProxy(target: string, app: App) {
+export function createChainingProxy(target: string, app: RpcApp) {
     const chain: ChainingProxy = function (data: any = null) {
         const index = target.lastIndexOf(".");
         const serviceName = target.slice(0, index);

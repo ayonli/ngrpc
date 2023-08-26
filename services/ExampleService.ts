@@ -1,4 +1,4 @@
-import { ServiceClient } from "@hyurl/grpc-async";
+import { ServiceClient } from "..";
 import { service } from "../util";
 
 declare global {

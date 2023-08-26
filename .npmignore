@@ -10,7 +10,7 @@ tsconfig.json
 go.*
 *.go
 *.log
-grpc-boot.json
+ngrpc.json
 test.*
 postpublish.js
 main.*
@@ -26,4 +26,5 @@ services/*.d.ts
 services/*.ts
 proto/github/ayonli/*.proto
 !services/ExampleService.ts
-!proto/github/ayonli/ExampleService.proto
+proto/github
+gorpc.*

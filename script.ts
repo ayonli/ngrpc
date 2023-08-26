@@ -1,8 +1,8 @@
 /// <reference path="./services/PostService.ts" />
-import App from "."; // replace `.` with `@hyurl/grpc-boot`
+import ngrpc from "."; // replace `.` with `ngrpc`
 
 if (require.main?.filename === __filename) {
-    App.runSnippet(async () => {
+    ngrpc.runSnippet(async () => {
         const post = await services.PostService.getPost({ id: 1 });
         console.log(post);
     });

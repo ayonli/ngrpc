@@ -1,6 +1,6 @@
 {
-  "name": "@hyurl/grpc-boot",
-  "version": "2.0.0",
+  "name": "ngrpc",
+  "version": "0.1.0",
   "description": "Make it easy to create, clear, expressive and elegant gRPC based applications.",
   "main": "index",
   "scripts": {
@@ -12,14 +12,14 @@
     "test:ts": "mocha -r ts-node/register test.ts"
   },
   "bin": {
-    "grpc-boot": "cli.js"
+    "ngrpc": "cli.js"
   },
   "engines": {
     "node": ">=14"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hyurl/grpc-boot.git"
+    "url": "git+https://github.com/ayonli/ngrpc.git"
   },
   "keywords": [
     "grpc"
@@ -27,9 +27,9 @@
   "author": "A-yon Lee <the@ayon.li>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/hyurl/grpc-boot/issues"
+    "url": "https://github.com/ayonli/ngrpc/issues"
   },
-  "homepage": "https://github.com/hyurl/grpc-boot#readme",
+  "homepage": "https://github.com/ayonli/ngrpc#readme",
   "dependencies": {
     "@grpc/grpc-js": "^1.9.0",
     "@grpc/proto-loader": "^0.7.8",

@@ -4,7 +4,7 @@
 
 import { deepStrictEqual, ok } from "assert";
 import { it } from "mocha";
-import App from ".";
+import ngrpc, { RpcApp } from ".";
 import { isTsNode } from "./util";
 import { spawn, execSync, ChildProcess, SpawnOptions } from "child_process";
 import { unlinkSync } from "fs";
@@ -58,12 +58,12 @@ after(async function () {
     });
 });
 
-describe("App.boot", () => {
-    it("App.boot(app)", async () => {
-        let app: App | undefined;
+describe("ngrpc.boot", () => {
+    it("ngrpc.boot(app)", async () => {
+        let app: RpcApp | undefined;
 
         try {
-            app = await App.boot("example-server");
+            app = await ngrpc.boot("example-server");
             const reply = await services.ExampleService.sayHello({ name: "World" });
             deepStrictEqual(reply, { message: "Hello, World" });
             await app.stop();
@@ -73,13 +73,13 @@ describe("App.boot", () => {
         }
     });
 
-    it("App.boot()", async function () {
+    it("ngrpc.boot()", async function () {
         this.timeout(20_000);
 
         await runCommand("start");
 
         try {
-            await App.boot();
+            await ngrpc.boot();
             const post = await services.PostService.getPost({ id: 1 });
 
             deepStrictEqual(post, {
@@ -135,9 +135,9 @@ describe("App.boot", () => {
                 ]
             })
 
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
         } catch (err) {
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
             throw err;
         }
     });
@@ -146,13 +146,13 @@ describe("App.boot", () => {
 describe("app.[method]", () => {
     it("app.stop()", async function () {
         this.timeout(20_000); // prolong test for gRPC connection timeout
-        let app: App | undefined;
+        let app: RpcApp | undefined;
         let reply: any | undefined;
         let reply2: any | undefined;
         let err: Error | undefined;
 
         try {
-            app = await App.boot("example-server");
+            app = await ngrpc.boot("example-server");
             reply = await services.ExampleService.sayHello({ name: "World" });
             await app.stop();
 
@@ -171,7 +171,7 @@ describe("app.[method]", () => {
     it("app.reload()", async function () {
         this.timeout(20_000);
 
-        let app: App | undefined;
+        let app: RpcApp | undefined;
         let reply: any | undefined;
         let reply2: any | undefined;
 
@@ -179,7 +179,7 @@ describe("app.[method]", () => {
         let contents = await fs.readFile(filename, "utf8");
 
         try {
-            app = await App.boot("example-server");
+            app = await ngrpc.boot("example-server");
             reply = await services.ExampleService.sayHello({ name: "World" });
 
             const newContents = contents.replace("Hello, ", "Hi, ");
@@ -202,11 +202,11 @@ describe("app.[method]", () => {
     });
 
     it("app.onReload(callback)", async () => {
-        let app: App | undefined;
+        let app: RpcApp | undefined;
         let log: string | undefined;
 
         try {
-            app = await App.boot("example-server");
+            app = await ngrpc.boot("example-server");
             app.onReload(() => {
                 log = "example-server has been reloaded";
             });
@@ -222,11 +222,11 @@ describe("app.[method]", () => {
     });
 
     it("app.onStop(callback)", async () => {
-        let app: App | undefined;
+        let app: RpcApp | undefined;
         let log: string | undefined;
 
         try {
-            app = await App.boot("example-server");
+            app = await ngrpc.boot("example-server");
             app.onStop(() => {
                 log = "example-server has been stopped";
             });
@@ -241,18 +241,18 @@ describe("app.[method]", () => {
     });
 });
 
-describe("App.loadConfig*", () => {
-    it("App.loadConfig()", async () => {
-        const conf = await App.loadConfig();
-        const conf1 = require("./grpc-boot.json");
+describe("ngrpc.loadConfig*", () => {
+    it("ngrpc.loadConfig()", async () => {
+        const conf = await ngrpc.loadConfig();
+        const conf1 = require("./ngrpc.json");
 
         conf1.protoOptions.longs = String;
 
         deepStrictEqual(conf, conf1);
     });
 
-    it("App.loadConfigForPM2()", async () => {
-        const conf = await App.loadConfigForPM2();
+    it("ngrpc.loadConfigForPM2()", async () => {
+        const conf = await ngrpc.loadConfigForPM2();
 
         deepStrictEqual(conf, {
             apps: [
@@ -275,18 +275,18 @@ describe("App.loadConfig*", () => {
     });
 });
 
-describe("App.runSnippet", () => {
-    it("App.runSnippet(fn)", async function () {
+describe("ngrpc.runSnippet", () => {
+    it("ngrpc.runSnippet(fn)", async function () {
         this.timeout(20_000);
 
         await runCommand("start");
 
         let reply: any;
 
-        await App.runSnippet(async () => {
+        await ngrpc.runSnippet(async () => {
             reply = await services.ExampleService.sayHello({ name: "World" });
         });
-        await App.sendCommand("stop");
+        await ngrpc.sendCommand("stop");
 
         deepStrictEqual(reply, { message: "Hello, World" });
     });
@@ -320,7 +320,7 @@ describe("CLI:init", () => {
 
         ok((await fs.stat(testDir)).isDirectory());
         ok((await fs.stat(path.join(testDir, "tsconfig.json"))).isFile());
-        ok((await fs.stat(path.join(testDir, "grpc-boot.json"))).isFile());
+        ok((await fs.stat(path.join(testDir, "ngrpc.json"))).isFile());
         ok((await fs.stat(path.join(testDir, "proto"))).isDirectory());
         ok((await fs.stat(path.join(testDir, "services"))).isDirectory());
         ok((await fs.stat(path.join(testDir, "proto", "ExampleService.proto"))).isFile());
@@ -336,14 +336,14 @@ describe("CLI:start", () => {
 
         try {
             await runCommand("start", ["example-server"]);
-            await App.boot();
+            await ngrpc.boot();
 
             const reply = await services.ExampleService.sayHello({ name: "World" });
             deepStrictEqual(reply, { message: "Hello, World" });
 
-            await App.sendCommand("stop", "example-server");
+            await ngrpc.sendCommand("stop", "example-server");
         } catch (err) {
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
             throw err;
         }
     });
@@ -353,14 +353,14 @@ describe("CLI:start", () => {
 
         try {
             await runCommand("start");
-            await App.boot();
+            await ngrpc.boot();
 
             const reply = await services.ExampleService.sayHello({ name: "World" });
             deepStrictEqual(reply, { message: "Hello, World" });
 
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
         } catch (err) {
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
             throw err;
         }
     });
@@ -378,7 +378,7 @@ describe("CLI:restart", () => {
 
         try {
             await runCommand("start");
-            const app = await App.boot();
+            const app = await ngrpc.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
@@ -395,10 +395,10 @@ describe("CLI:restart", () => {
             deepStrictEqual(reply, { message: "Hello, World" });
             deepStrictEqual(reply2, { message: "Hi, World" });
 
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
         } catch (err) {
             await fs.writeFile(filename, contents, "utf8"); // recover the file
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
             throw err;
         }
     });
@@ -414,7 +414,7 @@ describe("CLI:restart", () => {
 
         try {
             await runCommand("start", ["example-server"]);
-            const app = await App.boot();
+            const app = await ngrpc.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
@@ -433,10 +433,10 @@ describe("CLI:restart", () => {
             deepStrictEqual(reply, { message: "Hello, World" });
             deepStrictEqual(reply2, { message: "Hi, World" });
 
-            await App.sendCommand("stop", "example-server");
+            await ngrpc.sendCommand("stop", "example-server");
         } catch (err) {
             await fs.writeFile(filename, contents, "utf8"); // recover the file
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
             throw err;
         }
     });
@@ -454,7 +454,7 @@ describe("CLI:reload", () => {
 
         try {
             await runCommand("start");
-            await App.boot();
+            await ngrpc.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
@@ -470,10 +470,10 @@ describe("CLI:reload", () => {
             deepStrictEqual(reply, { message: "Hello, World" });
             deepStrictEqual(reply2, { message: "Hi, World" });
 
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
         } catch (err) {
             await fs.writeFile(filename, contents, "utf8"); // recover the file
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
             throw err;
         }
     });
@@ -489,7 +489,7 @@ describe("CLI:reload", () => {
 
         try {
             await runCommand("start", ["example-server"]);
-            await App.boot();
+            await ngrpc.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
@@ -505,10 +505,10 @@ describe("CLI:reload", () => {
             deepStrictEqual(reply, { message: "Hello, World" });
             deepStrictEqual(reply2, { message: "Hi, World" });
 
-            await App.sendCommand("stop", "example-server");
+            await ngrpc.sendCommand("stop", "example-server");
         } catch (err) {
             await fs.writeFile(filename, contents, "utf8"); // recover the file
-            await App.sendCommand("stop");
+            await ngrpc.sendCommand("stop");
             throw err;
         }
     });
@@ -524,7 +524,7 @@ describe("CLI:stop", () => {
 
         try {
             await runCommand("start");
-            const app = await App.boot();
+            const app = await ngrpc.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
@@ -548,7 +548,7 @@ describe("CLI:stop", () => {
 
         try {
             await runCommand("start", ["example-server"]);
-            const app = await App.boot();
+            const app = await ngrpc.boot();
 
             reply = await services.ExampleService.sayHello({ name: "World" });
 
@@ -597,13 +597,13 @@ describe("config options", () => {
         await runCommandInTestDir("init");
 
         const mainTs = (await fs.readFile("main.ts", "utf8"))
-            .replace(`"."`, `"@hyurl/grpc-boot"`);
+            .replace(`"."`, `"ngrpc"`);
         await fs.writeFile("test/main.ts", mainTs, "utf8");
 
-        const conf = JSON.parse(await fs.readFile("test/grpc-boot.json", "utf8"));
+        const conf = JSON.parse(await fs.readFile("test/ngrpc.json", "utf8"));
         conf.entry = "dist/main.js";
         conf.importRoot = "dist";
-        await fs.writeFile("test/grpc-boot.json", JSON.stringify(conf, null, "    "), "utf8");
+        await fs.writeFile("test/ngrpc.json", JSON.stringify(conf, null, "    "), "utf8");
 
         const tsConf = JSON.parse(await fs.readFile("test/tsconfig.json", "utf8"));
         tsConf.compilerOptions.outDir = "dist";
@@ -644,9 +644,9 @@ describe("config options", () => {
                 let mainJs = await fs.readFile("test/dist/main.js", "utf8");
 
                 if (isTsNode) {
-                    mainJs = mainJs.replace("@hyurl/grpc-boot", "../../dist");
+                    mainJs = mainJs.replace(`"ngrpc"`, `"../../dist"`);
                 } else {
-                    mainJs = mainJs.replace("@hyurl/grpc-boot", "../..");
+                    mainJs = mainJs.replace(`"ngrpc"`, `"../.."`);
                 }
 
                 await fs.writeFile("test/dist/main.js", mainJs, "utf8");
@@ -656,9 +656,9 @@ describe("config options", () => {
                 let exampleService = await fs.readFile("test/dist/services/ExampleService.js", "utf8");
 
                 if (isTsNode) {
-                    exampleService = exampleService.replace("@hyurl/grpc-boot", "../../../dist/util");
+                    exampleService = exampleService.replace(`"ngrpc"`, `"../../../dist/util"`);
                 } else {
-                    exampleService = exampleService.replace("@hyurl/grpc-boot", "../../../util");
+                    exampleService = exampleService.replace(`"ngrpc"`, `"../../../util"`);
                 }
 
                 await fs.writeFile("test/dist/services/ExampleService.js", exampleService, "utf8");
@@ -686,10 +686,10 @@ describe("config options", () => {
 
     it("run the example", async function () {
         this.timeout(20_000);
-        let app: App | undefined;
+        let app: RpcApp | undefined;
 
         try {
-            app = await App.boot();
+            app = await ngrpc.boot();
 
             // @ts-ignore
             const reply = await services.ExampleService.sayHello({ name: "World" });

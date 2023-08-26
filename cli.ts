@@ -6,10 +6,10 @@ import * as commander from "commander";
 import * as fs from "fs/promises";
 import * as path from "path";
 import pkg = require("./package.json");
-import App, { Config } from ".";
+import ngrpc, { Config } from ".";
 import { absPath, ensureDir, exists, spawnProcess } from "./util";
 
-const program = new commander.Command("grpc-boot");
+const program = new commander.Command("ngrpc");
 
 program.description("start, reload or stop apps")
     .version(pkg.version);
@@ -18,12 +18,12 @@ program.command("init")
     .description("initiate a new gRPC project")
     .action(async () => {
         const tsConfig = absPath("tsconfig.json");
-        const config = absPath("grpc-boot.json");
+        const config = absPath("ngrpc.json");
         const servicesDir = absPath("services");
         const protoDir = absPath("proto");
 
         if (await exists(tsConfig)) {
-            console.warn(`File '${path.basename(config)}' already exists`);
+            console.warn(`file '${path.basename(config)}' already exists`);
         } else {
             const tsConf = {
                 "compilerOptions": {
@@ -44,14 +44,14 @@ program.command("init")
             };
 
             await fs.writeFile(tsConfig, JSON.stringify(tsConf, null, "    "), "utf8");
-            console.info(`TSConfig file written to '${path.basename(tsConfig)}'`);
+            console.info(`tsconfig file written to '${path.basename(tsConfig)}'`);
         }
 
         if (await exists(config)) {
-            console.warn(`File '${path.basename(config)}' already exists`);
+            console.warn(`file '${path.basename(config)}' already exists`);
         } else {
             const conf: Config = {
-                "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
+                "$schema": "./node_modules/ngrpc/ngrpc.schema.json",
                 "namespace": "services",
                 "protoPaths": ["./proto"],
                 "protoOptions": {
@@ -73,52 +73,53 @@ program.command("init")
                 ]
             };
             await fs.writeFile(config, JSON.stringify(conf, null, "    "), "utf8");
-            console.info(`Config file written to '${path.basename(config)}'`);
+            console.info(`config file written to '${path.basename(config)}'`);
         }
 
         if (await exists(servicesDir)) {
-            console.warn(`Path '${servicesDir}' already exists`);
+            console.warn(`path '${servicesDir}' already exists`);
         } else {
             await ensureDir(servicesDir);
-            console.info(`Path '${servicesDir}' created`);
+            console.info(`path '${servicesDir}' created`);
         }
 
         if (await exists(protoDir)) {
-            console.warn(`Path '${protoDir}' already exists`);
+            console.warn(`path '${protoDir}' already exists`);
         } else {
             await ensureDir(protoDir);
-            console.info(`Path '${protoDir}' created`);
+            console.info(`path '${protoDir}' created`);
         }
 
         const exampleProtoSrc = path.join(__dirname, "proto", "ExampleService.proto");
         const exampleTsSrc = path.join(__dirname, "services", "ExampleService.ts");
         const exampleProtoDest = path.join(protoDir, "ExampleService.proto");
         const exampleTsDest = path.join(servicesDir, "ExampleService.ts");
-        const ExampleServiceProto = await fs.readFile(exampleProtoSrc, "utf8")
-        const ExampleServiceTs = (await fs.readFile(exampleTsSrc, "utf8"))
-            .replace(`"../util"`, `"@hyurl/grpc-boot"`);
+        const ExampleServiceProto = await fs.readFile(exampleProtoSrc, "utf8");
+        const ExampleServiceTs = [
+            `import { ServiceClient, service } from "ngrpc";`
+        ].concat((await fs.readFile(exampleTsSrc, "utf8")).split("\n").slice(2)).join("\n");
 
         if (!(await exists(exampleProtoDest))) {
             await fs.writeFile(exampleProtoDest, ExampleServiceProto, "utf8");
-            console.info(`Example .proto file '${exampleProtoDest}' created`);
+            console.info(`example .proto file '${exampleProtoDest}' created`);
         }
 
         if (!(await exists(exampleTsDest))) {
             await fs.writeFile(exampleTsDest, ExampleServiceTs, "utf8");
-            console.info(`Example .ts file '${exampleTsDest}' created`);
+            console.info(`example .ts file '${exampleTsDest}' created`);
         }
     });
 
 async function handleStart(appName: string | undefined) {
-    const conf = await App.loadConfig();
+    const conf = await ngrpc.loadConfig();
 
     const start = async (app: Config["apps"][0]) => {
         try {
             await spawnProcess(app, conf.entry);
-            console.info(`App [${app.name}] started at '${app.uri}'`);
+            console.info(`app [${app.name}] started at '${app.uri}'`);
         } catch (err) {
             const reason = err.message || String(err);
-            console.error(`Unable to start app [${app.name}] (reason: ${reason})`);
+            console.error(`unable to start app [${app.name}] (reason: ${reason})`);
         }
     };
 
@@ -126,9 +127,9 @@ async function handleStart(appName: string | undefined) {
         const app = conf.apps?.find(app => app.name === appName);
 
         if (!app) {
-            throw new Error(`App [${appName}] doesn't exist in the config file`);
+            throw new Error(`app [${appName}] doesn't exist in the config file`);
         } else if (!app.serve) {
-            throw new Error(`App [${appName}] is not intended to be served`);
+            throw new Error(`app [${appName}] is not intended to be served`);
         }
 
         await start(app);
@@ -149,7 +150,7 @@ program.command("restart")
     .argument("[app]", "the app name in the config file")
     .action(async (appName: string | undefined) => {
         try {
-            await App.sendCommand("stop", appName);
+            await ngrpc.sendCommand("stop", appName);
             await handleStart(appName);
         } catch (err) {
             console.error(err.message || String(err));
@@ -161,7 +162,7 @@ program.command("reload")
     .argument("[app]", "the app name in the config file")
     .action(async (appName: string | undefined) => {
         try {
-            await App.sendCommand("reload", appName);
+            await ngrpc.sendCommand("reload", appName);
         } catch (err) {
             console.error(err.message || String(err));
         }
@@ -172,7 +173,7 @@ program.command("stop")
     .argument("[app]", "the app name in the config file")
     .action(async (appName: string | undefined) => {
         try {
-            await App.sendCommand("stop", appName);
+            await ngrpc.sendCommand("stop", appName);
         } catch (err) {
             console.error(err.message || String(err));
         }
@@ -182,7 +183,7 @@ program.command("list")
     .description("list all apps (exclude non-served ones)")
     .action(async () => {
         try {
-            await App.sendCommand("list");
+            await ngrpc.sendCommand("list");
         } catch (err) {
             console.error(err);
         }
@@ -192,7 +193,7 @@ if (process.send) {
     if (require.main?.filename === __filename) {
         const appName = process.argv[2];
 
-        App.boot(appName).then(() => {
+        ngrpc.boot(appName).then(() => {
             process.send?.("ready");
         }).catch((err) => {
             console.error(err);

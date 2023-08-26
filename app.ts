@@ -98,7 +98,7 @@ export interface RoutableMessageStruct {
     route: string;
 }
 
-export default class App {
+export class RpcApp {
     protected name: string;
     protected config: Config | null = null;
     protected oldConfig: Config | null = null;
@@ -146,8 +146,8 @@ export default class App {
     private cpuUsage: CpuUsage | null = null;
 
     static async loadConfig() {
-        const defaultFile = absPath("grpc-boot.json");
-        const localFile = absPath("grpc-boot.local.json");
+        const defaultFile = absPath("ngrpc.json");
+        const localFile = absPath("ngrpc.local.json");
         let fileContent: string | undefined;
 
         if (await exists(localFile)) {
@@ -199,7 +199,7 @@ export default class App {
             } else if (!ext) {
                 entry += ".js";
             } else if (ext !== ".js") {
-                throw new Error(`Entry file '${entry}' is not a JavaScript file`);
+                throw new Error(`entry file '${entry}' is not a JavaScript file`);
             }
 
             return entry;
@@ -326,11 +326,11 @@ export default class App {
 
         if (protocol === "grpcs:" || protocol === "https:") {
             if (!app.ca) {
-                throw new Error(`Missing 'ca' config for app [${app.name}]`);
+                throw new Error(`missing 'ca' config for app [${app.name}]`);
             } else if (!app.cert) {
-                throw new Error(`Missing 'cert' config for app [${app.name}]`);
+                throw new Error(`missing 'cert' config for app [${app.name}]`);
             } else if (!app.key) {
-                throw new Error(`Missing 'key' config for app [${app.name}]`);
+                throw new Error(`missing 'key' config for app [${app.name}]`);
             } else if (!port) {
                 address += ":443";
             } else {
@@ -351,7 +351,7 @@ export default class App {
         const url = new URL(app.uri);
 
         if (url.protocol === "xds:") {
-            throw new Error(`App [${app.name}] cannot be served since it uses 'xds:' protocol`);
+            throw new Error(`app [${app.name}] cannot be served since it uses 'xds:' protocol`);
         }
 
         const { address, useSSL } = this.getAddress(app, url);
@@ -454,7 +454,7 @@ export default class App {
                         reject(err);
                     } else {
                         (this.server as Server).start();
-                        console.info(`App [${app.name}] started at '${app.uri}'`);
+                        console.info(`app [${app.name}] started at '${app.uri}'`);
                         resolve();
                     }
                 });
@@ -666,10 +666,9 @@ export default class App {
      * 
      * @param name The app's name that should be started as a server. If not provided, the app only
      *  connects to other servers but not serves as one.
-     * @param config Use a custom config file.
      */
     static async boot(name: string | null = "",) {
-        const ins = new App();
+        const ins = new RpcApp();
 
         ins.config = await this.loadConfig();
 
@@ -710,10 +709,10 @@ export default class App {
                 let result: string;
 
                 if (this.name) {
-                    result = `App [${this.name}] stopped`;
+                    result = `app [${this.name}] stopped`;
                     console.info(result);
                 } else {
-                    result = "App (clients) stopped";
+                    result = "app (clients) stopped";
                 }
 
                 this.guest?.end(JSON.stringify({
@@ -762,7 +761,7 @@ export default class App {
 
     protected async _reload(msgId = "") {
         this.oldConfig = this.config;
-        this.config = await App.loadConfig();
+        this.config = await RpcApp.loadConfig();
 
         await this.loadProtoFiles(this.config.protoPaths, this.config.protoOptions);
 
@@ -818,10 +817,10 @@ export default class App {
             let result: string;
 
             if (this.name) {
-                result = `App [${this.name}] reloaded`;
+                result = `app [${this.name}] reloaded`;
                 console.info(result);
             } else {
-                result = `App (clients) reloaded`;
+                result = `app (clients) reloaded`;
             }
 
             this.guest?.write(JSON.stringify({ cmd: "reply", msgId: msgId, result }) + "\n");
@@ -857,7 +856,7 @@ export default class App {
                 const conf = this.config as Config;
 
                 client.on("data", (buf) => {
-                    App.processSocketMessage(buf, (err, msg: {
+                    RpcApp.processSocketMessage(buf, (err, msg: {
                         cmd: "handshake" | "goodbye" | "reload" | "stop" | "list" | "reply",
                         app?: string,
                         msgId?: string;
@@ -874,9 +873,9 @@ export default class App {
 
                             if (msg.app) {
                                 if (!conf.apps.some(app => app.name === msg.app)) {
-                                    client.destroy(new Error(`Invalid app name '${msg.app}'`));
+                                    client.destroy(new Error(`invalid app name '${msg.app}'`));
                                 } else if (this.hostClients.some(item => item.app === msg.app)) {
-                                    client.destroy(new Error(`App [${msg}] is already running`));
+                                    client.destroy(new Error(`app [${msg}] is already running`));
                                 } else {
                                     this.hostClients.push({
                                         socket: client,
@@ -916,7 +915,7 @@ export default class App {
                                         client.end(JSON.stringify(reply));
                                     });
                                 } else {
-                                    client.destroy(new Error(`App [${msg.app}] is not running`));
+                                    client.destroy(new Error(`app [${msg.app}] is not running`));
                                 }
                             } else {
                                 const clients = [...this.hostClients];
@@ -1000,7 +999,7 @@ export default class App {
                                 }
                             }
                         } else {
-                            client.destroy(new Error(`Invalid message: ${JSON.stringify(msg)}`));
+                            client.destroy(new Error(`invalid message: ${JSON.stringify(msg)}`));
                         }
                     });
                 }).on("close", () => {
@@ -1042,9 +1041,9 @@ export default class App {
                 this.doTryJoining(sockPath, resolve, reject);
 
                 if (this.name) {
-                    console.info(`App [${this.name}] has become the host server`);
+                    console.info(`app [${this.name}] has become the host server`);
                 } else {
-                    console.info("This app has become the host server");
+                    console.info("this app has become the host server");
                 }
             });
         });
@@ -1055,7 +1054,7 @@ export default class App {
         filename: string;
         sockPath: string;
     }> {
-        const config = absPath("grpc-boot.json");
+        const config = absPath("ngrpc.json");
         const ext = path.extname(config);
         const filename = config.slice(0, -ext.length) + ".sock";
         const sockPath = absPath(filename, true);
@@ -1118,7 +1117,7 @@ export default class App {
         };
 
         client.on("data", (buf) => {
-            App.processSocketMessage(buf, (err, msg: {
+            RpcApp.processSocketMessage(buf, (err, msg: {
                 cmd: "handshake" | "goodbye" | "reload" | "stop" | "stat";
                 app?: string;
                 msgId: string;
@@ -1188,11 +1187,11 @@ export default class App {
                     const msg = JSON.parse(chunk);
                     handle(null, msg);
                 } catch {
-                    handle(new Error("Invalid message: " + str), null);
+                    handle(new Error("invalid message: " + str), null);
                 }
             }
         } catch {
-            handle(new Error("Invalid message: " + str), null);
+            handle(new Error("invalid message: " + str), null);
         }
     }
 
@@ -1204,7 +1203,7 @@ export default class App {
      *  sent to all apps.
      */
     static async sendCommand(cmd: "reload" | "stop" | "list", app: string | null = "") {
-        const config = absPath("grpc-boot.json");
+        const config = absPath("ngrpc.json");
         const ext = path.extname(config);
         const sockFile = absPath(config.slice(0, -ext.length) + ".sock", true);
         type Stat = {
@@ -1291,9 +1290,9 @@ export default class App {
                     if (cmd === "list") {
                         listApps([]).catch(console.error);
                     } else if (app) {
-                        console.info(`App [${app}] is not running`);
+                        console.info(`app [${app}] is not running`);
                     } else {
-                        console.info("No app is running");
+                        console.info("no app is running");
                     }
 
                     resolve();
@@ -1308,14 +1307,14 @@ export default class App {
      * Runs a snippet inside the apps context.
      * 
      * This function is for temporary scripting usage, it starts a temporary pure-clients app so we
-     * can use the services as we normally do in our program, and after the main `fn` function is
-     * run, the app is automatically stopped.
+     * can use the services as we normally do in our program, and after the main `fn` function runs,
+     * the app is automatically stopped.
      * 
      * @param fn The function to be run.
      */
     static async runSnippet(fn: () => void | Promise<void>) {
         try {
-            const app = new App();
+            const app = new RpcApp();
 
             app.config = await this.loadConfig();
 
@@ -1328,3 +1327,5 @@ export default class App {
     }
 }
 
+const ngrpc = RpcApp;
+export default ngrpc;

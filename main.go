@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/ayonli/gorpc"
-	"github.com/hyurl/grpc-boot/services"
+	"github.com/ayonli/ngrpc/services"
 )
 
 func main() {

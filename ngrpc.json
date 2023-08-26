@@ -1,5 +1,5 @@
 {
-    "$schema": "./grpc-boot.schema.json",
+    "$schema": "./ngrpc.schema.json",
     "protoPaths": [
         "./proto"
     ],

@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	"github.com/ayonli/gorpc"
-	"github.com/hyurl/grpc-boot/services/github/ayonli/services_proto"
+	"github.com/ayonli/ngrpc/services/github/ayonli/services_proto"
 	"google.golang.org/grpc"
 )
 

@@ -1,27 +1,27 @@
-# gRPC Boot
+# NgRPC
 
-Make it easy to create clear, expressive and elegant gRPC based applications.
+Make it easy to create clear, expressive and elegant gRPC based applications in Node.js.
 
 *NOTE: this package uses [@hyurl/grpc-async](https://github.com/hyurl/grpc-async) to make life with*
 *gRPC easier.*
 
 *NOTE: The NPM package only contains the minimal file base,*
-*[go to GitHub for this Doc](https://github.com/hyurl/grpc-boot) and the related files.*
-*By combining these files, this project itself serves as an example of using gRPC Boot in real world.*
+*[go to GitHub for this Doc](https://github.com/ayonli/ngrpc) and the related files.*
+*By combining these files, this project itself serves as an example of using NgRPC in real world.*
 
 ## Install
 
 ```sh
-npm i @hyurl/grpc-boot
+npm i ngrpc
 ```
 
 ## First Impression
 
-Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
+Take a look at the following config file ([ngrpc.json](./ngrpc.json)):
 
 ```json
 {
-    "$schema": "./node_modules/@hyurl/grpc-boot/grpc-boot.schema.json",
+    "$schema": "./node_modules/ngrpc/ngrpc.schema.json",
     "protoPaths": [
         "./proto"
     ],
@@ -70,7 +70,7 @@ Take a look at the following config file ([grpc-boot.json](./grpc-boot.json)):
 Now, start the apps like this:
 
 ```sh
-npx tsc && npx grpc-boot start
+npx tsc && npx ngrpc start
 ```
 
 It's just that simple.
@@ -97,7 +97,7 @@ It's just that simple.
     - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:`
         or `xds:` (make sure package [@grpc/grpc-js-xds](https://www.npmjs.com/package/@grpc/grpc-js-xds)
         is installed).
-    - `serve` If this app is served by the gRPC Boot app server. If this property is `false`, that
+    - `serve` If this app is served by the NgRPC app server. If this property is `false`, that
         means the underlying services are served by another program. As we can see from the above
         example, the `user-server` sets this property to `false`, because it's served in a
         [`golang` program](./main.go). If we take a look at the
@@ -126,7 +126,7 @@ It's just that simple.
 
 With these simple configurations, we can write our gRPC application straightforwardly in a `.proto`
 file and a `.ts` file in the `services` directory, without any headache of how to start the server
-or connect to the services, all is properly handled internally by the gRPC Boot framework.
+or connect to the services, all is properly handled internally by the NgRPC framework.
 
 ## CLI Commands
 
@@ -189,7 +189,7 @@ This decorator function is used to link the service class to a gRPC service.
 
 - `name` The service name defined in the `.proto` file.
 
-**`App.boot(app?: string): Promise<void>`**
+**`ngrpc.boot(app?: string): Promise<void>`**
 
 Starts the app programmatically.
 
@@ -199,16 +199,16 @@ Starts the app programmatically.
 **Example**
 
 ```ts
-import App from "@hyurl/grpc-boot";
+import ngrpc from "ngrpc";
 
 (async () => {
     // This app starts a gRPC server named 'example-server' and connects to all services.
-    const serverApp = await App.boot("example-server");
+    const serverApp = await ngrpc.boot("example-server");
 })();
 
 (async () => {
     // This app won't start a gRPC server, but connects to all services.
-    const clientApp1 = await App.boot();
+    const clientApp = await ngrpc.boot();
 })();
 ```
 
@@ -221,9 +221,9 @@ Stops the app programmatically.
 **Example**
 
 ```ts
-import App from "@hyurl/grpc-boot";
+import ngrpc from "ngrpc";
 
-App.boot("example-server").then(app => {
+ngrpc.boot("example-server").then(app => {
     process.on("exit", (code) => {
         // Stop the app when the program is issued to exit.
         app.stop().then(() => {
@@ -240,7 +240,7 @@ App.boot("example-server").then(app => {
 Reloads the app programmatically.
 
 This function is rarely used explicitly, prefer to use the CLI `reload` command or
-`App.sendCommand("reload")` instead.
+`ngrpc.sendCommand("reload")` instead.
 
 ----
 
@@ -251,9 +251,9 @@ Registers a callback to run after the app is reloaded.
 **Example**
 
 ```ts
-import App from "@hyurl/grpc-boot";
+import ngrpc from "ngrpc";
 
-App.boot("example-server").then(app => {
+ngrpc.boot("example-server").then(app => {
     app.onReload(() => {
         // Log the reload event.
         console.info("The app has been reloaded");
@@ -270,9 +270,9 @@ Registers a callback to run after the app is stopped.
 **Example**
 
 ```ts
-import App from "@hyurl/grpc-boot";
+import ngrpc from "ngrpc";
 
-App.boot("example-server").then(app => {
+ngrpc.boot("example-server").then(app => {
     app.onStop(() => {
         // Terminate the process when the app is stopped.
         process.exit(0);
@@ -282,20 +282,20 @@ App.boot("example-server").then(app => {
 
 ----
 
-**`App.loadConfig(): Promise<Config>`**
+**`ngrpc.loadConfig(): Promise<Config>`**
 
 Loads the configurations.
 
 ----
 
-**`App.loadConfigForPM2(): Promise<{ apps: any[] }>`**
+**`ngrpc.loadConfigForPM2(): Promise<{ apps: any[] }>`**
 
 Loads the configurations and reorganize them so that the same configuration can be used in PM2's
 configuration file.
 
 ----
 
-**`App.sendCommand(cmd: "reload" | "stop" | "list", app?: string): Promise<void>`**
+**`ngrpc.sendCommand(cmd: "reload" | "stop" | "list", app?: string): Promise<void>`**
 
 Sends control command to the apps. This function is mainly used in the CLI tool.
 
@@ -305,7 +305,7 @@ Sends control command to the apps. This function is mainly used in the CLI tool.
 
 ----
 
-**`App.runSnippet(fn: () => void | Promise<void>): Promise<void>`**
+**`ngrpc.runSnippet(fn: () => void | Promise<void>): Promise<void>`**
 
 Runs a snippet inside the apps context.
 
@@ -318,9 +318,9 @@ automatically stopped.
 **Example**
 
 ```ts
-import App from "@hyurl/grpc-boot";
+import ngrpc from "ngrpc";
 
-App.runSnippet(async () => {
+ngrpc.runSnippet(async () => {
     const post = await services.PostService.getPost({ id: 1 });
     console.log(post);
 });
@@ -328,13 +328,13 @@ App.runSnippet(async () => {
 
 ## Implement a Service
 
-To allow gRPC Boot to handle the serving and connecting process of our services, we need to
+To allow NgRPC to handle the serving and connecting process of our services, we need to
 implement our service in a well-designed fashion.
 
 For example, a typical service should be designed like this:
 
 ```ts
-import { ServiceClient, service } from "@hyurl/grpc-boot";
+import { ServiceClient, service } from "ngrpc";
 
 declare global {
     namespace services {
@@ -352,7 +352,7 @@ If this is a client-side service representation (only for referencing), it shoul
 abstract class, like this:
 
 ```ts
-import { ServiceClient, service } from "@hyurl/grpc-boot";
+import { ServiceClient, service } from "ngrpc";
 
 declare global {
     namespace services {
@@ -417,7 +417,7 @@ service ExampleService {
 
 ```ts
 // the ExampleService.ts file
-import { ServiceClient } from "@hyurl/grpc-boot"
+import { ServiceClient } from "ngrpc";
 
 declare global {
     namespace services {
@@ -432,11 +432,11 @@ export default class ExampleService {
 
 ## Lifecycle Support
 
-The service class served by gRPC Boot application supports lifecycle functions, to use this feature,
+The service class served by NgRPC application supports lifecycle functions, to use this feature,
 simply implement the `LifecycleSupportInterface` for the service class, for example:
 
 ```ts
-import { LifecycleSupportInterface } from "@hyurl/grpc-boot";
+import { LifecycleSupportInterface } from "ngrpc";
 
 export default class ExampleService implements LifecycleSupportInterface {
     async init(): Promise<void> {
@@ -461,7 +461,7 @@ TypeScript) needs to be transpiled into JavaScript first in order to be run (the
 If the filename ends with `.ts`, it load the program via `ts-node`, which allow TypeScript code run
 directly in the program.
 
-By default, gRPC Boot app uses a default entry file compiled in JavaScript, which means our code
+By default, NgRPC app uses a default entry file compiled in JavaScript, which means our code
 needs to be transpiled as well. To use `ts-node` running TypeScript, we need to provide a custom
 entry file, just like this.
 
@@ -479,7 +479,7 @@ is presented, `node` is used, otherwise, `ts-node` is used.
 
 ## Load Balancing and Routing
 
-If a service is served in multiple apps, gRPC Boot uses a client-side load balancer to connect to it,
+If a service is served in multiple apps, NgRPC uses a client-side load balancer to connect to it,
 the load balancer is configured with a custom routing resolver which allows us redirect traffic
 according to the message we sent when calling RPC functions.
 
@@ -507,7 +507,7 @@ message RequestMessage = {
 
 ```ts
 // the .ts file
-import { RoutableMessageStruct } from "@hyurl/grpc-boot";
+import { RoutableMessageStruct } from "ngrpc";
 
 export interface RequestMessage extends RoutableMessageStruct {
     // other fields
@@ -530,10 +530,10 @@ We can do all the stuffs provided by GoRPC in the web server as we would in the 
 because all the differences between the gRPC client and the gRPC server are hidden behind the scene.
 
 ```ts
-import App from "@hyurl/grpc-boot";
+import ngrpc from "ngrpc";
 
 (async () => {
-    const app = await App.boot();
+    const app = await ngrpc.boot();
 })()
 ```
 
@@ -547,7 +547,7 @@ provides, such as the CLI tool and the reloading hook.
 For example:
 
 ```json
-// grpc-boot.json
+// ngrpc.json
 {
     // ...
     "entry": "main", // need a custom entry file
@@ -565,7 +565,7 @@ For example:
 
 ```ts
 // main.ts
-import App, { Config } from "@hyurl/grpc-boot";
+import ngrpc, { Config } from "ngrpc";
 import * as http from "http";
 import * as https from "https";
 import * as fs from "fs/promises";
@@ -574,12 +574,12 @@ if (require.main?.filename === __filename) {
     (async () => {
         const appName = process.argv[2];
 
-        const app = await App.boot(appName);
+        const app = await ngrpc.boot(appName);
         let httpServer: http.Server;
         let httpsServer: https.Server;
         
         if (appName === "web-server") {
-            const conf = await App.loadConfig();
+            const conf = await ngrpc.loadConfig();
             const _app = conf.apps.find(app => app.name === appName) as Config["apps"][0];
             let { protocol, port } = new URL(_app.uri);
 
@@ -618,7 +618,7 @@ if (require.main?.filename === __filename) {
 ## Good Practices
 
 In order to code a clear, expressive and elegant gRPC based application, apart from the features
-that gRPC Boot provides, we can order our project by performing the following steps.
+that NgRPC provides, we can order our project by performing the following steps.
 
 1. Create a `proto` folder to store all the `.proto` files in one place.
 

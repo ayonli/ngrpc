@@ -1,4 +1,4 @@
-module github.com/hyurl/grpc-boot
+module github.com/ayonli/ngrpc
 
 go 1.21.0
 

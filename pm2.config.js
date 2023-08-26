@@ -1,3 +1,3 @@
-const { default: App } = require("."); // replace `.` with `@hyurl/grpc-boot`
+const { default: ngrpc } = require("."); // replace `.` with `ngrpc`
 
-module.exports = App.loadConfigForPM2();
+module.exports = ngrpc.loadConfigForPM2();
