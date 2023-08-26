@@ -188,151 +188,6 @@ It's recommended to use external process management tool such as **PM2** in prod
 us more control of our program and provides more features such as monitoring. And while using PM2
 (or others), we can still use the `reload` command to hot-reload our app after deployed new updates.
 
-## Programmatic API
-
-**service(name: string): ClassDecorator**
-
-This decorator function is used to link the service class to a gRPC service.
-
-- `name` The service name defined in the `.proto` file.
-
-**`ngrpc.boot(app?: string): Promise<RpcApp>`**
-
-Starts the app programmatically.
-
-- `app` The app's name that should be started as a server. If not provided, the app only connects
-    to other servers but not serves as one.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-(async () => {
-    // This app starts a gRPC server named 'example-server' and connects to all services.
-    const serverApp = await ngrpc.boot("example-server");
-})();
-
-(async () => {
-    // This app won't start a gRPC server, but connects to all services.
-    const clientApp = await ngrpc.boot();
-})();
-```
-
-----
-
-**`app.stop(): Promise<void>`**
-
-Stops the app programmatically.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.boot("example-server").then(app => {
-    process.on("exit", (code) => {
-        // Stop the app when the program is issued to exit.
-        app.stop().then(() => {
-            process.exit(code);
-        });
-    });
-});
-```
-
-----
-
-**`app.reload(): Promise<void>`**
-
-Reloads the app programmatically.
-
-This function is rarely used explicitly, prefer to use the CLI `reload` command or
-`ngrpc.sendCommand("reload")` instead.
-
-----
-
-**`app.onReload(callback: () => void): void`**
-
-Registers a callback to run after the app is reloaded.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.boot("example-server").then(app => {
-    app.onReload(() => {
-        // Log the reload event.
-        console.info("The app has been reloaded");
-    });
-});
-```
-
-----
-
-**`app.onStop(callback: () => void): void`**
-
-Registers a callback to run after the app is stopped.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.boot("example-server").then(app => {
-    app.onStop(() => {
-        // Terminate the process when the app is stopped.
-        process.exit(0);
-    });
-});
-```
-
-----
-
-**`ngrpc.loadConfig(): Promise<Config>`**
-
-Loads the configurations.
-
-----
-
-**`ngrpc.loadConfigForPM2(): Promise<{ apps: any[] }>`**
-
-Loads the configurations and reorganize them so that the same configuration can be used in PM2's
-configuration file.
-
-----
-
-**`ngrpc.sendCommand(cmd: "reload" | "stop" | "list", app?: string): Promise<void>`**
-
-Sends control command to the apps. This function is mainly used in the CLI tool.
-
-- `cmd`
-- `app` The app's name that should received the command. If not provided, the
-    command is sent to all apps.
-
-----
-
-**`ngrpc.runSnippet(fn: () => void | Promise<void>): Promise<void>`**
-
-Runs a snippet inside the apps context.
-
-This function is for temporary scripting usage, it starts a temporary pure-clients app so we can use
-the services as we normally do in our program, and after the main `fn` function is run, the app is
-automatically stopped.
-
-- `fn` The function to be run.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.runSnippet(async () => {
-    const post = await services.PostService.getPost({ id: 1 });
-    console.log(post);
-});
-```
-
 ## Implement a Service
 
 To allow NgRPC to handle the serving and connecting process of our services, we need to
@@ -379,8 +234,9 @@ The service class served by NgRPC application supports lifecycle functions, to u
 simply implement the `LifecycleSupportInterface` for the service class, for example:
 
 ```ts
-import { LifecycleSupportInterface } from "@ayonli/ngrpc";
+import { LifecycleSupportInterface, service } from "@ayonli/ngrpc";
 
+@service("services.ExampleService")
 export default class ExampleService implements LifecycleSupportInterface {
     async init(): Promise<void> {
         // When the service is loaded (or reloaded), the `init()` method will be automatically
@@ -577,3 +433,148 @@ that NgRPC provides, we can order our project by performing the following steps.
 
 4. Use the same file structures and symbol names (as possible as we can) in the class files to
     reflect the ones in the `.proto` files, create a consistent development experience.
+
+## Programmatic API
+
+**service(name: string): ClassDecorator**
+
+This decorator function is used to link the service class to a gRPC service.
+
+- `name` The service name defined in the `.proto` file.
+
+**`ngrpc.boot(app?: string): Promise<RpcApp>`**
+
+Starts the app programmatically.
+
+- `app` The app's name that should be started as a server. If not provided, the app only connects
+    to other servers but not serves as one.
+
+**Example**
+
+```ts
+import ngrpc from "@ayonli/ngrpc";
+
+(async () => {
+    // This app starts a gRPC server named 'example-server' and connects to all services.
+    const serverApp = await ngrpc.boot("example-server");
+})();
+
+(async () => {
+    // This app won't start a gRPC server, but connects to all services.
+    const clientApp = await ngrpc.boot();
+})();
+```
+
+----
+
+**`app.stop(): Promise<void>`**
+
+Stops the app programmatically.
+
+**Example**
+
+```ts
+import ngrpc from "@ayonli/ngrpc";
+
+ngrpc.boot("example-server").then(app => {
+    process.on("exit", (code) => {
+        // Stop the app when the program is issued to exit.
+        app.stop().then(() => {
+            process.exit(code);
+        });
+    });
+});
+```
+
+----
+
+**`app.reload(): Promise<void>`**
+
+Reloads the app programmatically.
+
+This function is rarely used explicitly, prefer to use the CLI `reload` command or
+`ngrpc.sendCommand("reload")` instead.
+
+----
+
+**`app.onReload(callback: () => void): void`**
+
+Registers a callback to run after the app is reloaded.
+
+**Example**
+
+```ts
+import ngrpc from "@ayonli/ngrpc";
+
+ngrpc.boot("example-server").then(app => {
+    app.onReload(() => {
+        // Log the reload event.
+        console.info("The app has been reloaded");
+    });
+});
+```
+
+----
+
+**`app.onStop(callback: () => void): void`**
+
+Registers a callback to run after the app is stopped.
+
+**Example**
+
+```ts
+import ngrpc from "@ayonli/ngrpc";
+
+ngrpc.boot("example-server").then(app => {
+    app.onStop(() => {
+        // Terminate the process when the app is stopped.
+        process.exit(0);
+    });
+});
+```
+
+----
+
+**`ngrpc.loadConfig(): Promise<Config>`**
+
+Loads the configurations.
+
+----
+
+**`ngrpc.loadConfigForPM2(): Promise<{ apps: any[] }>`**
+
+Loads the configurations and reorganize them so that the same configuration can be used in PM2's
+configuration file.
+
+----
+
+**`ngrpc.sendCommand(cmd: "reload" | "stop" | "list", app?: string): Promise<void>`**
+
+Sends control command to the apps. This function is mainly used in the CLI tool.
+
+- `cmd`
+- `app` The app's name that should received the command. If not provided, the
+    command is sent to all apps.
+
+----
+
+**`ngrpc.runSnippet(fn: () => void | Promise<void>): Promise<void>`**
+
+Runs a snippet inside the apps context.
+
+This function is for temporary scripting usage, it starts a temporary pure-clients app so we can use
+the services as we normally do in our program, and after the main `fn` function is run, the app is
+automatically stopped.
+
+- `fn` The function to be run.
+
+**Example**
+
+```ts
+import ngrpc from "@ayonli/ngrpc";
+
+ngrpc.runSnippet(async () => {
+    const post = await services.PostService.getPost({ id: 1 });
+    console.log(post);
+});
+```
