@@ -24,7 +24,7 @@ Take a look at the following config file ([ngrpc.json](./ngrpc.json)):
 
 ```json
 {
-    "$schema": "./node_modules/ngrpc/ngrpc.schema.json",
+    "$schema": "./node_modules/@ayonli/ngrpc/ngrpc.schema.json",
     "protoPaths": [
         "./proto"
     ],

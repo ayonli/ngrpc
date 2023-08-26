@@ -51,7 +51,7 @@ program.command("init")
             console.warn(`file '${path.basename(config)}' already exists`);
         } else {
             const conf: Config = {
-                "$schema": "./node_modules/ngrpc/ngrpc.schema.json",
+                "$schema": "./node_modules/@ayonli/ngrpc/ngrpc.schema.json",
                 "namespace": "services",
                 "protoPaths": ["./proto"],
                 "protoOptions": {
