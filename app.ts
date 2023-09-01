@@ -17,21 +17,16 @@ import get = require("lodash/get");
 import set = require("lodash/set");
 import isEqual = require("lodash/isEqual");
 import hash = require("string-hash");
-import * as net from "net";
-import isSocketResetError = require("is-socket-reset-error");
 import {
-    CpuUsage,
     absPath,
-    ensureDir,
     exists,
-    getCpuUsage,
     isTsNode,
     sServiceName,
-    spawnProcess
+    timed
 } from "./util";
 import { findDependencies } from "require-chain";
-import humanizeDuration = require("humanize-duration");
 import { createChainingProxy } from "./nsp";
+import { Guest } from "./host/guest";
 
 export type { ServiceClient };
 
@@ -42,32 +37,43 @@ export type ServiceClass = (new () => any) & {
     [sServiceName]: string;
 };
 
-/** These type represents the structures and properties set in the config file. */
-export type Config = {
+export interface App {
+    /** The name of the app. */
+    name: string;
+    /**
+     * The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or
+     * `xds:`.
+     */
+    uri: string;
+    /** If this app can be served by as the gRPC server. */
+    serve?: boolean;
+    /** The services served by this app. */
+    services?: string[];
+    /** The CA filename when using TLS/SSL. */
+    ca?: string;
+    /** The certificate filename when using TLS/SSL. */
+    cert?: string;
+    /** The private key filename when using TLS/SSL. */
+    key?: string;
+    stdout?: string;
+    stderr?: string;
+    entry?: string;
+    env?: { [name: string]: string; };
+    connectTimeout?: number;
+    options?: ChannelOptions;
+}
+
+export interface Config {
     $schema?: string;
     namespace?: string;
-    entry?: string;
     importRoot?: string;
+    protoPaths: string[];
     /** @deprecated use `protoPaths` instead. */
     protoDirs?: string[];
-    protoPaths: string[];
     protoOptions?: ProtoOptions,
-    apps: {
-        name: string;
-        uri: string;
-        serve?: boolean;
-        services: string[];
-        ca?: string;
-        cert?: string;
-        key?: string;
-        connectTimeout?: number;
-        options?: ChannelOptions;
-        stdout?: string;
-        stderr?: string;
-        entry?: string;
-        env?: { [name: string]: string; };
-    }[];
-};
+    entry: string;
+    apps: App[];
+}
 
 /**
  * This type represents an interface that supports lifecycle events on the gRPC app. If a service
@@ -99,19 +105,18 @@ export interface RoutableMessageStruct {
 }
 
 export class RpcApp {
-    protected name: string;
-    protected config: Config | null = null;
-    protected oldConfig: Config | null = null;
-    protected pkgDef: GrpcObject | null = null;
-    protected server: Server | null = null;
-    protected ctorsMap = new Map<string, {
+    name: string;
+    private config: Config | null = null;
+    private oldConfig: Config | null = null;
+    private pkgDef: GrpcObject | null = null;
+    private server: Server | null = null;
+    private ctorsMap = new Map<string, {
         classCtor: ServiceClass;
         protoCtor: ServiceClientConstructor;
     }>();
-    protected instanceMap = new Map<string, any>();
-    protected sslOptions: { ca: Buffer, cert: Buffer, key: Buffer; } | null = null;
-    protected serverOptions: ChannelOptions | null = null;
-    protected remoteServices = new Map<string, {
+    private instanceMap = new Map<string, any>();
+    private sslOptions: { ca: Buffer, cert: Buffer, key: Buffer; } | null = null;
+    private remoteServices = new Map<string, {
         instances: {
             app: string;
             uri: string;
@@ -120,30 +125,10 @@ export class RpcApp {
         counter: number;
     }>;
 
-    // The Host-Guest model is a mechanism used to hold communication between all apps running on
-    // the same machine.
-    //
-    // When a app starts, regarding serves as a server or just pure clients, it joins the group and
-    // tries to gain the hostship. If succeeds, it becomes the host app and others become guests.
-    // The host app starts a guest client that connects to itself as well. Through the host app,
-    // guests can talk to each other.
-    //
-    // This mechanism is primarily used for the CLI tool sending control commands to the apps. When
-    // the CLI tool starts, it becomes one of the member of the group (it starts a pure clients app),
-    // and use this communication channel to send commands like `reload` and `stop` to other apps.
-    protected host: net.Server | null = null;
-    protected hostClients: { socket: net.Socket, stopped: boolean; app?: string; }[] = [];
-    protected hostCallbacks = new Map<string, (result: any) => void>();
-    protected hostName: string | undefined = void 0;
-    protected hostStopped = false;
-    protected guest: net.Socket | null = null;
-    protected canTryHost = false;
+    private guest: Guest | null = null;
 
-    protected isStopped = false;
-    protected _onReload: (() => void) | null = null;
-    protected _onStop: (() => void) | null = null;
-
-    private cpuUsage: CpuUsage | null = null;
+    private _onReload: (() => void) | null = null;
+    private _onStop: (() => void) | null = null;
 
     static async loadConfig() {
         const defaultFile = absPath("ngrpc.json");
@@ -159,6 +144,12 @@ export class RpcApp {
         }
 
         const conf: Config = JSON.parse(fileContent as string);
+
+        if (conf.entry && conf.apps?.length) {
+            conf.apps.forEach(app => {
+                app.entry ||= conf.entry;
+            });
+        }
 
         if (conf.protoDirs && !conf.protoPaths) {
             conf.protoPaths = conf.protoDirs;
@@ -204,7 +195,6 @@ export class RpcApp {
 
             return entry;
         };
-        const defaultEntry = resolveEntry(conf.entry);
 
         return {
             apps: conf.apps.filter(app => app.serve).map(app => {
@@ -218,7 +208,7 @@ export class RpcApp {
                     err_file?: string;
                 } = {
                     name: app.name,
-                    script: app.entry ? resolveEntry(app.entry) : defaultEntry,
+                    script: app.entry ? resolveEntry(app.entry) : path.resolve(__dirname, "cli.js"),
                     args: [app.name]
                         .map(arg => arg.includes(" ") ? `"${arg}"` : arg)
                         .join(" "),
@@ -274,7 +264,7 @@ export class RpcApp {
         this.pkgDef = loadPackageDefinition(source);
     }
 
-    protected async loadClassFiles(apps: Config["apps"], importRoot = "") {
+    protected async loadClassFiles(apps: App[], importRoot = "") {
         for (const app of apps) {
             if (!app.services?.length) {
                 continue;
@@ -319,7 +309,7 @@ export class RpcApp {
         }
     }
 
-    protected getAddress(app: Config["apps"][0], url: URL): { address: string, useSSL: boolean; } {
+    protected getAddress(app: App, url: URL): { address: string, useSSL: boolean; } {
         const { protocol, hostname, port } = url;
         let address = hostname;
         let useSSL = !!(app.ca && app.cert && app.key);
@@ -347,7 +337,7 @@ export class RpcApp {
         return { address, useSSL };
     }
 
-    protected async initServer(app: Config["apps"][0], reload = false) {
+    protected async initServer(app: App, reload = false) {
         const url = new URL(app.uri);
 
         if (url.protocol === "xds:") {
@@ -407,7 +397,7 @@ export class RpcApp {
             this.server = new Server(app.options);
         }
 
-        for (const serviceName of app.services) {
+        for (const serviceName of (app.services as string[])) {
             let ins: any;
 
             const ctors = this.ctorsMap.get(serviceName);
@@ -454,7 +444,7 @@ export class RpcApp {
                         reject(err);
                     } else {
                         (this.server as Server).start();
-                        console.info(`app [${app.name}] started at '${app.uri}'`);
+                        console.info(timed`app [${app.name}] started (pid: ${process.pid})`);
                         resolve();
                     }
                 });
@@ -507,7 +497,7 @@ export class RpcApp {
         // Reorganize client-side configuration based on the service name since the gRPC clients are
         // created based on the service.
         const serviceApps = conf.apps.reduce((registry, app) => {
-            for (const serviceName of app.services) {
+            for (const serviceName of (app.services as string[])) {
                 const ctors = this.ctorsMap.get(serviceName);
 
                 if (ctors) {
@@ -523,9 +513,9 @@ export class RpcApp {
             }
 
             return registry;
-        }, new Map<string, (Config["apps"][0] & { protoCtor: ServiceClientConstructor; })[]>());
+        }, new Map<string, (App & { protoCtor: ServiceClientConstructor; })[]>());
 
-        const getAddress = (app: Config["apps"][0]) => {
+        const getAddress = (app: App) => {
             const url = new URL(app.uri);
 
             if (url.protocol === "xds:") {
@@ -535,7 +525,7 @@ export class RpcApp {
                 return address;
             }
         };
-        const getConnectConfig = (app: Config["apps"][0]) => {
+        const getConnectConfig = (app: App) => {
             const address = getAddress(app);
             let cred: ChannelCredentials;
 
@@ -615,10 +605,10 @@ export class RpcApp {
         return client;
     }
 
-    protected async _start(name: string | null = "", tryHost = false) {
-        const config = this.config as Config;
-        let xdsApp: Config["apps"][0] | undefined;
-        let app: Config["apps"][0] | undefined;
+    protected async _start(name: string | null = "", config: Config) {
+        this.config = config;
+        let xdsApp: App | undefined;
+        let app: App | undefined;
 
         if (!xdsEnabled &&
             (xdsApp = config.apps?.find(item => !!item.serve && item.uri?.startsWith("xds:")))
@@ -652,13 +642,15 @@ export class RpcApp {
         }
 
         await this.initClients();
-
-        if (tryHost) {
-            this.canTryHost = true;
-            await this.tryHosting();
-        } else {
-            await this.tryJoining();
-        }
+        this.guest = new Guest(app || ({ name: "", uri: "", }), {
+            onStopCommand: (msgId) => {
+                this._stop(msgId, true);
+            },
+            onReloadCommand: (msgId) => {
+                this._reload(msgId);
+            },
+        });
+        await this.guest.join();
     }
 
     /**
@@ -669,23 +661,18 @@ export class RpcApp {
      */
     static async boot(name: string | null = "",) {
         const ins = new RpcApp();
+        const config = await this.loadConfig();
 
-        ins.config = await this.loadConfig();
-
-        // When starting, if no `app` is provided and no `require.main` is presented, that means the
-        // the is running in the Node.js REPL and we're trying only to connect to services, in this
-        // case, we don't need to try gaining the hostship.
-        await ins._start(name, !!(name || require.main));
-
+        await ins._start(name, config);
         return ins;
     }
 
     /** Stops the app programmatically. */
     async stop() {
-        return await this._stop();
+        return await this._stop("", true);
     }
 
-    protected async _stop(msgId = "") {
+    protected async _stop(msgId = "", graceful = false) {
         for (const [_, ins] of this.instanceMap) {
             if (typeof ins.destroy === "function") {
                 await (ins as LifecycleSupportInterface).destroy();
@@ -699,58 +686,23 @@ export class RpcApp {
         });
 
         this.server?.forceShutdown();
-        this.isStopped = true;
+        this._onStop?.();
 
-        const closeGuestSocket = () => {
-            if (msgId) {
-                // If `msgId` is provided, that means the stop event is issued by a guest app, for
-                // example, the CLI tool, in this case, we need to send feedback to acknowledge the
-                // sender that the process has finished.
-                let result: string;
+        let msg: string;
 
-                if (this.name) {
-                    result = `app [${this.name}] stopped`;
-                    console.info(result);
-                } else {
-                    result = "app (clients) stopped";
-                }
-
-                this.guest?.end(JSON.stringify({
-                    cmd: "reply",
-                    msgId: msgId,
-                    result
-                }));
-            } else {
-                this.guest?.end();
-            }
-        };
-
-        if (this.host) {
-            this.hostClients.forEach(client => {
-                client.socket.write(JSON.stringify({
-                    cmd: "goodbye",
-                    app: this.name,
-                }));
-            });
-
-            closeGuestSocket();
-            await new Promise<void>((resolve, reject) => {
-                this.host?.close((err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        this._onStop?.();
-                        resolve();
-                    }
-                });
-            });
+        if (this.name) {
+            msg = `app [${this.name}] stopped`;
+            console.info(timed`${msg}`);
         } else {
-            this.guest?.write(JSON.stringify({
-                cmd: "goodbye",
-                app: this.name,
-            }) + "\n");
-            closeGuestSocket();
-            this._onStop?.();
+            msg = "app (anonymous) stopped";
+        }
+
+        if (this.guest && graceful) {
+            this.guest.leave(msg, msgId);
+
+            if (this.name) {
+                console.info(timed`app [${this.name}] has left the group`);
+            }
         }
     }
 
@@ -814,16 +766,16 @@ export class RpcApp {
             // If `msgId` is provided, that means the stop event is issued by a guest app, for
             // example, the CLI tool, in this case, we need to send feedback to acknowledge the
             // sender that the process has finished.
-            let result: string;
+            let msg: string;
 
             if (this.name) {
-                result = `app [${this.name}] reloaded`;
-                console.info(result);
+                msg = `app [${this.name}] hot-reloaded`;
+                console.info(timed`${msg}`);
             } else {
-                result = `app (clients) reloaded`;
+                msg = "app (anonymous) hot-reloaded";
             }
 
-            this.guest?.write(JSON.stringify({ cmd: "reply", msgId: msgId, result }) + "\n");
+            this.guest?.send({ cmd: "reply", msgId: msgId, text: msg });
         }
 
         this._onReload?.();
@@ -840,473 +792,9 @@ export class RpcApp {
     }
 
     /**
-     * Try to make the current app as the host app for communications.
-     */
-    protected async tryHosting() {
-        const { success, filename, sockPath } = await this.tryJoining();
-
-        if (success) {
-            return;
-        } else {
-            await ensureDir(path.dirname(filename));
-        }
-
-        await new Promise<void>((resolve, reject) => {
-            const host = net.createServer(client => {
-                const conf = this.config as Config;
-
-                client.on("data", (buf) => {
-                    RpcApp.processSocketMessage(buf, (err, msg: {
-                        cmd: "handshake" | "goodbye" | "reload" | "stop" | "list" | "reply",
-                        app?: string,
-                        msgId?: string;
-                    }) => {
-                        if (err) {
-                            client.destroy(err);
-                            return;
-                        }
-
-                        if (msg.cmd === "handshake") {
-                            // After a guest establish the socket connection, it sends a `handshake`
-                            // command indicates a signing-in, we then store the client in the
-                            // `hostClients` property for broadcast purposes.
-
-                            if (msg.app) {
-                                if (!conf.apps.some(app => app.name === msg.app)) {
-                                    client.destroy(new Error(`invalid app name '${msg.app}'`));
-                                } else if (this.hostClients.some(item => item.app === msg.app)) {
-                                    client.destroy(new Error(`app [${msg}] is already running`));
-                                } else {
-                                    this.hostClients.push({
-                                        socket: client,
-                                        stopped: false,
-                                        app: msg.app,
-                                    });
-                                }
-                            } else {
-                                this.hostClients.push({ socket: client, stopped: false });
-                            }
-
-                            client.write(JSON.stringify({
-                                cmd: "handshake",
-                                app: this.name,
-                            }) + "\n");
-                        } else if (msg.cmd === "goodbye") {
-                            this.hostClients.forEach(_client => {
-                                if (_client.socket === client) {
-                                    _client.stopped = true;
-                                }
-                            });
-                        } else if (msg.cmd === "reload" || msg.cmd == "stop") {
-                            // When the host app receives a control command, it distribute the
-                            // command to the target app or all apps if the app is not specified.
-
-                            if (msg.app) {
-                                const _client = this.hostClients.find(item => item.app === msg.app);
-
-                                if (_client) {
-                                    const msgId = Math.random().toString(16).slice(2);
-
-                                    _client.socket.write(JSON.stringify({
-                                        cmd: msg.cmd,
-                                        msgId,
-                                    }) + "\n");
-                                    this.hostCallbacks.set(msgId, (reply) => {
-                                        client.end(JSON.stringify(reply));
-                                    });
-                                } else {
-                                    client.destroy(new Error(`app [${msg.app}] is not running`));
-                                }
-                            } else {
-                                const clients = [...this.hostClients];
-                                let count = 0;
-
-                                clients.forEach(_client => {
-                                    const msgId = Math.random().toString(16).slice(2);
-
-                                    if (_client.stopped) {
-                                        count++;
-                                    } else {
-                                        _client.socket.write(JSON.stringify({
-                                            cmd: msg.cmd,
-                                            msgId,
-                                        }) + "\n");
-                                        this.hostCallbacks.set(msgId, (reply) => {
-                                            client.write(JSON.stringify(reply) + "\n");
-
-                                            if (++count === clients.length) {
-                                                client.end();
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                        } else if (msg.cmd === "list") {
-                            // When the host app receives a `list` command, we list all the clients
-                            // with names and collect some information about them.
-                            const clients = this.hostClients.filter(item => {
-                                return !!item.app && !item.stopped;
-                            });
-                            type Stat = {
-                                pid: number;
-                                uptime: number;
-                                memory: number;
-                                cpu: number;
-                            };
-                            const stats = new Map<string, Stat>();
-
-                            clients.forEach(_client => {
-                                const msgId = Math.random().toString(16).slice(2);
-
-                                _client.socket.write(JSON.stringify({
-                                    cmd: "stat",
-                                    msgId,
-                                }) + "\n");
-                                this.hostCallbacks.set(msgId, (reply: {
-                                    result: Stat;
-                                }) => {
-                                    stats.set(_client.app as string, reply.result);
-
-                                    if (stats.size === clients.length) {
-                                        const list = clients.map(item => {
-                                            const appName = item.app as string;
-                                            const app = conf.apps
-                                                .find(item => item.name === appName);
-                                            const stat = stats.get(appName);
-
-                                            return {
-                                                app: appName,
-                                                uri: app?.uri,
-                                                ...stat
-                                            };
-                                        });
-
-                                        client.end(JSON.stringify({ result: list }));
-                                    }
-                                });
-                            });
-                        } else if (msg.cmd === "reply") {
-                            // When a guest app finishes a control command, it send feedback via the
-                            // `reply` command, we use the `msgId` to retrieve the callback, run it
-                            // and remove it.
-
-                            if (msg.msgId) {
-                                const callback = this.hostCallbacks.get(msg.msgId);
-
-                                if (callback) {
-                                    callback(msg);
-                                    this.hostCallbacks.delete(msg.msgId);
-                                }
-                            }
-                        } else {
-                            client.destroy(new Error(`invalid message: ${JSON.stringify(msg)}`));
-                        }
-                    });
-                }).on("close", () => {
-                    const _client = this.hostClients.find(item => item.socket === client);
-
-                    if (_client) {
-                        // Remove the client from the list if it has been stopped.
-                        this.hostClients = this.hostClients.filter(item => item !== _client);
-
-                        // When the client is closed expectedly, it sends a `goodbye` command to the
-                        // host server and the later marked it as `stopped` normally. Otherwise, the
-                        // connection is closed due to program failure on the client-side, we can
-                        // try to revive the client app.
-                        if (_client.app &&
-                            _client.app !== this.name &&
-                            !_client.stopped &&
-                            !this.hostStopped
-                        ) {
-                            const app = conf.apps.find(app => app.name === _client.app);
-
-                            if (app) {
-                                spawnProcess(app, conf.entry).catch(console.error);
-                            }
-                        }
-                    }
-                });
-            }).once("error", err => {
-                if (err["code"] === "EEXIST") { // gaining hostship failed
-                    this.doTryJoining(sockPath, resolve, reject);
-                } else {
-                    reject(err);
-                }
-            });
-
-            host.listen(sockPath, () => {
-                this.host = host;
-
-                // Connect to self so that we can use the same control logic.
-                this.doTryJoining(sockPath, resolve, reject);
-
-                if (this.name) {
-                    console.info(`app [${this.name}] has become the host server`);
-                } else {
-                    console.info("this app has become the host server");
-                }
-            });
-        });
-    }
-
-    protected async tryJoining(): Promise<{
-        success: boolean;
-        filename: string;
-        sockPath: string;
-    }> {
-        const config = absPath("ngrpc.json");
-        const ext = path.extname(config);
-        const filename = config.slice(0, -ext.length) + ".sock";
-        const sockPath = absPath(filename, true);
-
-        if (await exists(filename)) {
-            // If the socket file already exists, there either be the host app already exists or the
-            // socket file is left there because an unclean shutdown of the previous host app. We
-            // need to first try to connect to it, if not succeeded, delete it and try to gain the
-            // hostship.
-            try {
-                await new Promise<void>((resolve, reject) => {
-                    this.doTryJoining(sockPath, resolve, reject);
-                });
-                return { success: true, filename, sockPath };
-            } catch {
-                await fs.unlink(filename);
-            }
-        }
-
-        return { success: false, filename, sockPath };
-    }
-
-    /**
-     * Try to connect to the host server of app control.
-     * 
-     * @param sockPath 
-     * @param resolve 
-     * @param reject 
-     */
-    protected doTryJoining(sockPath: string, resolve: () => void, reject: (err: Error) => void) {
-        const client = net.createConnection(sockPath, () => {
-            client.write(JSON.stringify({ cmd: "handshake", app: this.name }) + "\n");
-            this.guest = client;
-
-            if (!this.canTryHost) {
-                resolve();
-            }
-        });
-        const retryHost = () => {
-            const lastHostName = this.hostName;
-            const hostStopped = this.hostStopped;
-
-            // If the connection is closed and the client is not marked closed, the client now is
-            // able to retry gaining the hostship.
-            this.tryHosting().then(() => {
-                // When the host server is closed by the expectedly, it sends a `goodbye`
-                // command to the clients to acknowledge a clear shutdown, and the client
-                // mark `hostStopped`, otherwise, the connection is closed unexpectedly due
-                // to program failure, after the current app has gain the hostship, we can
-                // try to revive the formal host app.
-                if (lastHostName && !hostStopped) {
-                    const conf = this.config as Config;
-                    const app = conf.apps.find(app => app.name === lastHostName);
-
-                    if (app) {
-                        return spawnProcess(app, conf.entry);
-                    }
-                }
-            }).catch(console.error);
-        };
-
-        client.on("data", (buf) => {
-            RpcApp.processSocketMessage(buf, (err, msg: {
-                cmd: "handshake" | "goodbye" | "reload" | "stop" | "stat";
-                app?: string;
-                msgId: string;
-            }) => {
-                if (err) {
-                    return; // ignore invalid messages
-                }
-
-                if (msg.cmd === "handshake") {
-                    this.hostName = msg.app;
-                    this.hostStopped = false;
-
-                    if (this.canTryHost) {
-                        resolve();
-                    }
-                } else if (msg.cmd === "goodbye") {
-                    this.hostStopped = true;
-
-                    if (!this.host) {
-                        client.end();
-                    }
-                } else if (msg.cmd === "reload") {
-                    this._reload(msg.msgId).catch(console.error);
-                } else if (msg.cmd === "stop") {
-                    this._stop(msg.msgId).catch(console.error);
-                } else if (msg.cmd === "stat") {
-                    client.write(JSON.stringify({
-                        cmd: "reply",
-                        msgId: msg.msgId,
-                        result: {
-                            pid: process.pid,
-                            uptime: process.uptime(),
-                            memory: process.memoryUsage().rss,
-                            cpu: (this.cpuUsage = getCpuUsage(this.cpuUsage)).percent,
-                        }
-                    }) + "\n");
-                } else {
-                    // ignore other messages
-                }
-            });
-        }).on("end", () => {
-            if (!this.host && !this.isStopped && this.canTryHost) {
-                retryHost();
-            }
-        }).on("error", err => {
-            if (isSocketResetError(err) && !this.host && !this.isStopped) {
-                if (this.canTryHost) {
-                    retryHost();
-                }
-            } else {
-                reject(err);
-            }
-        });
-    }
-
-    private static processSocketMessage(buf: Buffer, handle: (err: Error | null, msg: any) => void) {
-        const str = buf.toString();
-
-        try {
-            const chunks = str.split("\n");
-
-            for (const chunk of chunks) {
-                if (!chunk)
-                    continue;
-
-                try {
-                    const msg = JSON.parse(chunk);
-                    handle(null, msg);
-                } catch {
-                    handle(new Error("invalid message: " + str), null);
-                }
-            }
-        } catch {
-            handle(new Error("invalid message: " + str), null);
-        }
-    }
-
-    /**
-     * Sends control command to the apps. This function is mainly used in the CLI tool.
-     * 
-     * @param cmd 
-     * @param app The app's name that should received the command. If not provided, the command is
-     *  sent to all apps.
-     */
-    static async sendCommand(cmd: "reload" | "stop" | "list", app: string | null = "") {
-        const config = absPath("ngrpc.json");
-        const ext = path.extname(config);
-        const sockFile = absPath(config.slice(0, -ext.length) + ".sock", true);
-        type Stat = {
-            app: string;
-            uri: string;
-            pid: number;
-            uptime: number;
-            memory: number;
-            cpu: number;
-        };
-
-        const listApps = async (stats: Stat[]) => {
-            const { apps } = await this.loadConfig();
-            // const result = reply.result as Stat[];
-            const list = apps.map(app => {
-                const item = stats.find(item => item.app === app.name);
-
-                if (item) {
-                    return item;
-                } else if (app.serve) {
-                    return {
-                        app: app.name,
-                        uri: app.uri,
-                        pid: -1,
-                        uptime: -1,
-                        memory: -1,
-                        cpu: -1,
-                    } satisfies Stat;
-                } else {
-                    return null as unknown as Stat;
-                }
-            }).filter(item => !!item);
-
-            stats.forEach(item => {
-                const _item = list.find(_item => _item.app === item.app);
-
-                if (!_item) {
-                    list.push(item);
-                }
-            });
-
-            console.table(list.map(item => {
-                return {
-                    app: item.app,
-                    uri: item.uri,
-                    status: item.pid !== -1 ? "running" : "stopped",
-                    pid: item.pid === -1 ? "N/A" : item.pid,
-                    uptime: item.uptime === -1
-                        ? "N/A"
-                        : humanizeDuration(item.uptime * 1000, {
-                            largest: 1,
-                            round: true,
-                        }),
-                    memory: item.memory === -1
-                        ? "N/A"
-                        : `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
-                    cpu: item.cpu === -1 ? "N/A" : `${Math.round(item.cpu)}%`,
-                };
-            }));
-        };
-
-        await new Promise<void>((resolve, reject) => {
-            const client = net.createConnection(sockFile, () => {
-                client.write(JSON.stringify({ cmd, app }) + "\n");
-            });
-
-            client.on("data", (buf) => {
-                this.processSocketMessage(buf, (err, reply: { result?: any; error?: string; }) => {
-                    if (err) {
-                        console.error(err);
-                        return;
-                    }
-
-                    if (reply.error) {
-                        console.error(reply.error);
-                    } else if (cmd === "list") {
-                        listApps(reply.result).catch(console.error);
-                    } else {
-                        console.info(reply.result ?? null);
-                    }
-                });
-            }).on("end", resolve).once("error", (err) => {
-                if (err["code"] === "ENOENT" || err["code"] === "ECONNREFUSED") {
-                    if (cmd === "list") {
-                        listApps([]).catch(console.error);
-                    } else if (app) {
-                        console.info(`app [${app}] is not running`);
-                    } else {
-                        console.info("no app is running");
-                    }
-
-                    resolve();
-                } else {
-                    reject(err);
-                }
-            });
-        });
-    }
-
-    /**
      * Runs a snippet inside the apps context.
      * 
-     * This function is for temporary scripting usage, it starts a temporary pure-clients app so we
+     * This function is for temporary scripting usage, it starts a runs pure-clients app so we
      * can use the services as we normally do in our program, and after the main `fn` function runs,
      * the app is automatically stopped.
      * 
@@ -1315,10 +803,9 @@ export class RpcApp {
     static async runSnippet(fn: () => void | Promise<void>) {
         try {
             const app = new RpcApp();
+            const config = await this.loadConfig();
 
-            app.config = await this.loadConfig();
-
-            await app._start();
+            await app._start(null, config);
             await fn();
             await app.stop();
         } catch (err) {

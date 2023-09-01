@@ -1,12 +1,11 @@
 {
     "$schema": "./ngrpc.schema.json",
     "protoPaths": [
-        "./proto"
+        "proto"
     ],
     "protoOptions": {
         "longs": "String",
-        "defaults": true,
-        "oneofs": true
+        "defaults": true
     },
     "apps": [
         {
@@ -16,18 +15,21 @@
             "services": [
                 "services.ExampleService"
             ],
-            "stdout": "./out.log"
+            "entry": "entry/main.go",
+            "stdout": "out.log"
         },
         {
             "name": "user-server",
             "uri": "grpcs://localhost:4001",
-            "serve": false,
+            "serve": true,
             "services": [
                 "services.UserService"
             ],
-            "ca": "./certs/ca.pem",
-            "cert": "./certs/cert.pem",
-            "key": "./certs/cert.key"
+            "entry": "entry/main.go",
+            "stdout": "out.log",
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
         },
         {
             "name": "post-server",
@@ -36,10 +38,11 @@
             "services": [
                 "services.PostService"
             ],
-            "stdout": "./out.log",
-            "ca": "./certs/ca.pem",
-            "cert": "./certs/cert.pem",
-            "key": "./certs/cert.key"
+            "entry": "entry/main.ts",
+            "stdout": "out.log",
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
         }
     ]
 }

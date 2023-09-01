@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/ayonli/gorpc"
+	"github.com/ayonli/goext"
+	"github.com/ayonli/ngrpc"
 	"github.com/ayonli/ngrpc/services/github/ayonli/services_proto"
 	"google.golang.org/grpc"
 )
@@ -47,7 +48,7 @@ func (self *UserService) Connect(cc grpc.ClientConnInterface) services_proto.Use
 }
 
 func (self *UserService) GetClient(route string) (services_proto.UserServiceClient, error) {
-	return gorpc.GetServiceClient(self, route)
+	return ngrpc.GetServiceClient(self, route)
 }
 
 func (self *UserService) GetUser(ctx context.Context, query *services_proto.UserQuery) (*services_proto.User, error) {
@@ -76,24 +77,19 @@ func (self *UserService) GetUser(ctx context.Context, query *services_proto.User
 	}
 }
 
-func (self *UserService) GetMyPosts(ctx context.Context, query *services_proto.UserQuery) (*services_proto.PostQueryResult, error) {
-	user, err := self.GetUser(ctx, query)
+func (self *UserService) GetMyPosts(
+	ctx context.Context,
+	query *services_proto.UserQuery,
+) (*services_proto.PostQueryResult, error) {
+	return goext.Try(func() *services_proto.PostQueryResult {
+		user := goext.Ok(self.GetUser(ctx, query))
+		ins := goext.Ok(self.PostSrv.GetClient(user.Id))
+		result := goext.Ok(ins.SearchPosts(ctx, &services_proto.PostsQuery{Author: &user.Id}))
 
-	if err != nil {
-		return nil, err
-	}
+		return (*services_proto.PostQueryResult)(result)
+	})
+}
 
-	ins, err := self.PostSrv.GetClient(user.Id)
-
-	if err != nil {
-		return nil, err
-	}
-
-	result, err := ins.SearchPosts(ctx, &services_proto.PostsQuery{Author: &user.Id})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return (*services_proto.PostQueryResult)(result), nil
+func init() {
+	ngrpc.Use(&UserService{})
 }

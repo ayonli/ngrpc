@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/ayonli/gorpc"
+	"github.com/ayonli/ngrpc"
 	"github.com/ayonli/ngrpc/services/github/ayonli/services_proto"
 	"google.golang.org/grpc"
 )
@@ -13,5 +13,9 @@ func (self *PostService) Connect(cc grpc.ClientConnInterface) services_proto.Pos
 }
 
 func (self *PostService) GetClient(route string) (services_proto.PostServiceClient, error) {
-	return gorpc.GetServiceClient(self, route)
+	return ngrpc.GetServiceClient(self, route)
+}
+
+func init() {
+	ngrpc.Use(&PostService{})
 }

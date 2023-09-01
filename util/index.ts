@@ -1,8 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
-import { spawn, SpawnOptions } from "child_process";
-import { Config } from "./app";
 
 export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
 export const sServiceName = Symbol.for("serviceName");
@@ -52,72 +50,6 @@ export function absPath(filename: string, withPipe = false): string {
     return filename;
 }
 
-export async function spawnProcess(app: Config["apps"][0], defaultEntry = "") {
-    const entry = app.entry || defaultEntry || path.join(__dirname, "cli");
-    const ext = path.extname(entry).toLowerCase();
-    let execCmd: "node" | "ts-node";
-    let stdout: number | undefined;
-    let stderr: number | undefined;
-    const options: SpawnOptions = {
-        detached: true,
-    };
-
-    if (ext === ".js") {
-        execCmd = "node";
-    } else if (ext === ".ts") {
-        execCmd = "ts-node";
-    } else if (await exists(entry + ".js")) {
-        execCmd = "node";
-    } else if (await exists(entry + ".ts")) {
-        execCmd = "ts-node";
-    } else {
-        throw new Error("Cannot determine the type of the entry file");
-    }
-
-    if (app.stdout) {
-        const filename = absPath(app.stdout);
-        await ensureDir(path.dirname(filename));
-        stdout = await open(filename, "a");
-    }
-
-    if (app.stderr) {
-        const filename = absPath(app.stderr);
-        await ensureDir(path.dirname(filename));
-        stderr = await open(filename, "a");
-    } else if (app.stdout) {
-        stderr = await open(absPath(app.stdout), "a");
-    }
-
-    if (stdout && stderr) {
-        options.stdio = ["ignore", stdout, stderr, "ipc"];
-    } else {
-        options.stdio = ["ignore", "inherit", "inherit", "ipc"];
-    }
-
-    if (app.env) {
-        options.env = app.env;
-    }
-
-    const args: string[] = [entry, app.name];
-
-    if (execCmd === "ts-node") {
-        args.unshift("-r", "ts-node/register");
-    }
-
-    const child = spawn("node", args, options);
-    await new Promise<void>((resolve, reject) => {
-        child.on("message", (msg) => {
-            if (msg === "ready") {
-                resolve();
-            }
-        }).on("error", err => {
-            reject(err);
-        }).on("exit", (code) => {
-            reject(new Error(`Child process exited unexpectedly (code: ${code})`));
-        });
-    });
-}
-
 export function getCpuUsage(oldUsage: CpuUsage | null = null) {
     let usage: CpuUsage;
 
@@ -147,13 +79,28 @@ export function getCpuUsage(oldUsage: CpuUsage | null = null) {
     return usage as CpuUsage;
 }
 
+export function timed(callSite: TemplateStringsArray, ...bindings: any[]) {
+    const text = callSite.map((str, i) => {
+        return i > 0 ? bindings[i - 1] + str : str;
+    }).join("");
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const date = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+
+    return `${year}/${month}/${date} ${hours}:${minutes}:${seconds} ${text}`;
+}
+
 /**
  * This decorator function is used to link the service class to a gRPC service.
  * 
  * @param name The service name defined in the `.proto` file.
  */
 export function service(name: string): (target: Function, ctx: ClassDecoratorContext) => void;
-export function service(name: string, ): ClassDecorator;
+export function service(name: string,): ClassDecorator;
 export function service(name: string): ClassDecorator {
     return (target) => {
         target[Symbol.for("serviceName")] = name;

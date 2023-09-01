@@ -1,4 +1,4 @@
-import ngrpc from "."; // replace `.` with `@ayonli/ngrpc`
+import ngrpc from ".."; // replace `.` with `@ayonli/ngrpc`
 
 if (require.main?.filename === __filename) {
     const appName = process.argv[2];
