@@ -13,7 +13,6 @@ import (
 
 var confTpl = `{
 	"$schema": "https://raw.githubusercontent.com/ayonli/ngrpc/main/ngrpc.schema.json",
-    "entry": "main.go",
     "apps": [
         {
             "name": "example-server",
@@ -22,6 +21,7 @@ var confTpl = `{
             "services": [
                 "services.ExampleService"
             ],
+			"entry": "main.go",
             "stdout": "out.log"
         }
     ]
@@ -49,6 +49,20 @@ func main() {
 }
 `
 
+var mainTsTpl = `import ngrpc from "@ayonli/ngrpc";
+
+if (require.main?.filename === __filename) {
+    const appName = process.argv[2];
+
+    ngrpc.boot(appName).then(() => {
+        process.send?.("ready");
+    }).catch(err => {
+        console.error(err);
+        process.exit(1);
+    });
+}
+`
+
 var exampleProtoTpl = `syntax = "proto3";
 
 option go_package = "./proto";
@@ -68,7 +82,7 @@ service ExampleService {
 }
 `
 
-var exampleServiceTpl = `package services
+var exampleServiceGoTpl = `package services
 
 import (
 	"context"
@@ -103,9 +117,61 @@ func init() {
 }
 `
 
-var shTpl = `
-echo "generating code according to the proto files..."
-protoc --proto_path=proto --go_out=./services --go-grpc_out=./services proto/*.proto
+var exampleServiceTsTpl = `import { ServiceClient, service } from "@ayonli/ngrpc";
+
+declare global {
+    namespace services {
+        const ExampleService: ServiceClient<ExampleService>;
+    }
+}
+
+export type HelloRequest = {
+    name: string;
+};
+
+export type HelloReply = {
+    message: string;
+};
+
+@service("services.ExampleService")
+export default class ExampleService {
+    async sayHello(req: HelloRequest): Promise<HelloReply> {
+        return await Promise.resolve({ message: "Hello, " + req.name });
+    }
+}
+`
+
+var scriptGoTpl = `package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ayonli/goext"
+	"github.com/ayonli/ngrpc"
+	"github.com/ayonli/ngrpc/services"
+	"github.com/ayonli/ngrpc/services/proto"
+)
+
+func main() {
+	done := ngrpc.ForSnippet()
+	defer done()
+
+	ctx := context.Background()
+	exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
+
+	result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "A-yon Lee"}))
+	fmt.Println(result.Message)
+}
+`
+
+var scriptTsTpl = `/// <reference path="../services/ExampleService.ts" />
+import ngrpc from "@ayonli/ngrpc";
+
+ngrpc.runSnippet(async () => {
+	const result = await services.ExampleService.sayHello({ name: "A-yon Lee" });
+	console.log(result.message);
+});
 `
 
 var initCmd = &cobra.Command{
@@ -113,57 +179,74 @@ var initCmd = &cobra.Command{
 	Short: "initiate a new ngrpc project",
 	Run: func(cmd *cobra.Command, args []string) {
 		confFile := "ngrpc.json"
-		entryFile := "main.go"
 		protoDir := "proto"
 		protoFile := "proto/ExampleService.proto"
 		servicesDir := "services"
-		serviceFile := "services/ExampleService.go"
-		shFile := "code-gen.sh"
+		scriptsDir := "scripts"
 
 		var modName string
-		data, err := os.ReadFile("go.mod")
+		var entryFile string
+		var serviceFile string
+		var scriptFile string
+		template := cmd.Flag("template").Value.String()
 
-		if err == nil {
-			match := stringx.Match(string(data), `module (\S+)`)
+		if template == "go" {
+			data, err := os.ReadFile("go.mod")
 
-			if match != nil {
-				modName = match[1]
+			if err == nil {
+				match := stringx.Match(string(data), `module (\S+)`)
+
+				if match != nil {
+					modName = match[1]
+				}
 			}
+
+			if modName == "" {
+				fmt.Println("'go.mod' file not found in the current directory")
+				return
+			} else {
+				entryFile = "main.go"
+				serviceFile = "services/ExampleService.go"
+			}
+		} else if template == "node" {
+			if !util.Exists("package.json") {
+				fmt.Println("'package.json' file not found in the current directory")
+				return
+			} else {
+				entryFile = "main.ts"
+				serviceFile = "services/ExampleService.ts"
+			}
+		} else {
+			fmt.Printf("template '%s' is not supported\n", template)
+			return
 		}
 
 		if util.Exists(confFile) {
 			fmt.Printf("file '%s' already exists\n", confFile)
 		} else {
-			os.WriteFile(confFile, []byte(confTpl), 0644)
+			tpl := strings.Replace(confFile, `"main.go"`, `"main.ts"`, 1)
+
+			os.WriteFile(confFile, []byte(tpl), 0644)
 			fmt.Printf("config file written to '%s'\n", confFile)
 		}
 
 		if util.Exists(entryFile) {
 			fmt.Printf("entry file '%s' already exists\n", entryFile)
 		} else {
-			tpl := mainGoTpl
-			var hasError bool
+			var tpl string
 
-			if modName != "" {
+			if template == "go" {
 				tpl = strings.Replace(
-					tpl,
+					mainGoTpl,
 					"github.com/ayonli/ngrpc/services",
 					modName+"/services",
 					1)
-			} else {
-				hasError = true
+			} else if template == "node" {
+				tpl = mainTsTpl
 			}
 
 			os.WriteFile(entryFile, []byte(tpl), 0644)
 			fmt.Printf("entry file written to '%s'\n", entryFile)
-
-			if hasError {
-				fmt.Println("")
-				fmt.Printf(
-					"Warning: cannot determine the current go module, '%s' uses the default service path\n",
-					entryFile)
-				fmt.Println("")
-			}
 		}
 
 		if util.Exists(protoDir) {
@@ -180,6 +263,13 @@ var initCmd = &cobra.Command{
 			fmt.Printf("path '%s' created\n", servicesDir)
 		}
 
+		if util.Exists(scriptsDir) {
+			fmt.Printf("path '%s' already exists\n", scriptsDir)
+		} else {
+			util.EnsureDir(scriptsDir)
+			fmt.Printf("path '%s' created\n", scriptsDir)
+		}
+
 		if util.Exists(protoFile) {
 			fmt.Printf("file '%s' already exists\n", protoFile)
 		} else {
@@ -190,70 +280,84 @@ var initCmd = &cobra.Command{
 		if util.Exists(serviceFile) {
 			fmt.Printf("file '%s' already exists\n", serviceFile)
 		} else {
-			tpl := exampleServiceTpl
-			var hasError bool
+			var tpl string
 
-			if modName != "" {
+			if template == "go" {
 				tpl = strings.Replace(
-					tpl,
+					exampleServiceGoTpl,
 					"github.com/ayonli/ngrpc/services",
 					modName+"/services",
 					1)
-			} else {
-				hasError = true
+
+			} else if template == "node" {
+				tpl = exampleServiceTsTpl
 			}
 
 			os.WriteFile(serviceFile, []byte(tpl), 0644)
 			fmt.Printf("example service file written to '%s'\n", serviceFile)
-
-			if hasError {
-				fmt.Println("")
-				fmt.Printf(
-					"Warning: cannot determine the current go module, '%v' uses the default service path\n",
-					serviceFile)
-				fmt.Println("")
-			}
 		}
 
-		if util.Exists(shFile) {
-			fmt.Printf("file '%s' already exists\n", shFile)
+		if util.Exists(scriptFile) {
+			fmt.Printf("file '%s' already exists\n", scriptFile)
 		} else {
-			os.WriteFile(shFile, []byte(shTpl), 0644)
-			fmt.Printf("shell file written to '%s'\n", shFile)
+			var tpl string
 
-			cmd := exec.Command("chmod", "+x", shFile)
-			err := cmd.Run()
+			if template == "go" {
+				tpl = strings.Replace(
+					scriptGoTpl,
+					"github.com/ayonli/ngrpc/services",
+					modName+"/services",
+					1)
+
+			} else if template == "node" {
+				tpl = scriptTsTpl
+			}
+
+			os.WriteFile(serviceFile, []byte(tpl), 0644)
+			fmt.Printf("script file written to '%s'\n", serviceFile)
+		}
+
+		// install dependencies
+		var depCmd *exec.Cmd
+
+		if template == "go" {
+			protoc() // generate code from proto files
+
+			depCmd = exec.Command("go", "mod", "tidy")
+		} else if template == "node" {
+			depCmd = exec.Command("npm", "i", "@ayonli/ngrpc typescript ts-node")
+		}
+
+		if depCmd != nil {
+			depCmd.Stdout = os.Stdout
+			depCmd.Stderr = os.Stderr
+			err := depCmd.Run()
 
 			if err != nil {
 				fmt.Println(err)
-			} else {
-				cmd = exec.Command("bash", "./"+shFile)
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				err = cmd.Run()
-
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					cmd = exec.Command("go", "mod", "tidy")
-					cmd.Stdout = os.Stdout
-					cmd.Stderr = os.Stderr
-					err = cmd.Run()
-
-					if err != nil {
-						fmt.Println(err)
-					} else {
-						fmt.Println("")
-						fmt.Println("All procedures finished, now try the following command to start your first gRPC app")
-						fmt.Println("")
-						fmt.Println("    ngrpc start")
-					}
-				}
+				return
 			}
 		}
+
+		fmt.Println("")
+		fmt.Println("All procedures finished, now try the following command to start your first gRPC app")
+		fmt.Println("")
+		fmt.Println("    ngrpc start")
+		fmt.Println("")
+		fmt.Println("Then try the following command to run a script that attaches to the service and get some results")
+		fmt.Println("")
+
+		if template == "go" {
+			fmt.Println("    go run scripts/main.go")
+		} else if template == "node" {
+			fmt.Println("    node -r ts-node/register scripts/main.ts")
+		}
+
+		fmt.Println("")
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(initCmd)
+	initCmd.Flags().StringP("template", "t", "", `available values are "go" or "node"`)
 }

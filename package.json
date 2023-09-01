@@ -1,6 +1,6 @@
 {
   "name": "@ayonli/ngrpc",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Make it easy to create, clear, expressive and elegant gRPC based applications.",
   "main": "index",
   "scripts": {
@@ -9,7 +9,8 @@
     "pretest": "tsc",
     "posttest": "node postpublish.js",
     "test": "mocha -r source-map-support/register test.js",
-    "test:ts": "mocha -r ts-node/register test.ts"
+    "test:ts": "mocha -r ts-node/register test.ts",
+    "test:go": "go test -v ./..."
   },
   "bin": {
     "ngrpc": "cli.js"
@@ -46,7 +47,7 @@
   "devDependencies": {
     "@types/humanize-duration": "^3.27.1",
     "@types/mocha": "^10.0.1",
-    "@types/source-map-support": "^0.5.6",
+    "@types/source-map-support": "^0.5.7",
     "@types/string-hash": "^1.1.1",
     "dotry": "^1.4.0",
     "mocha": "^10.2.0",

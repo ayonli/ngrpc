@@ -10,23 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func startHost() error {
-	cmd := exec.Command(os.Args[0], "as-host")
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err := cmd.Start()
-
-	if err != nil {
-		return err
-	} else {
-		cmd.Process.Release()
-		time.Sleep(time.Second) // wait a while for the host server to serve
-		return nil
-	}
-}
-
 var hostCmd = &cobra.Command{
 	Use:   "host",
 	Short: "start the host server standalone",
@@ -54,4 +37,21 @@ var hostCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(hostCmd)
 	hostCmd.Flags().Bool("stop", false, "stop the host server")
+}
+
+func startHost() error {
+	cmd := exec.Command(os.Args[0], "as-host")
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Start()
+
+	if err != nil {
+		return err
+	} else {
+		cmd.Process.Release()
+		time.Sleep(time.Second) // wait a while for the host server to serve
+		return nil
+	}
 }

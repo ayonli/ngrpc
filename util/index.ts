@@ -1,6 +1,5 @@
 import * as fs from "fs";
 import * as path from "path";
-import { promisify } from "util";
 
 export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
 export const sServiceName = Symbol.for("serviceName");
@@ -11,23 +10,12 @@ export type CpuUsage = NodeJS.CpuUsage & {
     readonly _start?: { cpuUsage: NodeJS.CpuUsage; time: number; };
 };
 
-export const open = promisify(fs.open);
-
 export async function exists(filename: string) {
     try {
         await fs.promises.stat(filename);
         return true;
     } catch {
         return false;
-    }
-}
-
-export async function ensureDir(dirname: string) {
-    try {
-        await fs.promises.mkdir(dirname, { recursive: true });
-    } catch (err) {
-        if (err["code"] !== "EEXIST")
-            throw err;
     }
 }
 
@@ -103,7 +91,7 @@ export function service(name: string): (target: Function, ctx: ClassDecoratorCon
 export function service(name: string,): ClassDecorator;
 export function service(name: string): ClassDecorator {
     return (target) => {
-        target[Symbol.for("serviceName")] = name;
+        target[sServiceName] = name;
         return target;
     };
 }

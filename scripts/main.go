@@ -12,8 +12,8 @@ import (
 )
 
 func main() {
-	close := ngrpc.ForSnippet()
-	defer close()
+	done := ngrpc.ForSnippet()
+	defer done()
 
 	ctx := context.Background()
 	userId := "ayon.li"

@@ -39,8 +39,9 @@ type App struct {
 
 // Config is used to store configurations of the apps.
 type Config struct {
-	Entry string `json:"entry"`
-	Apps  []App  `json:"apps"`
+	Entry      string   `json:"entry"`
+	ProtoPaths []string `json:"protoPaths"`
+	Apps       []App    `json:"apps"`
 }
 
 func LoadConfig() (Config, error) {

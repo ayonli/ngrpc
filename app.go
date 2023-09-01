@@ -148,8 +148,8 @@ func BootWithConfig(name string, conf config.Config) (*RpcApp, error) {
 // Example:
 //
 //	func main() {
-//		close := ngrpc.ForSnippet()
-//		defer close()
+//		done := ngrpc.ForSnippet()
+//		defer done()
 //		// snippet to run
 //	}
 //
