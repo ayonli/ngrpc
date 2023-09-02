@@ -1,7 +1,7 @@
 {
   "name": "@ayonli/ngrpc",
-  "version": "0.1.1",
-  "description": "Make it easy to create, clear, expressive and elegant gRPC based applications.",
+  "version": "0.1.2",
+  "description": "Make it easy to create clear, expressive and elegant gRPC based applications.",
   "main": "index",
   "scripts": {
     "prepublishOnly": "tsc",
@@ -39,7 +39,7 @@
     "is-socket-reset-error": "^0.1.1",
     "js-magic": "^1.3.0",
     "lodash": "^4.17.21",
-    "require-chain": "^2.0.0",
+    "require-chain": "^2.1.0",
     "string-hash": "^1.1.3"
   },
   "devDependencies": {
