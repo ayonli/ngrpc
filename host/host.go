@@ -825,10 +825,12 @@ func SpawnApp(app config.App) (int, error) {
 			cmd.Stderr = os.Stderr
 		}
 
-		cmd.Env = []string{}
+		if len(env) > 0 {
+			cmd.Env = os.Environ()
 
-		for key, value := range env {
-			cmd.Env = append(cmd.Env, key+"="+value)
+			for key, value := range env {
+				cmd.Env = append(cmd.Env, key+"="+value)
+			}
 		}
 
 		goext.Ok(0, cmd.Start())
