@@ -40,7 +40,7 @@ func init() {
 }
 
 func startHost() error {
-	cmd := exec.Command(os.Args[0], "as-host")
+	cmd := exec.Command(os.Args[0], "host-server")
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

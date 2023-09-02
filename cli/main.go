@@ -12,7 +12,7 @@ import (
 func main() {
 	args := os.Args
 
-	if len(args) > 0 && args[1] == "as-host" {
+	if len(args) > 0 && args[1] == "host-server" {
 		config, err := config.LoadConfig()
 
 		if err != nil {
