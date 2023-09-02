@@ -1,6 +1,7 @@
 node_modules
 *.tgz
 *.log
+.vscode/
 dist/
 !postpublish.js
 !pm2.config.js
