@@ -219,7 +219,7 @@ declare global {
     }
 }
 
-@service("github.ayonli.services.UserService")
+@service("github.ayonli.ngrpc.services.UserService")
 export default abstract class UserService {
     // abstract methods...
 }

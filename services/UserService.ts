@@ -18,7 +18,7 @@ export type UserPostList = {
     posts: Post[];
 };
 
-@service("github.ayonli.services.UserService")
+@service("github.ayonli.ngrpc.services.UserService")
 export default abstract class UserService {
     abstract getUser(query: UserQuery): Promise<User>;
     abstract getMyPosts(query: UserQuery): Promise<UserPostList>;

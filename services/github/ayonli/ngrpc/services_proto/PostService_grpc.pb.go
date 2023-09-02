@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v4.23.4
-// source: github/ayonli/services/PostService.proto
+// source: github/ayonli/ngrpc/services/PostService.proto
 
 package services_proto
 
@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	PostService_GetPost_FullMethodName     = "/github.ayonli.services.PostService/GetPost"
-	PostService_SearchPosts_FullMethodName = "/github.ayonli.services.PostService/SearchPosts"
+	PostService_GetPost_FullMethodName     = "/github.ayonli.ngrpc.services.PostService/GetPost"
+	PostService_SearchPosts_FullMethodName = "/github.ayonli.ngrpc.services.PostService/SearchPosts"
 )
 
 // PostServiceClient is the client API for PostService service.
@@ -129,7 +129,7 @@ func _PostService_SearchPosts_Handler(srv interface{}, ctx context.Context, dec 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var PostService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "github.ayonli.services.PostService",
+	ServiceName: "github.ayonli.ngrpc.services.PostService",
 	HandlerType: (*PostServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -142,5 +142,5 @@ var PostService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "github/ayonli/services/PostService.proto",
+	Metadata: "github/ayonli/ngrpc/services/PostService.proto",
 }

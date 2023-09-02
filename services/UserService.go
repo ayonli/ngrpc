@@ -7,7 +7,7 @@ import (
 
 	"github.com/ayonli/goext"
 	"github.com/ayonli/ngrpc"
-	"github.com/ayonli/ngrpc/services/github/ayonli/services_proto"
+	"github.com/ayonli/ngrpc/services/github/ayonli/ngrpc/services_proto"
 	"google.golang.org/grpc"
 )
 

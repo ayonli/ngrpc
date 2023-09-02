@@ -15,7 +15,7 @@
             "services": [
                 "services.ExampleService"
             ],
-            "entry": "entry/main.ts",
+            "entry": "entry/main.go",
             "stdout": "out.log"
         },
         {

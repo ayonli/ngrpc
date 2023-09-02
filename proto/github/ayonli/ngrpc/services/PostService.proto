@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-option go_package = "github/ayonli/services_proto";
+option go_package = "github/ayonli/ngrpc/services_proto";
 
-package github.ayonli.services;
+package github.ayonli.ngrpc.services;
 
-import "github/ayonli/services/struct.proto";
+import "github/ayonli/ngrpc/services/struct.proto";
 
 message PostQuery {
     int32 id = 1;

@@ -24,7 +24,7 @@ export type PostSearchResult = {
     posts: Post[];
 };
 
-@service("github.ayonli.services.PostService")
+@service("github.ayonli.ngrpc.services.PostService")
 export default class PostService implements LifecycleSupportInterface {
     private postStore: (Omit<Post, "author"> & { author: string; })[] | null = null;
 
