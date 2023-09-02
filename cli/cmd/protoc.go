@@ -80,8 +80,8 @@ func protoc() {
 			fmt.Printf("generate code for '%s'\n", filename)
 			cmd := exec.Command("protoc",
 				"--proto_path="+root,
-				"--go_out=./services",
-				"--go-grpc_out=./services",
+				"--go_out=./"+filepath.Join(conf.ImportRoot, "services"),
+				"--go-grpc_out=./"+filepath.Join(conf.ImportRoot, "services"),
 				filename)
 
 			cmd.Stdout = os.Stdout

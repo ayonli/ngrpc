@@ -42,6 +42,7 @@ type Config struct {
 	Tsconfig string `json:"tsconfig"`
 	// Deprecated: use `App.Entry` instead.
 	Entry      string   `json:"entry"`
+	ImportRoot string   `json:"importRoot"`
 	ProtoPaths []string `json:"protoPaths"`
 	Apps       []App    `json:"apps"`
 }

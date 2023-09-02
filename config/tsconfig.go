@@ -10,6 +10,7 @@ import (
 type CompilerOptions struct {
 	Module        string `json:"json"`
 	Target        string `json:"target"`
+	RootDir       string `json:"rootDir"`
 	OutDir        string `json:"outDir"`
 	NoEmit        bool   `json:"noEmit"`
 	NoEmitOnError bool   `json:"noEmitOnError"`

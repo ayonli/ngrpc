@@ -24,7 +24,6 @@ var tsConfTpl = `{
         "noUnusedLocals": true,
         "noImplicitThis": true,
         "sourceMap": true,
-        "declaration": true,
         "resolveJsonModule": true,
         "esModuleInterop": true
     },

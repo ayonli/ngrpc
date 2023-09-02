@@ -753,7 +753,8 @@ func SpawnApp(app config.App, tsCfg config.TsConfig) (int, error) {
 		} else if ext == ".ts" {
 			cmd = exec.Command("node", "-r", "ts-node/register", entry, app.Name)
 		} else {
-			cmd = exec.Command(entry, app.Name)
+			cwd, _ := os.Getwd()
+			cmd = exec.Command(filepath.Join(cwd, entry), app.Name)
 		}
 
 		openFlags := os.O_CREATE | os.O_APPEND | os.O_WRONLY
@@ -824,6 +825,18 @@ func resolveApp(app config.App, tsCfg config.TsConfig) (entry string, env map[st
 func ResolveTsEntry(entry string, tsCfg config.TsConfig) (outDir string, outFile string) {
 	if tsCfg.CompilerOptions.NoEmit {
 		return "", ""
+	}
+
+	if tsCfg.CompilerOptions.RootDir != "" {
+		rootDir := filepath.Clean(tsCfg.CompilerOptions.RootDir)
+
+		if rootDir != "" && rootDir != "." {
+			_rootDir := rootDir + string(filepath.Separator)
+
+			if strings.HasPrefix(entry, _rootDir) {
+				entry = stringx.Slice(entry, len(_rootDir), len(entry))
+			}
+		}
 	}
 
 	if tsCfg.CompilerOptions.OutDir != "" {

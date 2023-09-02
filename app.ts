@@ -744,7 +744,7 @@ export class RpcApp {
                 const basename = serviceName.split(".").join(path.sep);
 
                 if (isTsNode) {
-                    return path.join(process.cwd(), basename + ".ts");
+                    return path.join(process.cwd(), importRoot, basename + ".ts");
                 } else {
                     return path.join(process.cwd(), importRoot, basename + ".js");
                 }
