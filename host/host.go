@@ -61,16 +61,20 @@ type Host struct {
 }
 
 func NewHost(conf config.Config) *Host {
-	tsCfg := goext.Ok(config.LoadTsConfig(conf.Tsconfig))
 	host := &Host{
 		apps:          conf.Apps,
-		tsCfg:         tsCfg,
 		state:         0,
 		server:        nil,
 		clients:       []clientRecord{},
 		callbacks:     collections.NewMap[string, func(reply ControlMessage)](),
 		clientsLock:   sync.RWMutex{},
 		callbacksLock: sync.Mutex{},
+	}
+
+	tsCfg, err := config.LoadTsConfig(conf.Tsconfig)
+
+	if err == nil {
+		host.tsCfg = tsCfg
 	}
 
 	return host

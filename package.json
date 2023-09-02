@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Make it easy to create, clear, expressive and elegant gRPC based applications.",
   "main": "dist/index.js",
-  "types": "index.ts",
+  "types": "dist/index.d.ts",
   "scripts": {
     "prepublishOnly": "tsc",
     "postpublish": "node postpublish.js",

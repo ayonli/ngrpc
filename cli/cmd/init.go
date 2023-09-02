@@ -37,6 +37,13 @@ var tsConfTpl = `{
 
 var confTpl = `{
 	"$schema": "https://raw.githubusercontent.com/ayonli/ngrpc/main/ngrpc.schema.json",
+	"protoPaths": [
+        "proto"
+    ],
+    "protoOptions": {
+        "longs": "String",
+        "defaults": true
+    },
     "apps": [
         {
             "name": "example-server",
@@ -185,7 +192,7 @@ func main() {
 	ctx := context.Background()
 	exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
 
-	result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "A-yon Lee"}))
+	result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
 	fmt.Println(result.Message)
 }
 `
@@ -194,7 +201,7 @@ var scriptTsTpl = `/// <reference path="../services/ExampleService.ts" />
 import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.runSnippet(async () => {
-	const result = await services.ExampleService.sayHello({ name: "A-yon Lee" });
+	const result = await services.ExampleService.sayHello({ name: "World" });
 	console.log(result.message);
 });
 `
@@ -233,6 +240,7 @@ var initCmd = &cobra.Command{
 			} else {
 				entryFile = "main.go"
 				serviceFile = "services/ExampleService.go"
+				scriptFile = "scripts/main.go"
 			}
 		} else if template == "node" {
 			if !util.Exists("package.json") {
@@ -241,6 +249,7 @@ var initCmd = &cobra.Command{
 			} else {
 				entryFile = "main.ts"
 				serviceFile = "services/ExampleService.ts"
+				scriptFile = "scripts/main.ts"
 			}
 		} else {
 			fmt.Printf("template '%s' is not supported\n", template)
@@ -264,7 +273,7 @@ var initCmd = &cobra.Command{
 			if template == "go" {
 				tpl = confTpl
 			} else if template == "node" {
-				tpl = strings.Replace(confTpl, `"main.go"`, `"main.ts"`, 1)
+				tpl = strings.Replace(confTpl, `"main.go"`, `"main.ts"`, -1)
 			}
 
 			os.WriteFile(confFile, []byte(tpl), 0644)
@@ -281,7 +290,7 @@ var initCmd = &cobra.Command{
 					entryGoTpl,
 					"github.com/ayonli/ngrpc/services",
 					modName+"/services",
-					1)
+					-1)
 			} else if template == "node" {
 				tpl = entryTsTpl
 			}
@@ -328,8 +337,7 @@ var initCmd = &cobra.Command{
 					exampleServiceGoTpl,
 					"github.com/ayonli/ngrpc/services",
 					modName+"/services",
-					1)
-
+					-1)
 			} else if template == "node" {
 				tpl = exampleServiceTsTpl
 			}
@@ -348,8 +356,7 @@ var initCmd = &cobra.Command{
 					scriptGoTpl,
 					"github.com/ayonli/ngrpc/services",
 					modName+"/services",
-					1)
-
+					-1)
 			} else if template == "node" {
 				tpl = scriptTsTpl
 			}
@@ -366,7 +373,7 @@ var initCmd = &cobra.Command{
 
 			depCmd = exec.Command("go", "mod", "tidy")
 		} else if template == "node" {
-			depCmd = exec.Command("npm", "i", "@ayonli/ngrpc typescript ts-node")
+			depCmd = exec.Command("npm", "i", "typescript", "ts-node", "tslib")
 		}
 
 		if depCmd != nil {
@@ -385,13 +392,17 @@ var initCmd = &cobra.Command{
 		fmt.Println("")
 		fmt.Println("    ngrpc start")
 		fmt.Println("")
-		fmt.Println("Then try the following command to run a script that attaches to the service and get some results")
+		fmt.Println("Then try the following command to check out all the running apps")
+		fmt.Println("")
+		fmt.Println("    ngrpc list")
+		fmt.Println("")
+		fmt.Println("Or try the following command to run a script that attaches to the service and get some results")
 		fmt.Println("")
 
 		if template == "go" {
-			fmt.Println("    go run scripts/main.go")
+			fmt.Println("    ngrpc run scripts/main.go")
 		} else if template == "node" {
-			fmt.Println("    node -r ts-node/register scripts/main.ts")
+			fmt.Println("    ngrpc run scripts/main.ts")
 		}
 
 		fmt.Println("")

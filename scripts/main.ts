@@ -12,7 +12,7 @@ if (require.main?.filename === __filename) {
         const posts = await services.UserService.getMyPosts({ id: userId });
         console.log(posts);
 
-        const result = await services.ExampleService.sayHello({ name: "A-yon Lee" });
+        const result = await services.ExampleService.sayHello({ name: "World" });
         console.log(result.message);
     });
 }

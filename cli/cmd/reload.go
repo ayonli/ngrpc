@@ -7,7 +7,7 @@ import (
 
 var reloadCmd = &cobra.Command{
 	Use:   "reload [app]",
-	Short: "reload an app or all apps",
+	Short: "hot-reload an app or all apps",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
 			host.SendCommand("reload", args[0])
