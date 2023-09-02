@@ -1,12 +1,6 @@
 node_modules
 *.tgz
 *.log
-*.d.ts
-*.js
-*.js.map
-!postpublish.js
-user-server
 dist/
-test/
-*.config.json
+!postpublish.js
 !pm2.config.js
