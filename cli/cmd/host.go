@@ -51,7 +51,7 @@ func startHost() error {
 		return err
 	} else {
 		cmd.Process.Release()
-		time.Sleep(time.Second) // wait a while for the host server to serve
+		time.Sleep(time.Millisecond * 200) // wait a while for the host server to serve
 		return nil
 	}
 }
