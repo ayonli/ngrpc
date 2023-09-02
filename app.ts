@@ -128,6 +128,7 @@ export class RpcApp {
     }>;
 
     private guest: Guest | null = null;
+    private isProcessKeeper = false;
 
     private _onReload: (() => void) | null = null;
     private _onStop: (() => void) | null = null;
@@ -706,6 +707,10 @@ export class RpcApp {
                 console.info(timed`app [${this.name}] has left the group`);
             }
         }
+
+        if (this.isProcessKeeper) {
+            process.exit(0);
+        }
     }
 
     /** Reloads the app programmatically. */
@@ -793,6 +798,26 @@ export class RpcApp {
     /** Registers a callback to run after the app is stopped. */
     onStop(callback: () => void) {
         this._onStop = callback;
+    }
+
+    /**
+     * Listens for system signals to exit the program.
+     * 
+     * This method calls the `stop()` method internally, if we don't use this method, we need to
+     * call the `stop()` method explicitly when the program is going to terminate.
+     */
+    waitForExit() {
+        this.isProcessKeeper = true;
+        const close = () => {
+            this._stop("", true);
+        };
+
+        process.on("SIGINT", close).on("SIGTERM", close)
+            .on("message", (msg) => {
+                if (msg === "shutdown") { // for PM2 in Windows
+                    close();
+                }
+            });
     }
 
     /**

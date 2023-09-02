@@ -268,7 +268,7 @@ type RpcApp struct {
 	locks          *collections.Map[string, *sync.Mutex]
 	guest          *host.Guest
 
-	// Whether this app will keep the process alive, will be set true once `waitForExit()` is called.
+	// Whether this app will keep the process alive, will be set true once `WaitForExit()` is called.
 	isProcessKeeper bool
 }
 
