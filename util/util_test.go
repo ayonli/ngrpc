@@ -3,6 +3,7 @@ package util
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ayonli/goext"
@@ -19,15 +20,23 @@ func TestExists(t *testing.T) {
 
 func TestAbsPath(t *testing.T) {
 	file1 := AbsPath("../ngrpc.sock", false)
+	file2 := AbsPath("/usr/local/bin", false)
 	cwd := goext.Ok(os.Getwd())
 
 	assert.Equal(t, filepath.Clean(cwd+"/../ngrpc.sock"), file1)
+	assert.Equal(t, "/usr/local/bin", file2)
 }
 
 func TestRandomString(t *testing.T) {
 	str := RandomString()
 
 	assert.Equal(t, 8, len(str))
+}
+
+func TestHash(t *testing.T) {
+	hash := Hash("hello, world!")
+
+	assert.Equal(t, 10, len(strconv.Itoa(hash)))
 }
 
 func TestEnsureDir(t *testing.T) {

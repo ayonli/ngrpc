@@ -150,13 +150,6 @@ func (self *Host) waitForExit() {
 	self.Stop()
 }
 
-func (self *Host) getClients() []clientRecord {
-	self.clientsLock.RLock()
-	clients := self.clients
-	self.clientsLock.RUnlock()
-	return clients
-}
-
 func (self *Host) addClient(client clientRecord) {
 	self.clientsLock.Lock()
 	self.clients = append(self.clients, client)
@@ -469,7 +462,6 @@ func (self *Host) startApp(appName string, guest *Guest) {
 
 	if err != nil {
 		fmt.Println(err)
-		close(guest.replyChan)
 		guest.Leave("", "")
 		return
 	}
@@ -530,7 +522,6 @@ func (self *Host) startApp(appName string, guest *Guest) {
 	}
 
 	if numStarted == 0 {
-		close(guest.replyChan)
 		guest.Leave("", "")
 		return
 	}
@@ -553,11 +544,9 @@ func (self *Host) startApp(appName string, guest *Guest) {
 		}
 
 		waitChan <- 0
-		close(waitChan)
 	}()
 
 	<-waitChan
-	close(guest.replyChan)
 	guest.Leave("", "")
 }
 
@@ -584,7 +573,7 @@ func (self *Host) listApps(stats []AppStat) {
 		}
 	}
 
-	tb := table.New("App", "URI", "Status", "Pid", "Uptime", "Memory", "Cpu")
+	tb := table.New("App", "URI", "Status", "Pid", "Uptime", "Memory", "CPU")
 
 	for _, item := range list {
 		parts := []any{item.App, item.Uri}
@@ -633,7 +622,6 @@ func (self *Host) sendCommand(cmd string, appName string) {
 			self.listApps([]AppStat{})
 		}
 
-		close(guest.replyChan)
 		guest.Leave("", "")
 		return
 	}
@@ -668,7 +656,6 @@ func (self *Host) sendCommand(cmd string, appName string) {
 
 			if err != nil {
 				fmt.Println(err)
-				close(guest.replyChan)
 				guest.Leave("", "")
 				return
 			}
@@ -704,14 +691,12 @@ func (self *Host) sendAndWait(msg ControlMessage, guest *Guest, fin bool) {
 	}()
 
 	<-waitChan
-	close(waitChan)
 
 	if fin {
 		if msg.Cmd == "stop" && msg.App == "" {
 			// After all the apps have been stopped, stop the host server as well.
 			self.sendAndWait(ControlMessage{Cmd: "stop-host"}, guest, true)
 		} else {
-			close(guest.replyChan)
 			guest.Leave("", "")
 		}
 	}

@@ -3,8 +3,10 @@ package host
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ func TestDecodeMsg(t *testing.T) {
 	buf := make([]byte, 256)
 	n := copy(buf, data)
 
+	msg.Pid = os.Getpid()
 	messages := DecodeMessage(&packet, buf[:n], false)
 
 	assert.Equal(t, 1, len(messages))
@@ -44,8 +47,7 @@ func TestDecodeMsgOverflow(t *testing.T) {
 	n := copy(buf, data)
 	offset := 0
 
-	fmt.Println(len(data))
-
+	msg.Pid = os.Getpid()
 	messages := DecodeMessage(&packet, buf[:n], false)
 	offset += 64
 
@@ -70,6 +72,7 @@ func TestDecodeMsgEof(t *testing.T) {
 	buf := make([]byte, 256)
 	n := copy(buf, data)
 
+	msg.Pid = os.Getpid()
 	messages := DecodeMessage(&packet, buf[:n], true)
 
 	assert.Equal(t, 1, len(messages))
@@ -92,7 +95,9 @@ func TestGetSocketPath(t *testing.T) {
 
 func TestNewHost(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
 	host := NewHost(config)
@@ -105,7 +110,9 @@ func TestNewHost(t *testing.T) {
 
 func TestHost_Start(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
 	host := NewHost(config)
@@ -128,7 +135,9 @@ func TestHost_Start(t *testing.T) {
 
 func TestHost_Stop(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
 	host := NewHost(config)
@@ -145,7 +154,9 @@ func TestHost_Stop(t *testing.T) {
 
 func TestHost_WaitForExit(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
 	host := NewHost(config)
@@ -168,7 +179,9 @@ func TestHost_WaitForExit(t *testing.T) {
 
 func TestIsLive(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	assert.False(t, IsLive())
 
@@ -182,7 +195,9 @@ func TestIsLive(t *testing.T) {
 
 func TestIsLiv_redundantSocketFile(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	sockFile, _ := GetSocketPath()
 	os.WriteFile(sockFile, []byte{}, 0644)
@@ -196,7 +211,9 @@ func TestIsLiv_redundantSocketFile(t *testing.T) {
 
 func TestSendCommand_stop(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
 	host := NewHost(conf)
@@ -232,7 +249,9 @@ func TestSendCommand_stop(t *testing.T) {
 
 func TestSendCommand_stopAll(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
 	host := NewHost(conf)
@@ -272,12 +291,15 @@ func TestSendCommand_stopAll(t *testing.T) {
 	guest2.Leave("app [user-server] stopped", msgIds[1])
 
 	time.Sleep(time.Second)
-	assert.Equal(t, 0, len(host.clients))
+	assert.Equal(t, 1, len(host.clients))
+	assert.Equal(t, ":cli", host.clients[0].app)
 }
 
 func TestSendCommand_list(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
 	host := NewHost(conf)
@@ -334,7 +356,9 @@ func TestSendCommand_list(t *testing.T) {
 
 func TestSendCommand_stopHost(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
 	host := NewHost(conf)
@@ -355,11 +379,33 @@ func TestSendCommand_stopHost(t *testing.T) {
 	}()
 
 	time.Sleep(time.Second)
+
 	assert.Equal(t, 0, guest.state)
 	assert.Equal(t, 0, host.state)
-	assert.Equal(t, 0, len(host.clients))
+	assert.Equal(t, 1, len(host.clients))
+	assert.Equal(t, ":cli", host.clients[0].app)
 }
 
-func TestSendCommand_whenNoHost(t *testing.T) {
-	SendCommand("list", "")
+func TestCommand_listWhenNoHost(t *testing.T) {
+	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
+	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
+
+	cmd := exec.Command("go", "run", "../cli/main.go", "list")
+	out := string(goext.Ok(cmd.Output()))
+	lines := strings.Split(out, "\n")
+
+	assert.Equal(t,
+		[]string{"App", "URI", "Status", "Pid", "Uptime", "Memory", "CPU"},
+		strings.Fields(lines[0]))
+	assert.Equal(t,
+		[]string{"example-server", "grpc://localhost:4000", "stopped", "N/A", "N/A", "N/A", "N/A"},
+		strings.Fields(lines[1]))
+	assert.Equal(t,
+		[]string{"user-server", "grpcs://localhost:4001", "stopped", "N/A", "N/A", "N/A", "N/A"},
+		strings.Fields(lines[2]))
+	assert.Equal(t,
+		[]string{"post-server", "grpcs://localhost:4002", "stopped", "N/A", "N/A", "N/A", "N/A"},
+		strings.Fields(lines[3]))
 }

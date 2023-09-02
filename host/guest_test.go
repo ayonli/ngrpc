@@ -27,7 +27,9 @@ func TestNewGuest(t *testing.T) {
 
 func TestGuest_JoinAndLeave(t *testing.T) {
 	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
 	defer os.Remove("ngrpc.json")
+	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
 	host := NewHost(conf)

@@ -47,7 +47,7 @@ type Config struct {
 }
 
 func LoadConfig() (Config, error) {
-	var config *Config
+	var cfg *Config
 	defaultFile := util.AbsPath("ngrpc.json", false)
 	localFile := util.AbsPath("ngrpc.local.json", false)
 
@@ -55,36 +55,36 @@ func LoadConfig() (Config, error) {
 		data, err := os.ReadFile(localFile)
 
 		if err == nil {
-			json.Unmarshal(data, &config)
+			json.Unmarshal(data, &cfg)
 		}
 	}
 
-	if config == nil {
-		if util.Exists(defaultFile) {
-			data, err := os.ReadFile(defaultFile)
+	if cfg == nil && util.Exists(defaultFile) {
+		data, err := os.ReadFile(defaultFile)
 
-			if err == nil {
-				json.Unmarshal(data, &config)
-			} else {
-				fmt.Println(err)
-			}
+		if err == nil {
+			err = json.Unmarshal(data, &cfg)
+		}
+
+		if err != nil {
+			return *cfg, err
 		}
 	}
 
-	if config != nil && len(config.Apps) > 0 {
+	if cfg != nil && len(cfg.Apps) > 0 {
 		apps := []App{}
 
-		for _, app := range config.Apps {
-			if app.Entry == "" {
-				app.Entry = config.Entry
+		for _, app := range cfg.Apps {
+			if app.Entry == "" && cfg.Entry != "" {
+				app.Entry = cfg.Entry
 			}
 
 			apps = append(apps, app)
 		}
 
-		config.Apps = apps
+		cfg.Apps = apps
 
-		return *config, nil
+		return *cfg, nil
 	} else {
 		return Config{}, fmt.Errorf("unable to load config file: %v", defaultFile)
 	}
