@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -17,7 +18,9 @@ import (
 	"github.com/ayonli/goext"
 	"github.com/ayonli/goext/async"
 	"github.com/ayonli/goext/collections"
+	"github.com/ayonli/goext/mapx"
 	"github.com/ayonli/goext/slicex"
+	"github.com/ayonli/goext/stringx"
 	"github.com/ayonli/ngrpc/config"
 	"github.com/ayonli/ngrpc/util"
 	"github.com/rodaine/table"
@@ -496,21 +499,25 @@ func (self *Host) handleReply(conn net.Conn, msg ControlMessage) {
 }
 
 // NOTE: this function runs in the CLI instead of the host server.
-func (self *Host) startApp(appName string, replyChan chan ControlMessage) {
+func (self *Host) startApp(appName string, guest *Guest) {
 	conf, err := config.LoadConfig()
 
 	if err != nil {
 		fmt.Println(err)
+		close(guest.replyChan)
+		guest.Leave("", "")
 		return
 	}
 
 	apps := []config.App{}
-	start := func(app config.App) {
+	start := func(app config.App) bool {
 		_, err := SpawnApp(app)
 
 		if err != nil {
 			log.Printf("unable to start app [%s] (reason: %s)", app.Name, err)
-			return
+			return false
+		} else {
+			return true
 		}
 	}
 
@@ -534,13 +541,33 @@ func (self *Host) startApp(appName string, replyChan chan ControlMessage) {
 		}
 	}
 
-	if len(apps) == 0 {
-		close(replyChan)
-		return
-	} else {
-		for _, app := range apps {
-			start(app)
+	numStarted := 0
+
+	if len(apps) != 0 {
+		hasTsEntry := slicex.Some(apps, func(app config.App, _ int) bool {
+			return filepath.Ext(app.Entry) == ".ts"
+		})
+		var err error
+
+		if hasTsEntry {
+			err = compilingTsFiles("tsconfig.json")
 		}
+
+		if err == nil {
+			for _, app := range apps {
+				ok := start(app)
+
+				if ok {
+					numStarted++
+				}
+			}
+		}
+	}
+
+	if numStarted == 0 {
+		close(guest.replyChan)
+		guest.Leave("", "")
+		return
 	}
 
 	waitChan := make(chan int)
@@ -548,13 +575,13 @@ func (self *Host) startApp(appName string, replyChan chan ControlMessage) {
 
 	go func() {
 		for {
-			msg := <-replyChan
+			msg := <-guest.replyChan
 
 			if msg.Cmd == "online" {
 				log.Printf("app [%s] started (pid: %d)", msg.App, msg.Pid)
 				count++
 
-				if count == len(apps) {
+				if count == numStarted {
 					break
 				}
 			}
@@ -565,7 +592,8 @@ func (self *Host) startApp(appName string, replyChan chan ControlMessage) {
 	}()
 
 	<-waitChan
-	close(replyChan)
+	close(guest.replyChan)
+	guest.Leave("", "")
 }
 
 // NOTE: this function runs in the CLI instead of the host server.
@@ -641,15 +669,46 @@ func (self *Host) sendCommand(cmd string, appName string) {
 		}
 
 		close(guest.replyChan)
+		guest.Leave("", "")
 		return
 	}
 
 	if cmd == "start" {
-		self.startApp(appName, guest.replyChan)
+		self.startApp(appName, guest)
 	} else if cmd == "restart" {
 		self.sendAndWait(ControlMessage{Cmd: "stop", App: appName}, guest, false)
-		self.startApp(appName, guest.replyChan)
+		self.startApp(appName, guest)
 	} else {
+		if cmd == "reload" {
+			conf, err := config.LoadConfig()
+
+			if err == nil {
+				var hasTsEntry bool
+
+				if appName != "" {
+					app, ok := slicex.Find(conf.Apps, func(app config.App, idx int) bool {
+						return app.Name == appName
+					})
+					hasTsEntry = ok && filepath.Ext(app.Entry) == ".ts"
+				} else {
+					hasTsEntry = slicex.Some(conf.Apps, func(app config.App, idx int) bool {
+						return filepath.Ext(app.Entry) == ".ts"
+					})
+				}
+
+				if hasTsEntry {
+					err = compilingTsFiles("tsconfig.json")
+				}
+			}
+
+			if err != nil {
+				fmt.Println(err)
+				close(guest.replyChan)
+				guest.Leave("", "")
+				return
+			}
+		}
+
 		self.sendAndWait(ControlMessage{Cmd: cmd, App: appName}, guest, true)
 	}
 }
@@ -729,21 +788,18 @@ func SpawnApp(app config.App) (int, error) {
 			panic("entry file is not set")
 		}
 
-		ext := filepath.Ext(app.Entry)
 		var cmd *exec.Cmd
+		entry, env := resolveApp(app)
+		ext := filepath.Ext(entry)
 
 		if ext == ".go" {
-			cmd = exec.Command("go", "run", app.Entry, app.Name)
+			cmd = exec.Command("go", "run", entry, app.Name)
 		} else if ext == ".js" {
-			cmd = exec.Command("node", app.Entry, app.Name)
+			cmd = exec.Command("node", entry, app.Name)
 		} else if ext == ".ts" {
-			cmd = exec.Command("node", "-r", "ts-node/register", app.Entry, app.Name)
-		} else if util.Exists(app.Entry + ".js") {
-			cmd = exec.Command("node", app.Entry+".js", app.Name)
-		} else if util.Exists(app.Entry + ".ts") {
-			cmd = exec.Command("node", "-r", "ts-node/register", app.Entry+".ts", app.Name)
+			cmd = exec.Command("node", "-r", "ts-node/register", entry, app.Name)
 		} else {
-			cmd = exec.Command(app.Entry, app.Name)
+			cmd = exec.Command(entry, app.Name)
 		}
 
 		cwd, _ := os.Getwd()
@@ -769,12 +825,10 @@ func SpawnApp(app config.App) (int, error) {
 			cmd.Stderr = os.Stderr
 		}
 
-		if app.Env != nil {
-			cmd.Env = []string{}
+		cmd.Env = []string{}
 
-			for key, value := range app.Env {
-				cmd.Env = append(cmd.Env, key+"="+value)
-			}
+		for key, value := range env {
+			cmd.Env = append(cmd.Env, key+"="+value)
 		}
 
 		goext.Ok(0, cmd.Start())
@@ -783,4 +837,88 @@ func SpawnApp(app config.App) (int, error) {
 
 		return pid
 	})
+}
+
+func resolveApp(app config.App) (entry string, env map[string]string) {
+	if app.Entry == "" {
+		panic("entry file is not set")
+	}
+
+	ext := filepath.Ext(app.Entry)
+	env = map[string]string{}
+
+	if ext == ".go" || ext == ".js" {
+		entry = app.Entry
+	} else if ext == ".ts" {
+		entry = app.Entry
+		outDir, outFile := resolveTsEntry(entry)
+
+		if outDir != "" && outFile != "" {
+			entry = outFile
+			env["IMPORT_ROOT"] = outDir
+		}
+	} else if util.Exists(app.Entry + ".js") {
+		entry = app.Entry + ".js"
+	} else if util.Exists(app.Entry + ".ts") {
+		entry = app.Entry + ".ts"
+		outDir, outFile := resolveTsEntry(entry)
+
+		if outDir != "" && outFile != "" {
+			entry = outFile
+			env["IMPORT_ROOT"] = outDir
+		}
+	} else {
+		entry = app.Entry
+	}
+
+	if app.Env != nil {
+		env = mapx.Assign(env, app.Env)
+	}
+
+	return entry, env
+}
+
+func resolveTsEntry(entry string) (outDir string, outFile string) {
+	tsConfig := goext.Ok(config.LoadTsConfig(entry))
+
+	if tsConfig.CompilerOptions.NoEmit {
+		return "", ""
+	}
+
+	if tsConfig.CompilerOptions.OutDir != "" {
+		outDir = filepath.Clean(tsConfig.CompilerOptions.OutDir)
+
+		if outDir != "" && outDir != "." {
+			_outDir := outDir + string(filepath.Separator)
+
+			if !strings.HasPrefix(entry, _outDir) {
+				ext := filepath.Ext(entry)
+				outFile = _outDir + stringx.Slice(entry, 0, -len(ext)) + ".js"
+			}
+		} else {
+			outDir = ""
+		}
+	}
+
+	return outDir, outFile
+}
+
+func compilingTsFiles(tsConfFile string) error {
+	tsConf, err := config.LoadTsConfig(tsConfFile)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("compiling typescript files...")
+	cmd := exec.Command("tsc")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+
+	if err != nil && tsConf.CompilerOptions.NoEmitOnError {
+		return err
+	}
+
+	return nil
 }

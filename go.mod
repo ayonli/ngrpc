@@ -8,6 +8,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 	github.com/struCoder/pidusage v0.2.1
+	github.com/tidwall/jsonc v0.3.2
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
 )

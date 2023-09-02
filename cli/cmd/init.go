@@ -11,6 +11,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var tsConfTpl = `{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es2018",
+        "outDir": "./dist",
+        "incremental": true,
+        "newLine": "LF",
+        "importHelpers": true,
+        "strictNullChecks": true,
+        "noUnusedParameters": true,
+        "noUnusedLocals": true,
+        "noImplicitThis": true,
+        "sourceMap": true,
+        "declaration": true,
+        "resolveJsonModule": true,
+        "esModuleInterop": true
+    },
+    "include": [
+        "*.ts",
+        "*/**.ts"
+    ]
+}
+`
+
 var confTpl = `{
 	"$schema": "https://raw.githubusercontent.com/ayonli/ngrpc/main/ngrpc.schema.json",
     "apps": [
@@ -27,7 +51,7 @@ var confTpl = `{
     ]
 }`
 
-var mainGoTpl = `package main
+var entryGoTpl = `package main
 
 import (
 	"log"
@@ -49,7 +73,7 @@ func main() {
 }
 `
 
-var mainTsTpl = `import ngrpc from "@ayonli/ngrpc";
+var entryTsTpl = `import ngrpc from "@ayonli/ngrpc";
 
 if (require.main?.filename === __filename) {
     const appName = process.argv[2];
@@ -178,6 +202,7 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "initiate a new ngrpc project",
 	Run: func(cmd *cobra.Command, args []string) {
+		tsConfFile := "tsconfig.json"
 		confFile := "ngrpc.json"
 		protoDir := "proto"
 		protoFile := "proto/ExampleService.proto"
@@ -221,10 +246,25 @@ var initCmd = &cobra.Command{
 			return
 		}
 
+		if template == "node" {
+			if util.Exists(tsConfFile) {
+				fmt.Printf("file '%s' already exists\n", tsConfFile)
+			} else {
+				os.WriteFile(tsConfFile, []byte(tsConfTpl), 0644)
+				fmt.Printf("tsconfig file written to '%s'\n", tsConfFile)
+			}
+		}
+
 		if util.Exists(confFile) {
 			fmt.Printf("file '%s' already exists\n", confFile)
 		} else {
-			tpl := strings.Replace(confFile, `"main.go"`, `"main.ts"`, 1)
+			var tpl string
+
+			if template == "go" {
+				tpl = confTpl
+			} else if template == "node" {
+				tpl = strings.Replace(confTpl, `"main.go"`, `"main.ts"`, 1)
+			}
 
 			os.WriteFile(confFile, []byte(tpl), 0644)
 			fmt.Printf("config file written to '%s'\n", confFile)
@@ -237,12 +277,12 @@ var initCmd = &cobra.Command{
 
 			if template == "go" {
 				tpl = strings.Replace(
-					mainGoTpl,
+					entryGoTpl,
 					"github.com/ayonli/ngrpc/services",
 					modName+"/services",
 					1)
 			} else if template == "node" {
-				tpl = mainTsTpl
+				tpl = entryTsTpl
 			}
 
 			os.WriteFile(entryFile, []byte(tpl), 0644)
@@ -313,8 +353,8 @@ var initCmd = &cobra.Command{
 				tpl = scriptTsTpl
 			}
 
-			os.WriteFile(serviceFile, []byte(tpl), 0644)
-			fmt.Printf("script file written to '%s'\n", serviceFile)
+			os.WriteFile(scriptFile, []byte(tpl), 0644)
+			fmt.Printf("script file written to '%s'\n", scriptFile)
 		}
 
 		// install dependencies

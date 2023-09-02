@@ -635,7 +635,7 @@ export class RpcApp {
         }
 
         await this.loadProtoFiles(config.protoPaths, config.protoOptions);
-        await this.loadClassFiles(config.apps, config.importRoot);
+        await this.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);
 
         if (app?.serve && app?.services?.length) {
             await this.initServer(app);
@@ -750,7 +750,9 @@ export class RpcApp {
             this.instanceMap = new Map();
 
             // reload class files
-            await this.loadClassFiles(this.config.apps, this.config.importRoot);
+            await this.loadClassFiles(
+                this.config.apps,
+                process.env["IMPORT_ROOT"] || this.config.importRoot);
         }
 
         if (app && app.serve && app.services?.length) {

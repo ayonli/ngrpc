@@ -6,6 +6,7 @@ node_modules
 *.js.map
 !postpublish.js
 user-server
+dist/
 test/
 *.config.json
 !pm2.config.js
