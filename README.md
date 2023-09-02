@@ -9,9 +9,6 @@ Make it easy to create clear, expressive and elegant gRPC based applications in 
 *[go to GitHub for this Doc](https://github.com/ayonli/ngrpc) and the related files.*
 *By combining these files, this project itself serves as an example of using NgRPC in real world.*
 
-*TIP: there is a sister project [GoRPC](https://github.com/ayonli/gorpc) which functions similar to*
-*this one but is written in and for Golang.*
-
 ## Install
 
 ```sh
@@ -106,9 +103,9 @@ It's just that simple.
     - `serve` If this app is served by the NgRPC app server. If this property is `false`, that
         means the underlying services are served by another program. As we can see from the above
         example, the `user-server` sets this property to `false`, because it's served in a
-        [`Golang` program](./main.go) (with [GoRPC](https://github.com/ayonli/gorpc)). If we take a
-        look at the [services.UserService](./services/UserService.ts), we will just see a very
-        simple TypeScript file that contains an abstract class.
+        [`Golang` program](./main.go). If we take a look at the
+        [services.UserService](./services/UserService.ts), we will just see a very simple TypeScript
+        file that contains an abstract class.
     - `services` The services served by this app. if we take a look at the
         [services.ExampleService](./services/ExampleService.ts) and the
         [services.PostService](./services/PostService.ts), we will see that they're very simple
@@ -325,7 +322,7 @@ services, we need to establish connection between the web server and the RPC ser
 won't to serve any service in the web server.
 
 The following app do not serve, but connects to all the services according to the configuration file.
-We can do all the stuffs provided by GoRPC in the web server as we would in the RPC server,
+We can do all the stuffs provided by NgRPC in the web server as we would in the RPC server,
 because all the differences between the gRPC client and the gRPC server are hidden behind the scene.
 
 ```ts
