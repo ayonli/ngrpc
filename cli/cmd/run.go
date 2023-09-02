@@ -32,15 +32,9 @@ var runCmd = &cobra.Command{
 			cfg := goext.Ok(config.LoadConfig())
 			tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
 			outDir, outFile := host.ResolveTsEntry(filename, tsCfg)
-
-			if outDir != "" && outFile != "" {
-				goext.Ok(0, host.CompileTs(tsCfg))
-
-				script = exec.Command("node", outFile)
-				env["IMPORT_ROOT"] = outDir
-			} else {
-				script = exec.Command("node", "-r", "ts-node/register", filename)
-			}
+			goext.Ok(0, host.CompileTs(tsCfg, outDir))
+			script = exec.Command("node", outFile)
+			env["IMPORT_ROOT"] = outDir
 		} else if ext == ".js" {
 			script = exec.Command("node", filename)
 		}

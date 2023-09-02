@@ -505,13 +505,14 @@ func (self *Host) startApp(appName string, guest *Guest) {
 	numStarted := 0
 
 	if len(apps) != 0 {
-		hasTsEntry := slicex.Some(apps, func(app config.App, _ int) bool {
+		tsApp, ok := slicex.Find(apps, func(app config.App, _ int) bool {
 			return filepath.Ext(app.Entry) == ".ts"
 		})
 		var err error
 
-		if hasTsEntry {
-			err = CompileTs(self.tsCfg)
+		if ok {
+			outDir, _ := ResolveTsEntry(tsApp.Entry, self.tsCfg)
+			err = CompileTs(self.tsCfg, outDir)
 		}
 
 		if err == nil {
@@ -640,21 +641,27 @@ func (self *Host) sendCommand(cmd string, appName string) {
 			conf, err := config.LoadConfig()
 
 			if err == nil {
-				var hasTsEntry bool
+				var hasTsApp bool
+				var tsApp config.App
 
 				if appName != "" {
 					app, ok := slicex.Find(conf.Apps, func(app config.App, idx int) bool {
 						return app.Name == appName
 					})
-					hasTsEntry = ok && filepath.Ext(app.Entry) == ".ts"
+
+					if ok && filepath.Ext(app.Entry) == ".ts" {
+						tsApp = app
+						hasTsApp = true
+					}
 				} else {
-					hasTsEntry = slicex.Some(conf.Apps, func(app config.App, idx int) bool {
+					tsApp, hasTsApp = slicex.Find(conf.Apps, func(app config.App, idx int) bool {
 						return filepath.Ext(app.Entry) == ".ts"
 					})
 				}
 
-				if hasTsEntry {
-					err = CompileTs(self.tsCfg)
+				if hasTsApp {
+					outDir, _ := ResolveTsEntry(tsApp.Entry, self.tsCfg)
+					err = CompileTs(self.tsCfg, outDir)
 				}
 			}
 
@@ -750,8 +757,6 @@ func SpawnApp(app config.App, tsCfg config.TsConfig) (int, error) {
 			cmd = exec.Command("go", "run", entry, app.Name)
 		} else if ext == ".js" {
 			cmd = exec.Command("node", entry, app.Name)
-		} else if ext == ".ts" {
-			cmd = exec.Command("node", "-r", "ts-node/register", entry, app.Name)
 		} else {
 			cwd, _ := os.Getwd()
 			cmd = exec.Command(filepath.Join(cwd, entry), app.Name)
@@ -806,11 +811,8 @@ func resolveApp(app config.App, tsCfg config.TsConfig) (entry string, env map[st
 	} else if ext == ".ts" {
 		entry = app.Entry
 		outDir, outFile := ResolveTsEntry(entry, tsCfg)
-
-		if outDir != "" && outFile != "" {
-			entry = outFile
-			env["IMPORT_ROOT"] = outDir
-		}
+		entry = outFile
+		env["IMPORT_ROOT"] = outDir
 	} else {
 		entry = app.Entry
 	}
@@ -823,10 +825,6 @@ func resolveApp(app config.App, tsCfg config.TsConfig) (entry string, env map[st
 }
 
 func ResolveTsEntry(entry string, tsCfg config.TsConfig) (outDir string, outFile string) {
-	if tsCfg.CompilerOptions.NoEmit {
-		return "", ""
-	}
-
 	if tsCfg.CompilerOptions.RootDir != "" {
 		rootDir := filepath.Clean(tsCfg.CompilerOptions.RootDir)
 
@@ -852,17 +850,24 @@ func ResolveTsEntry(entry string, tsCfg config.TsConfig) (outDir string, outFile
 		} else {
 			outDir = ""
 		}
+	} else {
+		outDir = ".dist"
+		ext := filepath.Ext(entry)
+		outFile = filepath.Join(outDir, stringx.Slice(entry, 0, -len(ext))+".js")
 	}
 
 	return outDir, outFile
 }
 
-func CompileTs(tsCfg config.TsConfig) error {
-	if tsCfg.CompilerOptions.NoEmit {
-		return nil
+func CompileTs(tsCfg config.TsConfig, outDir string) error {
+	var cmd *exec.Cmd
+
+	if outDir == "" {
+		cmd = exec.Command("npx", "tsc")
+	} else {
+		cmd = exec.Command("npx", "tsc", "--outDir", outDir)
 	}
 
-	cmd := exec.Command("tsc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()

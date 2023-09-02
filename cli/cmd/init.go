@@ -15,7 +15,6 @@ var tsConfTpl = `{
     "compilerOptions": {
         "module": "commonjs",
         "target": "es2018",
-        "outDir": "./dist",
         "incremental": true,
         "newLine": "LF",
         "importHelpers": true,
@@ -372,7 +371,7 @@ var initCmd = &cobra.Command{
 
 			depCmd = exec.Command("go", "mod", "tidy")
 		} else if template == "node" {
-			depCmd = exec.Command("npm", "i", "typescript", "ts-node", "tslib")
+			depCmd = exec.Command("npm", "i", "typescript", "tslib")
 		}
 
 		if depCmd != nil {

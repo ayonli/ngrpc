@@ -9,9 +9,6 @@ Make it easy to create clear, expressive and elegant gRPC based applications in 
 *[go to GitHub for this Doc](https://github.com/ayonli/ngrpc) and the related files.*
 *By combining these files, this project itself serves as an example of using NgRPC in real world.*
 
-*TIP: there is a sister project [GoRPC](https://github.com/ayonli/gorpc) which functions similar to*
-*this one but is written in and for Golang.*
-
 ## Install
 
 ```sh
@@ -251,30 +248,6 @@ export default class ExampleService implements LifecycleSupportInterface {
     }
 }
 ```
-
-## Running the Program in TS-Node
-
-The CLI tools starts the program either with `node` or `ts-node` according to the entry file. If the
-entry file's extension is `.js`, it spawn the process via `node`, which means the source code (in
-TypeScript) needs to be transpiled into JavaScript first in order to be run (the default behavior).
-If the filename ends with `.ts`, it load the program via `ts-node`, which allow TypeScript code run
-directly in the program.
-
-By default, NgRPC app uses a default entry file compiled in JavaScript, which means our code
-needs to be transpiled as well. To use `ts-node` running TypeScript, we need to provide a custom
-entry file, just like this.
-
-```json
-{
-    "package": "services",
-    "entry": "./main.ts",
-    // ...
-}
-```
-
-Moreover, instead of giving the extension name, we can omit it (for example `./main`) and allow the
-CLI tool to determine whether to use `node` or `ts-node` according the file presented. If `main.js`
-is presented, `node` is used, otherwise, `ts-node` is used.
 
 ## Load Balancing and Routing
 
