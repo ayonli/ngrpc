@@ -9,9 +9,9 @@
             "type": "string",
             "description": "The namespace of the services files, default `services`."
         },
-        "entry": {
+        "tsconfig": {
             "type": "string",
-            "description": "The entry file that is used to spawn apps."
+            "description": "Custom tsconfig.json file for compiling TypeScript files."
         },
         "importRoot": {
             "type": "string",

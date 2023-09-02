@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/ayonli/goext"
-	"github.com/ayonli/goext/async"
 	"github.com/ayonli/goext/collections"
 	"github.com/ayonli/goext/mapx"
 	"github.com/ayonli/goext/slicex"
@@ -49,27 +48,23 @@ type messageRecord struct {
 // This mechanism is primarily used for the CLI tool sending control commands to the apps.
 type Host struct {
 	apps      []config.App
+	tsCfg     config.TsConfig
 	sockFile  string
 	state     int
 	server    net.Listener
 	clients   []clientRecord
 	callbacks *collections.Map[string, func(reply ControlMessage)]
 
-	// These push functions use queues internally to guarantee messages are processed sequentially.
-	pushHandshake     func(record messageRecord)
-	pushGoodbye       func(record messageRecord)
-	pushReply         func(record messageRecord)
-	pushDisconnection func(conn net.Conn)
-	pushClientReading func(reading clientReading)
-
 	isProcessKeeper bool
 	clientsLock     sync.RWMutex
 	callbacksLock   sync.Mutex
 }
 
-func NewHost(config config.Config) *Host {
+func NewHost(conf config.Config) *Host {
+	tsCfg := goext.Ok(config.LoadTsConfig(conf.Tsconfig))
 	host := &Host{
-		apps:          config.Apps,
+		apps:          conf.Apps,
+		tsCfg:         tsCfg,
 		state:         0,
 		server:        nil,
 		clients:       []clientRecord{},
@@ -77,36 +72,6 @@ func NewHost(config config.Config) *Host {
 		clientsLock:   sync.RWMutex{},
 		callbacksLock: sync.Mutex{},
 	}
-
-	host.pushHandshake = async.Queue(func(record messageRecord) (fin bool) {
-		host.handleHandshake(record.conn, record.msg)
-		return fin
-	})
-
-	host.pushGoodbye = async.Queue(func(record messageRecord) (fin bool) {
-		host.handleGoodbye(record.conn, record.msg)
-		return fin
-	})
-
-	host.pushReply = async.Queue(func(record messageRecord) (fin bool) {
-		host.handleReply(record.conn, record.msg)
-		return fin
-	})
-
-	host.pushDisconnection = async.Queue(func(conn net.Conn) (fin bool) {
-		host.handleGuestDisconnection(conn)
-		return false
-	})
-
-	host.pushClientReading = async.Queue(func(reading clientReading) (fin bool) {
-		if reading.packet == nil {
-			host.handleGuestDisconnection(reading.conn)
-		} else {
-			host.processGuestMessage(reading.conn, reading.packet, reading.bufRead, reading.eof)
-		}
-
-		return false
-	})
 
 	return host
 }
@@ -318,7 +283,7 @@ func (self *Host) handleGuestDisconnection(conn net.Conn) {
 		if exists {
 			time.Sleep(time.Second)
 			log.Printf("reviving app [%v] ...", client.app)
-			SpawnApp(app)
+			SpawnApp(app, self.tsCfg)
 		}
 	}
 }
@@ -511,7 +476,7 @@ func (self *Host) startApp(appName string, guest *Guest) {
 
 	apps := []config.App{}
 	start := func(app config.App) bool {
-		_, err := SpawnApp(app)
+		_, err := SpawnApp(app, self.tsCfg)
 
 		if err != nil {
 			log.Printf("unable to start app [%s] (reason: %s)", app.Name, err)
@@ -550,7 +515,7 @@ func (self *Host) startApp(appName string, guest *Guest) {
 		var err error
 
 		if hasTsEntry {
-			err = compilingTsFiles("tsconfig.json")
+			err = CompileTs(self.tsCfg)
 		}
 
 		if err == nil {
@@ -697,7 +662,7 @@ func (self *Host) sendCommand(cmd string, appName string) {
 				}
 
 				if hasTsEntry {
-					err = compilingTsFiles("tsconfig.json")
+					err = CompileTs(self.tsCfg)
 				}
 			}
 
@@ -782,14 +747,14 @@ func SendCommand(cmd string, appName string) {
 	host.sendCommand(cmd, appName)
 }
 
-func SpawnApp(app config.App) (int, error) {
+func SpawnApp(app config.App, tsCfg config.TsConfig) (int, error) {
 	return goext.Try(func() int {
 		if app.Entry == "" {
 			panic("entry file is not set")
 		}
 
 		var cmd *exec.Cmd
-		entry, env := resolveApp(app)
+		entry, env := resolveApp(app, tsCfg)
 		ext := filepath.Ext(entry)
 
 		if ext == ".go" {
@@ -802,9 +767,6 @@ func SpawnApp(app config.App) (int, error) {
 			cmd = exec.Command(entry, app.Name)
 		}
 
-		cwd, _ := os.Getwd()
-		cmd.Dir = cwd
-		cmd.Stdin = os.Stdin
 		openFlags := os.O_CREATE | os.O_APPEND | os.O_WRONLY
 
 		if app.Stdout != "" {
@@ -841,7 +803,7 @@ func SpawnApp(app config.App) (int, error) {
 	})
 }
 
-func resolveApp(app config.App) (entry string, env map[string]string) {
+func resolveApp(app config.App, tsCfg config.TsConfig) (entry string, env map[string]string) {
 	if app.Entry == "" {
 		panic("entry file is not set")
 	}
@@ -853,17 +815,7 @@ func resolveApp(app config.App) (entry string, env map[string]string) {
 		entry = app.Entry
 	} else if ext == ".ts" {
 		entry = app.Entry
-		outDir, outFile := resolveTsEntry(entry)
-
-		if outDir != "" && outFile != "" {
-			entry = outFile
-			env["IMPORT_ROOT"] = outDir
-		}
-	} else if util.Exists(app.Entry + ".js") {
-		entry = app.Entry + ".js"
-	} else if util.Exists(app.Entry + ".ts") {
-		entry = app.Entry + ".ts"
-		outDir, outFile := resolveTsEntry(entry)
+		outDir, outFile := ResolveTsEntry(entry, tsCfg)
 
 		if outDir != "" && outFile != "" {
 			entry = outFile
@@ -880,15 +832,13 @@ func resolveApp(app config.App) (entry string, env map[string]string) {
 	return entry, env
 }
 
-func resolveTsEntry(entry string) (outDir string, outFile string) {
-	tsConfig := goext.Ok(config.LoadTsConfig(entry))
-
-	if tsConfig.CompilerOptions.NoEmit {
+func ResolveTsEntry(entry string, tsCfg config.TsConfig) (outDir string, outFile string) {
+	if tsCfg.CompilerOptions.NoEmit {
 		return "", ""
 	}
 
-	if tsConfig.CompilerOptions.OutDir != "" {
-		outDir = filepath.Clean(tsConfig.CompilerOptions.OutDir)
+	if tsCfg.CompilerOptions.OutDir != "" {
+		outDir = filepath.Clean(tsCfg.CompilerOptions.OutDir)
 
 		if outDir != "" && outDir != "." {
 			_outDir := outDir + string(filepath.Separator)
@@ -905,20 +855,17 @@ func resolveTsEntry(entry string) (outDir string, outFile string) {
 	return outDir, outFile
 }
 
-func compilingTsFiles(tsConfFile string) error {
-	tsConf, err := config.LoadTsConfig(tsConfFile)
-
-	if err != nil {
-		return err
+func CompileTs(tsCfg config.TsConfig) error {
+	if tsCfg.CompilerOptions.NoEmit {
+		return nil
 	}
 
-	fmt.Println("compiling typescript files...")
 	cmd := exec.Command("tsc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err := cmd.Run()
 
-	if err != nil && tsConf.CompilerOptions.NoEmitOnError {
+	if err != nil && tsCfg.CompilerOptions.NoEmitOnError {
 		return err
 	}
 

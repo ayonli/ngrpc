@@ -71,6 +71,8 @@ export interface Config {
     /** @deprecated use `protoPaths` instead. */
     protoDirs?: string[];
     protoOptions?: ProtoOptions,
+    tsconfig?: string;
+    /** @deprecated use `App.entry` instead. */
     entry: string;
     apps: App[];
 }
@@ -727,6 +729,8 @@ export class RpcApp {
                 }
             }
 
+            const importRoot = process.env["IMPORT_ROOT"] || this.config.importRoot || "";
+
             // Remove cached files and their dependencies so, when reloading, they could be
             // reimported and use any changes inside them.
             const filenames = [...this.ctorsMap].map(([serviceName, { protoCtor }]) => {
@@ -737,7 +741,7 @@ export class RpcApp {
                 if (isTsNode) {
                     return path.join(process.cwd(), basename + ".ts");
                 } else {
-                    return path.join(process.cwd(), basename + ".js");
+                    return path.join(process.cwd(), importRoot, basename + ".js");
                 }
             });
             const dependencies = findDependencies(filenames);
@@ -750,9 +754,7 @@ export class RpcApp {
             this.instanceMap = new Map();
 
             // reload class files
-            await this.loadClassFiles(
-                this.config.apps,
-                process.env["IMPORT_ROOT"] || this.config.importRoot);
+            await this.loadClassFiles(this.config.apps, importRoot);
         }
 
         if (app && app.serve && app.services?.length) {
@@ -803,15 +805,18 @@ export class RpcApp {
      * @param fn The function to be run.
      */
     static async runSnippet(fn: () => void | Promise<void>) {
+        let app: RpcApp | undefined;
+
         try {
-            const app = new RpcApp();
+            app = new RpcApp();
             const config = await this.loadConfig();
 
             await app._start(null, config);
             await fn();
-            await app.stop();
+            app.stop();
         } catch (err) {
-            console.error(err);
+            app?.stop();
+            throw err;
         }
     }
 }

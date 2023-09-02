@@ -21,15 +21,19 @@ type TsConfig struct {
 }
 
 func LoadTsConfig(filename string) (TsConfig, error) {
-	var tsConfig TsConfig
+	var tsCfg TsConfig
 
-	fileContents, err := os.ReadFile("tsconfig.json")
-
-	if err != nil {
-		return tsConfig, err
+	if filename == "" {
+		filename = "tsconfig.json"
 	}
 
-	err = json.Unmarshal(jsonc.ToJSON(fileContents), &tsConfig)
+	fileContents, err := os.ReadFile(filename)
 
-	return tsConfig, err
+	if err != nil {
+		return tsCfg, err
+	}
+
+	err = json.Unmarshal(jsonc.ToJSON(fileContents), &tsCfg)
+
+	return tsCfg, err
 }

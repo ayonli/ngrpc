@@ -39,6 +39,8 @@ type App struct {
 
 // Config is used to store configurations of the apps.
 type Config struct {
+	Tsconfig string `json:"tsconfig"`
+	// Deprecated: use `App.Entry` instead.
 	Entry      string   `json:"entry"`
 	ProtoPaths []string `json:"protoPaths"`
 	Apps       []App    `json:"apps"`

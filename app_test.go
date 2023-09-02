@@ -490,9 +490,10 @@ func TestWaitForExit(t *testing.T) {
 }
 
 func TestSpawnApp(t *testing.T) {
-	config := goext.Ok(config.LoadConfig())
-	app := config.Apps[0]
-	pid := goext.Ok(host.SpawnApp(app))
+	cfg := goext.Ok(config.LoadConfig())
+	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
+	app := cfg.Apps[0]
+	pid := goext.Ok(host.SpawnApp(app, tsCfg))
 
 	assert.NotEqual(t, -1, pid)
 	assert.NotEqual(t, 0, pid)
@@ -507,10 +508,11 @@ func TestSpawnApp_builtEntry(t *testing.T) {
 
 	assert.True(t, util.Exists("entry/main"))
 
-	config := goext.Ok(config.LoadConfig())
-	app := config.Apps[0]
+	cfg := goext.Ok(config.LoadConfig())
+	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
+	app := cfg.Apps[0]
 	app.Entry = "entry/main"
-	pid := goext.Ok(host.SpawnApp(app))
+	pid := goext.Ok(host.SpawnApp(app, tsCfg))
 
 	assert.NotEqual(t, -1, pid)
 	assert.NotEqual(t, 0, pid)
@@ -522,11 +524,12 @@ func TestSpawnApp_builtEntry(t *testing.T) {
 }
 
 func TestSpawnApp_pipeStdout(t *testing.T) {
-	conf := goext.Ok(config.LoadConfig())
-	app := conf.Apps[0]
+	cfg := goext.Ok(config.LoadConfig())
+	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
+	app := cfg.Apps[0]
 	app.Stdout = ""
 	app.Stderr = ""
-	pid := goext.Ok(host.SpawnApp(app))
+	pid := goext.Ok(host.SpawnApp(app, tsCfg))
 
 	assert.NotEqual(t, -1, pid)
 	assert.NotEqual(t, 0, pid)
@@ -536,25 +539,27 @@ func TestSpawnApp_pipeStdout(t *testing.T) {
 }
 
 func TestSpawnApp_invalidEntry(t *testing.T) {
-	conf := goext.Ok(config.LoadConfig())
-	app := conf.Apps[0]
+	cfg := goext.Ok(config.LoadConfig())
+	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
+	app := cfg.Apps[0]
 	app.Entry = ""
 
-	pid, err := host.SpawnApp(app)
+	pid, err := host.SpawnApp(app, tsCfg)
 
 	assert.Equal(t, 0, pid)
 	assert.Equal(t, "entry file is not set", err.Error())
 }
 
 func TestSpawnApp_otherOptions(t *testing.T) {
-	conf := goext.Ok(config.LoadConfig())
-	app := structx.Merge(conf.Apps[0], config.App{
+	cfg := goext.Ok(config.LoadConfig())
+	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
+	app := structx.Merge(cfg.Apps[0], config.App{
 		Stderr: "err.log",
 		Env: map[string]string{
 			"FOO": "BAR",
 		},
 	})
-	pid := goext.Ok(host.SpawnApp(app))
+	pid := goext.Ok(host.SpawnApp(app, tsCfg))
 
 	assert.NotEqual(t, -1, pid)
 	assert.NotEqual(t, 0, pid)
