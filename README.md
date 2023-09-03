@@ -89,7 +89,7 @@ import ngrpc from "@ayonli/ngrpc";
 if (require.main?.filename === __filename) {
     const appName = process.argv[2];
 
-    ngrpc.boot(appName).then(app => {
+    ngrpc.start(appName).then(app => {
         process.send?.("ready"); // for PM2 compatibility
         app.waitForExit();
     }).catch(err => {
@@ -114,7 +114,7 @@ import (
 
 func main() {
     appName := os.Args[1]
-    app, err := ngrpc.Boot(appName)
+    app, err := ngrpc.Start(appName)
 
     if err != nil {
         log.Fatal(err)
@@ -185,7 +185,7 @@ func main() {
 In Node.js, services are automatically discoverd and imported when the program starts, in Golang, we
 import the `services` package and name it `_` for its side-effect which registers the services.
 
-Then we use the `ngrpc.boot()` / `ngrpc.Boot()` function to initiate the app by the given name, it
+Then we use the `ngrpc.start()` / `ngrpc.Start()` function to initiate the app by the given name, it
 initiates the server (if served) and client connections, prepares the services ready for use.
 
 Next we use the `app.waitForExit()` / `app.WaitForExit()` function to wait for the interrupt / exit
@@ -529,7 +529,7 @@ gRPC, either by reverse proxy like NGINX or using the `xds:` protocol for Envoy 
 
 ## Unnamed App
 
-It it possible to boot an app without providing the name, such an app will not start the server, but
+It it possible to start an app without providing the name, such an app will not start the server, but
 only connects to the services. This is useful when we're using gRPC services in a frontend server,
 for example, a web server, which only handles client requests and direct calls to the backend gRPC
 services, we need to establish connection between the web server and the RPC servers, but we don't
@@ -545,7 +545,7 @@ because all the differences between the gRPC client and the gRPC server are hidd
 import ngrpc from "@ayonli/ngrpc";
 
 (async () => {
-    const app = await ngrpc.boot();
+    const app = await ngrpc.start();
 })()
 ```
 
@@ -555,7 +555,7 @@ import ngrpc from "@ayonli/ngrpc";
 import "github.com/ayonli/ngrpc"
 
 func main() {
-    app, err := ngrpc.Boot("")
+    app, err := ngrpc.Start("")
 }
 ```
 
@@ -598,7 +598,7 @@ if (require.main?.filename === __filename) {
     (async () => {
         const appName = process.argv[2];
 
-        const app = await ngrpc.boot(appName);
+        const app = await ngrpc.start(appName);
         let httpServer: http.Server;
         let httpsServer: https.Server;
         

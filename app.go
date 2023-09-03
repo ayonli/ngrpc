@@ -66,48 +66,43 @@ func Use[T any](service ConnectableService[T]) {
 	serviceStore.Set(getServiceName(service), service)
 }
 
-// Boot initiates an app by the given name and loads the config file, it initiates the server
+// Start initiates an app by the given name and loads the config file, it initiates the server
 // (if served) and client connections, prepares the services ready for use.
 //
 // NOTE: There can only be one named app running in the same process.
-//
-// The booting process contains multiple internal processes, so even though this function may fail
-// and return an error, the app may have been partially initiated and will be returned alongside the
-// error, we should check if it's not nil and try to call the `Stop()` method to ensure any
-// redundant resource is released (or we could simply terminate the program).
-func Boot(name string) (*RpcApp, error) {
+func Start(appName string) (*RpcApp, error) {
 	conf, err := config.LoadConfig()
 
 	if err != nil {
 		return nil, err
 	} else {
-		return BootWithConfig(name, conf)
+		return StartWithConfig(appName, conf)
 	}
 }
 
-// BootWithConfig is like `Boot()` except it takes a config argument instead of loading the config
+// StartWithConfig is like `Start()` except it takes a config argument instead of loading the config
 // file.
-func BootWithConfig(name string, conf config.Config) (*RpcApp, error) {
+func StartWithConfig(appName string, cfg config.Config) (*RpcApp, error) {
 	app, err := goext.Try(func() *RpcApp {
-		var app *RpcApp
-
 		if theApp != nil {
 			panic(errors.New("an app is already running"))
 		}
 
-		if name != "" {
-			confApp, ok := slicex.Find(conf.Apps, func(item config.App, _ int) bool {
-				return item.Name == name
+		var app *RpcApp
+
+		if appName != "" {
+			cfgApp, ok := slicex.Find(cfg.Apps, func(item config.App, _ int) bool {
+				return item.Name == appName
 			})
 
 			if !ok {
-				panic(fmt.Errorf("app [%v] is not configured", name))
+				panic(fmt.Errorf("app [%v] is not configured", appName))
 			}
 
-			app = &RpcApp{App: confApp}
+			app = &RpcApp{App: cfgApp}
 
 			// Initiate the server if the app is set to serve.
-			if confApp.Serve && len(confApp.Services) > 0 {
+			if cfgApp.Serve && len(cfgApp.Services) > 0 {
 				goext.Ok(0, app.initServer())
 			}
 		} else {
@@ -115,7 +110,7 @@ func BootWithConfig(name string, conf config.Config) (*RpcApp, error) {
 		}
 
 		// Initiate client connections for all apps.
-		goext.Ok(0, app.initClient(conf.Apps))
+		goext.Ok(0, app.initClient(cfg.Apps))
 
 		theApp = app
 
@@ -155,7 +150,7 @@ func BootWithConfig(name string, conf config.Config) (*RpcApp, error) {
 //
 // See https://github.com/ayonli/ngrpc/blob/main/script/main.go for example.
 func ForSnippet() func() {
-	app := goext.Ok(Boot(""))
+	app := goext.Ok(Start(""))
 
 	return func() {
 		app.Stop()
@@ -167,6 +162,10 @@ func ForSnippet() func() {
 // `route` is used to route traffic by the client-side load balancer.
 func GetServiceClient[T any](service ConnectableService[T], route string) (T, error) {
 	return goext.Try(func() T {
+		if theApp == nil {
+			panic("no app is running")
+		}
+
 		serviceName := getServiceName(service)
 		lock, ok := theApp.locks.Get(serviceName)
 
@@ -444,12 +443,12 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 		self.server.Stop()
 	}
 
-	if theApp == self {
-		theApp = nil
-	}
-
 	if self.onStop != nil {
 		self.onStop()
+	}
+
+	if theApp == self {
+		theApp = nil
 	}
 
 	var msg string

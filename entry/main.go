@@ -10,7 +10,7 @@ import (
 
 func main() {
 	appName := os.Args[1]
-	app, err := ngrpc.Boot(appName)
+	app, err := ngrpc.Start(appName)
 
 	if err != nil {
 		log.Fatal(err)

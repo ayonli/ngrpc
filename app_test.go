@@ -352,7 +352,7 @@ func TestInitClientUnregisteredService(t *testing.T) {
 	assert.Equal(t, "service [ngrpc.UnregisteredService] hasn't been registered", err.Error())
 }
 
-func TestBootDuplicateCall(t *testing.T) {
+func TestStartDuplicateCall(t *testing.T) {
 	conf := config.Config{
 		Apps: []config.App{
 			{
@@ -375,8 +375,8 @@ func TestBootDuplicateCall(t *testing.T) {
 		},
 	}
 
-	app1, err1 := BootWithConfig("server-1", conf)
-	app2, err2 := BootWithConfig("server-2", conf)
+	app1, err1 := StartWithConfig("server-1", conf)
+	app2, err2 := StartWithConfig("server-2", conf)
 
 	defer app1.Stop()
 
@@ -386,7 +386,7 @@ func TestBootDuplicateCall(t *testing.T) {
 	assert.Equal(t, "an app is already running", err2.Error())
 }
 
-func TestBootInvalidApp(t *testing.T) {
+func TestStartInvalidApp(t *testing.T) {
 	conf := config.Config{
 		Apps: []config.App{
 			{
@@ -409,13 +409,13 @@ func TestBootInvalidApp(t *testing.T) {
 		},
 	}
 
-	app, err := BootWithConfig("server-3", conf)
+	app, err := StartWithConfig("server-3", conf)
 
 	assert.Nil(t, app)
 	assert.Equal(t, "app [server-3] is not configured", err.Error())
 }
 
-func TestBootCantInitServer(t *testing.T) {
+func TestStartCantInitServer(t *testing.T) {
 	conf := config.Config{
 		Apps: []config.App{
 			{
@@ -430,13 +430,13 @@ func TestBootCantInitServer(t *testing.T) {
 		},
 	}
 
-	app, err := BootWithConfig("server-1", conf)
+	app, err := StartWithConfig("server-1", conf)
 
 	assert.Nil(t, app)
 	assert.Equal(t, "parse \"grpc://localhost:abc\": invalid port \":abc\" after host", err.Error())
 }
 
-func TestBootPureClientApp(t *testing.T) {
+func TestStartPureClientApp(t *testing.T) {
 	conf := config.Config{
 		Apps: []config.App{
 			{
@@ -451,7 +451,7 @@ func TestBootPureClientApp(t *testing.T) {
 		},
 	}
 
-	app, err := BootWithConfig("", conf)
+	app, err := StartWithConfig("", conf)
 
 	assert.Nil(t, err)
 	assert.Equal(t, 2, app.serviceDialers.Size())
@@ -474,7 +474,7 @@ func TestWaitForExit(t *testing.T) {
 		},
 	}
 
-	app, _ := BootWithConfig("server-1", conf)
+	app, _ := StartWithConfig("server-1", conf)
 
 	go func() {
 		syscall.Kill(syscall.Getpid(), syscall.SIGINT)

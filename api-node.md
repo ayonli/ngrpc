@@ -6,12 +6,12 @@ This decorator function is used to link the service class to a gRPC service.
 
 - `name` The service name defined in the `.proto` file.
 
-**`ngrpc.boot(app?: string): Promise<RpcApp>`**
+**`ngrpc.start(appName?: string): Promise<RpcApp>`**
 
 Starts the app programmatically.
 
-- `app` The app's name that should be started as a server. If not provided, the app only connects
-    to other servers but not serves as one.
+- `appName` The app's name that should be started as a server. If not provided, the app only
+    connects to other servers but not serves as one.
 
 **Example**
 
@@ -20,14 +20,20 @@ import ngrpc from "@ayonli/ngrpc";
 
 (async () => {
     // This app starts a gRPC server named 'example-server' and connects to all services.
-    const serverApp = await ngrpc.boot("example-server");
+    const serverApp = await ngrpc.start("example-server");
 })();
 
 (async () => {
     // This app won't start a gRPC server, but connects to all services.
-    const clientApp = await ngrpc.boot();
+    const clientApp = await ngrpc.start();
 })();
 ```
+
+----
+
+**`ngrpc.startWithConfig(appName: string | null, config: Config): Promise<RpcApp>`**
+
+Like `start()` except it takes a config argument instead of loading the config file.
 
 ----
 
@@ -40,7 +46,7 @@ Stops the app programmatically.
 ```ts
 import ngrpc from "@ayonli/ngrpc";
 
-ngrpc.boot("example-server").then(app => {
+ngrpc.start("example-server").then(app => {
     process.on("exit", (code) => {
         // Stop the app when the program is issued to exit.
         app.stop().then(() => {
@@ -70,14 +76,6 @@ call the `stop()` method explicitly when the program is going to terminate.
 
 ----
 
-**`app.getServiceClient<T extends object>(serviceName: string, route?: string): ServiceClient<T>**
-
-Returns the service client by the given service name.
-
-- `route` is used to route traffic by the client-side load balancer.
-
-----
-
 **`app.onStop(callback: () => void): void`**
 
 Registers a callback to run after the app is stopped.
@@ -87,7 +85,7 @@ Registers a callback to run after the app is stopped.
 ```ts
 import ngrpc from "@ayonli/ngrpc";
 
-ngrpc.boot("example-server").then(app => {
+ngrpc.start("example-server").then(app => {
     app.onStop(() => {
         // Terminate the process when the app is stopped.
         process.exit(0);
@@ -106,7 +104,7 @@ Registers a callback to run after the app is reloaded.
 ```ts
 import ngrpc from "@ayonli/ngrpc";
 
-ngrpc.boot("example-server").then(app => {
+ngrpc.start("example-server").then(app => {
     app.onReload(() => {
         // Log the reload event.
         console.info("The app has been reloaded");
@@ -126,6 +124,14 @@ Loads the configurations.
 
 Loads the configurations and reorganize them so that the same configuration can be used in PM2's
 configuration file.
+
+----
+
+**`ngrpc.getServiceClient<T extends object>(serviceName: string, route?: string): ServiceClient<T>**
+
+Returns the service client by the given service name.
+
+- `route` is used to route traffic by the client-side load balancer.
 
 ----
 

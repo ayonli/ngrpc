@@ -18,7 +18,7 @@ import (
 )
 
 func Example() {
-	app, err := ngrpc.Boot("user-server")
+	app, err := ngrpc.Start("user-server")
 
 	if err != nil {
 		log.Fatal(err)
@@ -45,7 +45,7 @@ func Example() {
 }
 
 func TestGetServiceClient(t *testing.T) {
-	app, err := ngrpc.Boot("user-server")
+	app, err := ngrpc.Start("user-server")
 
 	if err != nil {
 		log.Fatal(err)

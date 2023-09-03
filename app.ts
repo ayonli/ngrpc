@@ -25,7 +25,7 @@ import {
     timed
 } from "./util";
 import { findDependencies } from "require-chain";
-import { createChainingProxy } from "./nsp";
+import { applyMagic } from "js-magic";
 import { Guest } from "./host/guest";
 
 export type { ServiceClient };
@@ -132,6 +132,8 @@ export class RpcApp {
 
     private _onReload: (() => void) | null = null;
     private _onStop: (() => void) | null = null;
+
+    private static theApp: RpcApp | null = null;
 
     static async loadConfig() {
         const defaultFile = absPath("ngrpc.json");
@@ -567,8 +569,12 @@ export class RpcApp {
      * Returns the service client by the given service name.
      * @param route is used to route traffic by the client-side load balancer.
      */
-    getServiceClient<T extends object>(serviceName: string, route: string = ""): ServiceClient<T> {
-        const remoteService = this.remoteServices.get(serviceName);
+    static getServiceClient<T extends object>(serviceName: string, route: string = ""): ServiceClient<T> {
+        if (!this.theApp) {
+            throw new Error("no app is running");
+        }
+
+        const remoteService = this.theApp.remoteServices.get(serviceName);
 
         if (!remoteService) {
             throw new Error(`service ${serviceName} is not registered`);
@@ -608,10 +614,32 @@ export class RpcApp {
         return client as ServiceClient<T>;
     }
 
-    protected async _start(name: string | null = "", config: Config) {
-        this.config = config;
+    /**
+     * Initiates an app by the given name and loads the config file, it initiates the server
+     * (if served) and client connections, prepares the services ready for use.
+     *
+     *  NOTE: There can only be one named app running in the same process.
+     * 
+     * @param appName The app's name that should be started as a server. If not provided, the app
+     *  only connects to other servers but not serves as one.
+     */
+    static async start(appName: string | null = "",) {
+        const config = await this.loadConfig();
+        return await this.startWithConfig(appName, config);
+    }
+
+    /**
+     * Like `start()` except it takes a config argument instead of loading the config file.
+     */
+    static async startWithConfig(appName: string | null = "", config: Config) {
+        if (this.theApp) {
+            throw new Error("an app is already running");
+        }
+
+        const app = new RpcApp();
+        app.config = config;
         let xdsApp: App | undefined;
-        let app: App | undefined;
+        let cfgApp: App | undefined;
 
         if (!xdsEnabled &&
             (xdsApp = config.apps?.find(item => !!item.serve && item.uri?.startsWith("xds:")))
@@ -628,50 +656,40 @@ export class RpcApp {
             }
         }
 
-        if (name) {
-            this.name = name;
-            app = (this.config as Config).apps.find(app => app.name === name);
+        if (appName) {
+            app.name = appName;
+            cfgApp = config.apps.find(item => item.name === appName);
 
-            if (!app) {
-                throw new Error(`app [${name}] is not configured`);
+            if (!cfgApp) {
+                throw new Error(`app [${appName}] is not configured`);
             }
         }
 
         // Set global namespace.
         const nsp = config.namespace || "services";
-        set(global, nsp, createChainingProxy(nsp, this));
+        set(global, nsp, createChainingProxy(nsp));
 
-        await this.loadProtoFiles(config.protoPaths, config.protoOptions);
-        await this.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);
+        await app.loadProtoFiles(config.protoPaths, config.protoOptions);
+        await app.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);
 
-        if (app?.serve && app?.services?.length) {
-            await this.initServer(app);
+        if (cfgApp?.serve && cfgApp?.services?.length) {
+            await app.initServer(cfgApp);
         }
 
-        await this.initClients();
-        this.guest = new Guest(app || ({ name: "", uri: "", }), {
+        await app.initClients();
+        this.theApp = app;
+
+        app.guest = new Guest(cfgApp || ({ name: "", uri: "", }), {
             onStopCommand: (msgId) => {
-                this._stop(msgId, true);
+                app._stop(msgId, true);
             },
             onReloadCommand: (msgId) => {
-                this._reload(msgId);
+                app._reload(msgId);
             },
         });
-        await this.guest.join();
-    }
+        await app.guest.join();
 
-    /**
-     * Initiates and starts an app.
-     * 
-     * @param name The app's name that should be started as a server. If not provided, the app only
-     *  connects to other servers but not serves as one.
-     */
-    static async boot(name: string | null = "",) {
-        const ins = new RpcApp();
-        const config = await this.loadConfig();
-
-        await ins._start(name, config);
-        return ins;
+        return app;
     }
 
     /** Stops the app programmatically. */
@@ -694,6 +712,7 @@ export class RpcApp {
 
         this.server?.forceShutdown();
         this._onStop?.();
+        RpcApp.theApp = null;
 
         let msg: string;
 
@@ -837,10 +856,9 @@ export class RpcApp {
         let app: RpcApp | undefined;
 
         try {
-            app = new RpcApp();
             const config = await this.loadConfig();
+            app = await this.startWithConfig(null, config);
 
-            await app._start(null, config);
             await fn();
             app.stop();
         } catch (err) {
@@ -852,3 +870,51 @@ export class RpcApp {
 
 const ngrpc = RpcApp;
 export default ngrpc;
+
+@applyMagic
+class ChainingProxy {
+    protected __target: string;
+    // protected __app: RpcApp;
+    protected __children: { [prop: string]: ChainingProxy; } = {};
+
+    constructor(target: string) {
+        this.__target = target;
+        // this.__app = app;
+    }
+
+    protected __get(prop: string | symbol) {
+        if (prop in this) {
+            return this[prop];
+        } else if (prop in this.__children) {
+            return this.__children[String(prop)];
+        } else if (typeof prop !== "symbol") {
+            return (this.__children[prop] = createChainingProxy(
+                (this.__target ? this.__target + "." : "") + String(prop)
+            ));
+        }
+    }
+
+    protected __has(prop: string | symbol) {
+        return (prop in this) || (prop in this.__children);
+    }
+}
+
+export function createChainingProxy(target: string) {
+    const chain: ChainingProxy = function (data: any = null) {
+        const index = target.lastIndexOf(".");
+        const serviceName = target.slice(0, index);
+        const method = target.slice(index + 1);
+        const ins = RpcApp.getServiceClient(serviceName, data);
+
+        if (typeof ins[method] === "function") {
+            return ins[method](data);
+        } else {
+            throw new TypeError(`${target} is not a function`);
+        }
+    } as any;
+
+    Object.setPrototypeOf(chain, ChainingProxy.prototype);
+    Object.assign(chain, { __target: target, __children: {} });
+
+    return applyMagic(chain as any, true);
+}

@@ -64,7 +64,7 @@ import (
 
 func main() {
 	appName := os.Args[1]
-	app, err := ngrpc.Boot(appName)
+	app, err := ngrpc.Start(appName)
 
 	if err != nil {
 		log.Fatal(err)
@@ -79,7 +79,7 @@ var entryTsTpl = `import ngrpc from "@ayonli/ngrpc";
 if (require.main?.filename === __filename) {
     const appName = process.argv[2];
 
-    ngrpc.boot(appName).then(app => {
+    ngrpc.start(appName).then(app => {
         process.send?.("ready"); // for PM2
         app.waitForExit();
     }).catch(err => {
