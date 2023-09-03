@@ -42,6 +42,11 @@ func ensureDeps() {
 }
 
 func protoc() {
+	if getGoModuleName() == "" {
+		fmt.Println("the current directory is not a go module")
+		return
+	}
+
 	_, err := exec.LookPath("protoc")
 
 	if err != nil {
@@ -75,19 +80,10 @@ func protoc() {
 		return
 	}
 
-	for root, filenames := range protoFileRecords {
+	for protoPath, filenames := range protoFileRecords {
 		for _, filename := range filenames {
 			fmt.Printf("generate code for '%s'\n", filename)
-			cmd := exec.Command("protoc",
-				"--proto_path="+root,
-				"--go_out=./"+filepath.Join(conf.ImportRoot, "services"),
-				"--go-grpc_out=./"+filepath.Join(conf.ImportRoot, "services"),
-				filename)
-
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			cmd.Run()
+			genGoCode(protoPath, conf.ImportRoot, filename)
 		}
 	}
 }
@@ -121,4 +117,17 @@ func scanProtoFilenames(dir string) []string {
 	}
 
 	return filenames
+}
+
+func genGoCode(protoPath string, importRoot string, filename string) {
+	cmd := exec.Command("protoc",
+		"--proto_path="+protoPath,
+		"--go_out=./"+filepath.Join(importRoot, "services"),
+		"--go-grpc_out=./"+filepath.Join(importRoot, "services"),
+		filename)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	cmd.Run()
 }

@@ -207,24 +207,14 @@ var initCmd = &cobra.Command{
 		servicesDir := "services"
 		scriptsDir := "scripts"
 
-		var modName string
+		var goModName = getGoModuleName()
 		var entryFile string
 		var serviceFile string
 		var scriptFile string
 		template := cmd.Flag("template").Value.String()
 
 		if template == "go" {
-			data, err := os.ReadFile("go.mod")
-
-			if err == nil {
-				match := stringx.Match(string(data), `module (\S+)`)
-
-				if match != nil {
-					modName = match[1]
-				}
-			}
-
-			if modName == "" {
+			if goModName == "" {
 				fmt.Println("'go.mod' file not found in the current directory")
 				return
 			} else {
@@ -279,7 +269,7 @@ var initCmd = &cobra.Command{
 				tpl = strings.Replace(
 					entryGoTpl,
 					"github.com/ayonli/ngrpc/services",
-					modName+"/services",
+					goModName+"/services",
 					-1)
 			} else if template == "node" {
 				tpl = entryTsTpl
@@ -326,7 +316,7 @@ var initCmd = &cobra.Command{
 				tpl = strings.Replace(
 					exampleServiceGoTpl,
 					"github.com/ayonli/ngrpc/services",
-					modName+"/services",
+					goModName+"/services",
 					-1)
 			} else if template == "node" {
 				tpl = exampleServiceTsTpl
@@ -345,7 +335,7 @@ var initCmd = &cobra.Command{
 				tpl = strings.Replace(
 					scriptGoTpl,
 					"github.com/ayonli/ngrpc/services",
-					modName+"/services",
+					goModName+"/services",
 					-1)
 			} else if template == "node" {
 				tpl = scriptTsTpl
@@ -402,4 +392,18 @@ var initCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().StringP("template", "t", "", `available values are "go" or "node"`)
+}
+
+func getGoModuleName() string {
+	data, err := os.ReadFile("go.mod")
+
+	if err == nil {
+		match := stringx.Match(string(data), `module (\S+)`)
+
+		if match != nil {
+			return match[1]
+		}
+	}
+
+	return ""
 }
