@@ -4,7 +4,7 @@ if (require.main?.filename === __filename) {
     const appName = process.argv[2];
 
     ngrpc.boot(appName).then(app => {
-        process.send?.("ready"); // for PM2
+        process.send?.("ready"); // for PM2 compatibility
         app.waitForExit();
     }).catch(err => {
         console.error(err);

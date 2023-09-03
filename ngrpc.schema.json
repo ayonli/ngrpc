@@ -141,11 +141,11 @@
                     },
                     "entry": {
                         "type": "string",
-                        "description": "The entry file that is used to spawn this app."
+                        "description": "The entry file used to spawn this app."
                     },
                     "env": {
                         "type": "object",
-                        "description": "The environment variables passed to the `entry` file."
+                        "description": "Additional environment variables passed to the `entry` file."
                     }
                 },
                 "required": [

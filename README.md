@@ -1,35 +1,43 @@
 # NgRPC
 
-Make it easy to create clear, expressive and elegant gRPC based applications in Node.js.
+Make it easy to create clear, expressive and elegant gRPC based microservices.
 
-*NOTE: this package uses [@ayonli/grpc-async](https://github.com/ayonli/grpc-async) to make life with*
-*gRPC easier.*
+This package is written in and for both Node.js and Golang.
 
-*NOTE: the NPM package only contains the minimal file base,*
-*[go to GitHub for this Doc](https://github.com/ayonli/ngrpc) and the related files.*
-*By combining these files, this project itself serves as an example of using NgRPC in real world.*
+*Windows OS is not yet supported but on the way to go.*
 
 ## Install
+
+**In Node.js**
 
 ```sh
 npm i @ayonli/ngrpc
 ```
 
-## First Impression
+**In Golang**
 
-Take a look at the following config file ([ngrpc.json](./ngrpc.json)):
+```sh
+go get github.com/ayonli/ngrpc
+```
+
+### Install the CLI tool
+
+The CLI tool is written in Golang, so we have to install it via `go install` command:
+
+```sh
+go build github.com/ayonli/ngrpc/cli/ngrpc
+```
+
+## A Simple Example
+
+First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
 
 ```json
 {
-    "$schema": "./node_modules/@ayonli/ngrpc/ngrpc.schema.json",
+    "$schema": "./ngrpc.schema.json",
     "protoPaths": [
-        "./proto"
+        "proto"
     ],
-    "protoOptions": {
-        "longs": "String",
-        "defaults": true,
-        "oneofs": true
-    },
     "apps": [
         {
             "name": "example-server",
@@ -38,18 +46,21 @@ Take a look at the following config file ([ngrpc.json](./ngrpc.json)):
             "services": [
                 "services.ExampleService"
             ],
-            "stdout": "./out.log"
+            "entry": "entry/main.ts", // alternatively we can use `entry/main.go` instead.
+            "stdout": "out.log"
         },
         {
             "name": "user-server",
             "uri": "grpcs://localhost:4001",
-            "serve": false,
+            "serve": true,
             "services": [
                 "services.UserService"
             ],
-            "ca": "./certs/ca.pem",
-            "cert": "./certs/cert.pem",
-            "key": "./certs/cert.key"
+            "entry": "entry/main.go",
+            "stdout": "out.log",
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
         },
         {
             "name": "post-server",
@@ -58,99 +69,171 @@ Take a look at the following config file ([ngrpc.json](./ngrpc.json)):
             "services": [
                 "services.PostService"
             ],
-            "stdout": "./out.log",
-            "ca": "./certs/ca.pem",
-            "cert": "./certs/cert.pem",
-            "key": "./certs/cert.key"
+            "entry": "entry/main.ts",
+            "stdout": "out.log",
+            "ca": "certs/ca.pem",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key"
         }
     ]
 }
 ```
 
-Now, start the apps like this:
+We have two different entry files here, let's dig in each of them.
 
-```sh
-npx tsc && npx ngrpc start
+[main.ts](./entry/main.ts)
+
+```ts
+import ngrpc from "@ayonli/ngrpc";
+
+if (require.main?.filename === __filename) {
+    const appName = process.argv[2];
+
+    ngrpc.boot(appName).then(app => {
+        process.send?.("ready"); // for PM2 compatibility
+        app.waitForExit();
+    }).catch(err => {
+        console.error(err);
+        process.exit(1);
+    });
+}
 ```
 
-It's just that simple.
+[main.go](./entry/main.go)
+
+```go
+package main
+
+import (
+	"log"
+	"os"
+
+	"github.com/ayonli/ngrpc"
+	_ "github.com/ayonli/ngrpc/services"
+)
+
+func main() {
+	appName := os.Args[1]
+	app, err := ngrpc.Boot(appName)
+
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		app.WaitForExit()
+	}
+}
+```
 
 ### Explanation
 
-- `namespace` This is the root namespace of the services, and the directory that stores the service
-    class (`.ts`) files. Normally, this option is omitted and use `services` by default.
-- `entry` The entry file that is used to spawn apps.
-    Normally, this property is not required because the CLI command will use the default entry
-    file for us.
-
-    If a custom entry file is provided, it's spawned with the arguments `appName`, we can use
-    `process.argv[2]` to get the app's name. Please take a look at the example [main.ts](./main.ts).
-- `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
-    given, we need to set this property the same value as the `outDir` compiler option in the
-    `tsconfig.json` file.
 - `protoPaths` The directories that stores the `.proto` files. Normally, `.proto` files are stored
-    in the `proto` folder.'
+    in the `proto` folder.
 
     TIP: don't forget add `--proto_path=${workspaceRoot}/proto` to the `protoc.options` in VSCode's
     settings in order for the **vscode-proto3** plugin to work properly.
-- `protoOptions` These options are used when loading the `.proto` files. Check
-    [ngrpc.schema.json](./ngrpc.schema.json) for more details.
 - `apps` This property configures the apps that this project serves and connects.
     - `name` The name of the app.
     - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:`
-        or `xds:` (make sure package [@grpc/grpc-js-xds](https://www.npmjs.com/package/@grpc/grpc-js-xds)
-        is installed).
+        or `xds:` (in Node.js, make sure package
+        [@grpc/grpc-js-xds](https://www.npmjs.com/package/@grpc/grpc-js-xds) is installed).
     - `serve` If this app is served by the NgRPC app server. If this property is `false`, that
-        means the underlying services are served by another program. As we can see from the above
-        example, the `user-server` sets this property to `false`, because it's served in a
-        [`Golang` program](./main.go) (with [GoRPC](https://github.com/ayonli/gorpc)). If we take a
-        look at the [services.UserService](./services/UserService.ts), we will just see a very
-        simple TypeScript file that contains an abstract class.
-    - `services` The services served by this app. if we take a look at the
-        [services.ExampleService](./services/ExampleService.ts) and the
-        [services.PostService](./services/PostService.ts), we will see that they're very simple
-        TypeScript class files.
+        means the app is served by other programs and we just connect to it.
+    - `services` The services served by this app.
+    - `entry` The entry file used to spawn apps.
+        During development, the entry filename shall be suffixed either by `.ts` or `.go`, when
+        running the program, NgRPC automatically compiles the file when needed.
+
+        In production, the entry filename shall the compiled file's name, which is suffixed by `.js`
+        or has no suffix at all (for Golang).
+
+        The program is spawned with the argument `appName`, in Node.js, we use `process.argv[2]` to
+        retrieve it, and in Golang, we use `os.Args[1]`.
     - `stdout` Log file used for stdout.
-
-    **More Options**
-
+    
+    **More Options for `apps`**
+    
     - `ca` The CA filename when using TLS/SSL.
     - `cert` The certificate filename when using TLS/SSL.
     - `key` The private key filename when using TLS/SSL.
-        
+      
         NOTE: We only need a pair of certificates for both the server and the client, since they are
         inside one project, using different certificates makes no sense.
-    - `connectTimeout` Connection timeout in milliseconds, the default value is `5_000` ms.
-    - `options` Channel options, see https://www.npmjs.com/package/@grpc/grpc-js for more details.
     - `stderr` Log file used for stderr. If omitted and `stdout` is set, the program uses `stdout`
         for `stderr` as well.
-    - `entry` The entry file that is used to spawn this app. This option overwrites the one set in
-        the head.
-    - `env` The environment variables passed to the `entry` file.
+    - `env` Additional environment variables passed to the `entry` file.
+
+**More Top Options**
+
+- `namespace` This is the root namespace of the services in Node.js, and the directory that
+    stores the service class (`.ts`) files. Normally, this option is omitted and use `services` by
+    default.
+- `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
+    given, there are two rules for setting this option:
+    
+    - During development, if we use a source directory, say `src` (respectfully, set
+        `compilerOptions.rootDir` to `src` in `tsconfig.json`), then this option should be set to
+        `src` as well.
+    - In production, if we compile our program to a build directory, say `dist` (respectfully, set
+        `compilerOptions.outDir` to `dist` in `tsconfig.json`), then this option should be set to
+        `dist` as well.
+    
+    This options is also used for generating Golang code from the `.proto` files. If we set a `src`
+    directory, the code will be generated into this directory as well.
+- `protoOptions` These options are used when loading the `.proto` files in Node.js. Check
+    [ngrpc.schema.json](./ngrpc.schema.json) for more details.
+
+In Node.js, services are automatically discoverd and imported when the program starts, in Golang, we
+import the `services` package and name it `_` for its side-effect which registers the services.
+
+Then we use the `ngrpc.boot()` / `ngrpc.Boot()` function to initiate the app by the given name, it
+initiates the server (if served) and client connections, prepares the services ready for use.
+
+Next we use the `app.waitForExit()` / `app.WaitForExit()` function to wait for the interrupt / exit
+signal from the system for a graceful shutdown. In Golang, this function also keeps the program
+running and prevent premature exit.
 
 With these simple configurations, we can write our gRPC application straightforwardly in `.proto`
-files and a `.ts` files, without any headache of when and where to start the server or connect to
-the services, all is properly handled internally by the NgRPC framework.
+files and `.ts` or `.go` files, without any headache of when and how to start the server or
+connect to the services, all is properly handled behind the scene.
 
 ## CLI Commands
 
-- `ngrpc init` initiate a new gRPC project
+- `ngrpc init [flags]` initiate a new NgRPC project
+    - `-t --template <string>` available values are "go" or "node"
 
+    TIP: we can run this command twice with different template for the setup for both languages.
 - `ngrpc start [app]` start an app or all apps (exclude non-served ones)
     - `app` the app name in the config file
 
 - `ngrpc restart [app]` restart an app or all apps (exclude non-served ones)
     - `app` the app name in the config file
 
-- `ngrpc reload [app]` reload an app or all apps
+- `ngrpc reload [app]` hot-reload an app or all apps
     - `app` the app name in the config file
 
+    NOTE: only Node.js supports hot-reloading, Golang programs just reply that them don't support
+    such a feature.
 - `ngrpc stop [app]` stop an app or all apps
     - `app` the app name in the config file
 
-- `ngrpc list` list all apps (exclude non-served ones)
+- `ngrpc list` or `ngrpc ls` list all apps (exclude non-served ones)
 
-### Hot-Reloading
+- `ngrpc run <script>` runs a script file that attaches to the services, can be either Golang or
+    Node.js (`.ts`) programs.
+
+- `ngrpc protoc` generate golang program files from the proto files.
+
+    NOTE: this command is not used if our project only contains Node.js programs.
+
+- `ngrpc host [flags]` start the host server standalone
+    - `--stop` stop the host server
+
+    NOTE: when `start` command is issued, the host server will be automatically started. The `host`
+    command is used when our program isn't started by the `start` command and we need the
+    functionalities that **ngrpc** provides. For examples, we start our program via **PM2** and we
+    still need the `reload` command to function once we deployed new updates.
+
+### Hot-Reloading (only Node.js)
 
 After we've modified our source code (or recompiled), the `.proto` files, or the config file, we can
 use the `reload` command to hot-reload our apps without restarting the process.
@@ -175,15 +258,16 @@ inconsistency between the two files and causing program failure. So this package
 
 ### About Process Management
 
-A server app may be automatically respawned if it is crashed, but this behavior requires at least
-one app is still running. If our project only have one app, this feature will not function. 
+This package uses a host-guest model for process management. When using the `start` command to start
+the app, the CLI tool also starts a host server to hold communication between apps, the host is
+responsible to accept commands sent by the CLI tool and distribute them to the app.
 
-On the other hand, the CLI tool only works for the app instance, if the process contain other
-objects that prevent the process to exit, the `stop` command won't be able to terminate the process.
+When an app crashes, the host server is also responsible for re-spawning it, this feature guarantees
+that our app is always online.
 
-It's recommended to use external process management tool such as **PM2** in production, which gives
-us more control of our program and provides more features such as monitoring. And while using PM2
-(or others), we can still use the `reload` command to hot-reload our app after deployed new updates.
+It's necessary to point out, though, that the CLI tool only works for the app instance, if the
+process contains other logics that prevent the process to exit, the `stop` command will not be able
+to terminate the process.
 
 ## Implement a Service
 
@@ -191,6 +275,8 @@ To allow NgRPC to handle the serving and connecting process of our services, we 
 implement our service in a well-designed fashion.
 
 For example, a typical service should be designed like this:
+
+**In Node.js**
 
 ```ts
 import { ServiceClient, service } from "@ayonli/ngrpc";
@@ -225,10 +311,70 @@ export default abstract class UserService {
 }
 ```
 
+**In Golang**
+
+```go
+// A service to be served need to embed the UnimplementedServiceServer.
+type ExampleService struct {
+    proto.UnimplementedExampleServiceServer
+}
+```
+
+For NgRPC, a client-side service representation struct is needed as well:
+
+```go
+// A pure client service is an empty struct, which is only used for referencing to the service.
+type ExampleService {}
+```
+
+### func init
+
+In each service file, we need to define a `init` function to use the service:
+
+```go
+func init() {
+    ngrpc.Use(&ExampleService{})
+}
+```
+
+### func Serve
+
+For a service in order to be served, a `Serve()` method is required in the service struct:
+
+```go
+func (self *ExampleService) Serve(s grpc.ServiceRegistrar) {
+    proto.RegisterExampleServiceServer(s, self)
+
+    // other initiations, like establishing database connections
+}
+```
+
+### func Connect
+
+All services (server-side and client-side) must implement the `Connect()` method in order to be
+connected:
+
+```go
+func (self *Service) Connect(cc grpc.ClientConnInterface) proto.ExampleServiceClient {
+    return proto.NewExampleServiceClient(cc)
+}
+```
+
+### func GetClient
+
+The service may implement a `GetClient()` which can be used to reference the service client
+in a more expressive way:
+
+```go
+func (self *ExampleService) GetClient(route string) (proto.ExampleServiceClient, error) {
+    return ngrpc.GetServiceClient(self, route)
+}
+```
+
 ## Lifecycle Support
 
 The service class served by NgRPC application supports lifecycle functions, to use this feature,
-simply implement the `LifecycleSupportInterface` for the service class, for example:
+in Node.js, simply implement the `LifecycleSupportInterface` for the service class, for example:
 
 ```ts
 import { LifecycleSupportInterface, service } from "@ayonli/ngrpc";
@@ -249,33 +395,105 @@ export default class ExampleService implements LifecycleSupportInterface {
 }
 ```
 
+In Golang, we use the `Serve()` method for additional setup, and the `Stop()` method for teardown.
+
+```go
+func (self *ExampleService) Stop() {
+    // release database connections, etc.
+}
+```
+
+## Dependency Injection
+
+**In Node.js**
+
+Just add a private property in the class that points to another service, like this:
+
+```ts
+@service("github.ayonli.ngrpc.services.PostService")
+export default class PostService {
+    private userSrv = services.UserService;
+    // other private properties...
+
+    async getPost(query: PostQuery): Promise<Post> {
+        const post = this.postStore?.find(item => item.id === query.id);
+
+        if (post) {
+            // ---- highlight ----
+            const author = await this.userSrv.getUser({ id: post.author, });
+            // ---- highlight ----
+
+            return { ...post, author };
+        } else {
+            throw new Error(`Post ${query.id} not found`);
+        }
+    }
+}
+```
+
+**In Golang**
+
+Just add an exported field that points to another service, like this:
+```go
+type UserService struct {
+    proto.UnimplementedUserServiceServer
+    PostSrv   *PostService // set as exported field for dependency injection
+    // other non-exported fields...
+}
+
+func (self *UserService) GetMyPosts(ctx context.Context, query *proto.UserQuery) (*proto.PostQueryResult, error) {
+    return goext.Try(func() *services_proto.PostQueryResult {
+        user := goext.Ok(self.GetUser(ctx, query))
+
+        // ---- highlight ----
+        ins := goext.Ok(self.PostSrv.GetClient(user.Id))
+        // ---- highlight ----
+
+        res := goext.Ok(ins.SearchPosts(ctx, &services_proto.PostsQuery{Author: &user.Id}))
+
+        return (*services_proto.PostQueryResult)(res)
+    })
+}
+```
+
 ## Load Balancing and Routing
 
 If a service is served in multiple apps, NgRPC uses a client-side load balancer to connect to it,
-the load balancer is configured with a custom routing resolver which allows us redirect traffic
-according to the message we sent when calling RPC functions.
+the load balancer is configured with a custom routing resolver which automatically redirect traffic
+for us.
+
+There are three algorithms are used based on the `route`:
+
+1. When `route` is not empty:
+    - If it matches one of the name or URI of the apps, the traffic is routed to that app directly.
+    - Otherwise the program hashes the route string against the apps and match one by the mod value
+        of `hash % active_nodes`.
+2. When `route` is empty, the program uses *round-robin* algorithm against the active nodes.
+
+**In Node.js**
 
 To use this feature, define the request message that extends / augments the interface
 `RoutableMessageStruct`, it contains a `route` key that can be used in the internal client load
 balancer. When the client sending a request which implements this interface, the program will
-automatically route the traffic to a certain server evaluated by the `route` key, which can be set
-in the following forms:
+automatically route the traffic to a certain server evaluated by the `route` key.
 
-- a URI that matches the ones that set in the config file;
-- an app's name that matches the ones that set in the config file;
-- if none of the above matches, use the hash algorithm on the `route` value;
-- if `route` value is not set, then the default round-robin algorithm is used for routing.
+**In Golang**
+
+To use this feature, we need to provide the `route` argument when calling the
+`ngrpc.GetServiceClient()` function or the `GetClient()` of the service struct.
 
 For Example:
 
-```proto
-// the .proto file
+**The `.proto` File**
 
+```proto
 message RequestMessage = {
     string route = 1;
     // other fields
 };
 ```
+
+**In Node.js**
 
 ```ts
 // the .ts file
@@ -283,6 +501,18 @@ import { RoutableMessageStruct } from "@ayonli/ngrpc";
 
 export interface RequestMessage extends RoutableMessageStruct {
     // other fields
+}
+```
+
+**In Golang**
+
+```go
+func main() {
+    msg := &RequestMessage{
+        Route: "route key"
+        // other fields
+    }
+    ins := ngrpc.GetServiceClient(&services.SomeService{}, msg.Route)
 }
 ```
 
@@ -297,9 +527,11 @@ for example, a web server, which only handles client requests and direct calls t
 services, we need to establish connection between the web server and the RPC servers, but we don't
 won't to serve any service in the web server.
 
-The following app do not serve, but connects to all the services according to the configuration file.
-We can do all the stuffs provided by GoRPC in the web server as we would in the RPC server,
+The following apps do not serve, but connect to all the services according to the configuration file.
+We can do all the stuffs provided by NgRPC in the web server as we would in the RPC server,
 because all the differences between the gRPC client and the gRPC server are hidden behind the scene.
+
+**In Node.js**
 
 ```ts
 import ngrpc from "@ayonli/ngrpc";
@@ -309,12 +541,22 @@ import ngrpc from "@ayonli/ngrpc";
 })()
 ```
 
+**In Golang**
+
+```go
+import "github.com/ayonli/ngrpc"
+
+func main() {
+    app, err := ngrpc.Boot("")
+}
+```
+
 ## 0-Services App
 
 Apart from the unnamed app, an app can be configured with `serve: true` but no services, such an app
 does not actually start the gRPC server neither consume the port. But such an app can be used, say,
 to start a web server, which connects to the gRPC services and uses the facility this package
-provides, such as the CLI tool and the reloading hook.
+provides, such as the CLI tool and the hot-reloading model.
 
 For example:
 
@@ -322,18 +564,20 @@ For example:
 // ngrpc.json
 {
     // ...
-    "entry": "main", // need a custom entry file
     "apps": [
         {
             "name": "web-server",
             "uri": "http://localhost:4000",
             "serve": true,
             "services": [] // leave this blank
+            // ...
         },
         // ...
     ]
 }
 ```
+
+**In Node.js**
 
 ```ts
 // main.ts
@@ -387,16 +631,67 @@ if (require.main?.filename === __filename) {
 }
 ```
 
+**In Golang**
+
+It's similar to the Node.js version, except it uses Golang's `net/http` package and it's own way.
+
+## Running Scripts
+
+Sometimes it's just useful that we can write a simple script program that connects to the services
+and call their methods, for whatever the reason is, NgRPC makes this very easy for us.
+
+**In Node.js**
+
+```ts
+/// <reference path="./services/ExampleService.ts" />
+import ngrpc from "@ayonli/ngrpc";
+
+ngrpc.runSnippet(async () => {
+	const result = await services.ExampleService.sayHello({ name: "World" });
+	console.log(result.message);
+});
+```
+
+
+**In Golang**
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ayonli/goext"
+	"github.com/ayonli/ngrpc"
+	"github.com/ayonli/ngrpc-test/services"
+	"github.com/ayonli/ngrpc-test/services/proto"
+)
+
+func main() {
+	done := ngrpc.ForSnippet()
+	defer done()
+
+	ctx := context.Background()
+	exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
+
+	result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
+	fmt.Println(result.Message)
+}
+```
+
 ## Good Practices
 
 In order to code a clear, expressive and elegant gRPC based application, apart from the features
 that NgRPC provides, we can order our project by performing the following steps.
 
-1. Create a `proto` folder to store all the `.proto` files in one place.
+1. Uses the `proto` folder to store all the `.proto` files in one place (by default).
 
-2. Create a `services` folder for all the service files, the namespace of those files should be
-    the same as the folder's name (which is also `services`). Sub-folders and sub-namespaces are
-    also supported.
+2. Uses the `services` folder for all the service files, the namespace / package of those files
+    should be the same as the folder's name (which is also `services`).
+    
+    NOTE: although sub-folders and sub-namespaces / sub-packages are supported, it's a little tricky
+    in Golang, try to prevent this as we can.
 
 3. Design the `.proto` files with a reasonable scoped package name, don't just name it `services`, 
     instead, name it something like `[org].[repo].services`, the `.proto` files should be
@@ -404,150 +699,15 @@ that NgRPC provides, we can order our project by performing the following steps.
     useful information about the services. Respectively, the directory path should reflect the
     package name. See the [proto](./proto) files of this project as examples.
 
-4. Use the same file structures and symbol names (as possible as we can) in the class files to
-    reflect the ones in the `.proto` files, create a consistent development experience.
+4. **In Node.js**, use the same file structures and symbol names (as possible as we can) in the
+    class files to reflect the ones in the `.proto` files, create a consistent development experience.
+
+    **In Golang**, Always implement the `GetClient()` method in the service and use a field in the
+    service struct to reference to each other.
+
 
 ## Programmatic API
 
-**service(name: string): ClassDecorator**
+For Node.js, see [api-node.md](./api-node.md).
 
-This decorator function is used to link the service class to a gRPC service.
-
-- `name` The service name defined in the `.proto` file.
-
-**`ngrpc.boot(app?: string): Promise<RpcApp>`**
-
-Starts the app programmatically.
-
-- `app` The app's name that should be started as a server. If not provided, the app only connects
-    to other servers but not serves as one.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-(async () => {
-    // This app starts a gRPC server named 'example-server' and connects to all services.
-    const serverApp = await ngrpc.boot("example-server");
-})();
-
-(async () => {
-    // This app won't start a gRPC server, but connects to all services.
-    const clientApp = await ngrpc.boot();
-})();
-```
-
-----
-
-**`app.stop(): Promise<void>`**
-
-Stops the app programmatically.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.boot("example-server").then(app => {
-    process.on("exit", (code) => {
-        // Stop the app when the program is issued to exit.
-        app.stop().then(() => {
-            process.exit(code);
-        });
-    });
-});
-```
-
-----
-
-**`app.reload(): Promise<void>`**
-
-Reloads the app programmatically.
-
-This function is rarely used explicitly, prefer to use the CLI `reload` command or
-`ngrpc.sendCommand("reload")` instead.
-
-----
-
-**`app.onReload(callback: () => void): void`**
-
-Registers a callback to run after the app is reloaded.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.boot("example-server").then(app => {
-    app.onReload(() => {
-        // Log the reload event.
-        console.info("The app has been reloaded");
-    });
-});
-```
-
-----
-
-**`app.onStop(callback: () => void): void`**
-
-Registers a callback to run after the app is stopped.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.boot("example-server").then(app => {
-    app.onStop(() => {
-        // Terminate the process when the app is stopped.
-        process.exit(0);
-    });
-});
-```
-
-----
-
-**`ngrpc.loadConfig(): Promise<Config>`**
-
-Loads the configurations.
-
-----
-
-**`ngrpc.loadConfigForPM2(): Promise<{ apps: any[] }>`**
-
-Loads the configurations and reorganize them so that the same configuration can be used in PM2's
-configuration file.
-
-----
-
-**`ngrpc.sendCommand(cmd: "reload" | "stop" | "list", app?: string): Promise<void>`**
-
-Sends control command to the apps. This function is mainly used in the CLI tool.
-
-- `cmd`
-- `app` The app's name that should received the command. If not provided, the
-    command is sent to all apps.
-
-----
-
-**`ngrpc.runSnippet(fn: () => void | Promise<void>): Promise<void>`**
-
-Runs a snippet inside the apps context.
-
-This function is for temporary scripting usage, it starts a temporary pure-clients app so we can use
-the services as we normally do in our program, and after the main `fn` function is run, the app is
-automatically stopped.
-
-- `fn` The function to be run.
-
-**Example**
-
-```ts
-import ngrpc from "@ayonli/ngrpc";
-
-ngrpc.runSnippet(async () => {
-    const post = await services.PostService.getPost({ id: 1 });
-    console.log(post);
-});
-```
+For Golang, see [the package detail](https://pkg.go.dev/github.com/ayonli/ngrpc).
