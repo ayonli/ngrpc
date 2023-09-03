@@ -13,7 +13,7 @@ import (
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run [filename]",
+	Use:   "run <filename> [args...]",
 	Short: "run a script program",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
@@ -37,6 +37,10 @@ var runCmd = &cobra.Command{
 			env["IMPORT_ROOT"] = outDir
 		} else if ext == ".js" {
 			script = exec.Command("node", filename)
+		}
+
+		if len(args) > 1 {
+			script.Args = append(script.Args, args[1:]...)
 		}
 
 		script.Stdin = os.Stdin
