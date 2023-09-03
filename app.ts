@@ -493,10 +493,6 @@ export class RpcApp {
         });
         this.remoteServices = new Map();
 
-        // Set global namespace.
-        const nsp = conf.namespace || "services";
-        set(global, nsp, createChainingProxy(nsp, this));
-
         // Reorganize client-side configuration based on the service name since the gRPC clients are
         // created based on the service.
         const serviceApps = conf.apps.reduce((registry, app) => {
@@ -567,7 +563,11 @@ export class RpcApp {
         }
     }
 
-    getServiceClient(serviceName: string, route: string = ""): ServiceClient<object> {
+    /**
+     * Returns the service client by the given service name.
+     * @param route is used to route traffic by the client-side load balancer.
+     */
+    getServiceClient<T extends object>(serviceName: string, route: string = ""): ServiceClient<T> {
         const remoteService = this.remoteServices.get(serviceName);
 
         if (!remoteService) {
@@ -605,7 +605,7 @@ export class RpcApp {
             client = instances[idx].client;
         }
 
-        return client;
+        return client as ServiceClient<T>;
     }
 
     protected async _start(name: string | null = "", config: Config) {
@@ -636,6 +636,10 @@ export class RpcApp {
                 throw new Error(`app [${name}] is not configured`);
             }
         }
+
+        // Set global namespace.
+        const nsp = config.namespace || "services";
+        set(global, nsp, createChainingProxy(nsp, this));
 
         await this.loadProtoFiles(config.protoPaths, config.protoOptions);
         await this.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);

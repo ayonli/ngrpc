@@ -164,7 +164,7 @@ func ForSnippet() func() {
 
 // GetServiceClient returns the service client (`T`).
 //
-// `route` is used to route traffic bye the client-side load balancer.
+// `route` is used to route traffic by the client-side load balancer.
 func GetServiceClient[T any](service ConnectableService[T], route string) (T, error) {
 	return goext.Try(func() T {
 		serviceName := getServiceName(service)
