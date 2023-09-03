@@ -1,7 +1,7 @@
 {
   "name": "@ayonli/ngrpc",
   "version": "0.2.0",
-  "description": "Make it easy to create, clear, expressive and elegant gRPC based applications.",
+  "description": "Make it easy to create clear, expressive and elegant gRPC based microservices.",
   "main": "dist/index.js",
   "types": "index.ts",
   "scripts": {

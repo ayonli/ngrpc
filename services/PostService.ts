@@ -26,6 +26,7 @@ export type PostSearchResult = {
 
 @service("github.ayonli.ngrpc.services.PostService")
 export default class PostService implements LifecycleSupportInterface {
+    private userSrv = services.UserService;
     private postStore: (Omit<Post, "author"> & { author: string; })[] | null = null;
 
     async init(): Promise<void> {
@@ -55,13 +56,8 @@ export default class PostService implements LifecycleSupportInterface {
         const post = this.postStore?.find(item => item.id === query.id);
 
         if (post) {
-            const [err, author] = await _try(() => services.UserService.getUser({ id: post.author, }));
-
-            if (!err && author) {
-                return { ...post, author };
-            } else {
-                return { ...post, author: null };
-            }
+            const author = await this.userSrv.getUser({ id: post.author, });
+            return { ...post, author };
         } else {
             throw new Error(`Post ${query.id} not found`);
         }
@@ -72,13 +68,8 @@ export default class PostService implements LifecycleSupportInterface {
             const _posts = this.postStore?.filter(item => item.author === query.author);
 
             if (_posts?.length) {
-                const [err, author] = await _try(services.UserService.getUser({ id: query.author, }));
-
-                if (!err && author) {
-                    return { posts: _posts.map(post => ({ ...post, author })) };
-                } else {
-                    return { posts: _posts.map(post => ({ ...post, author: null })) };
-                }
+                const author = await this.userSrv.getUser({ id: query.author });
+                return { posts: _posts.map(post => ({ ...post, author })) };
             } else {
                 return { posts: [] };
             }
@@ -89,13 +80,8 @@ export default class PostService implements LifecycleSupportInterface {
             });
 
             if (_posts?.length) {
-                const [err, author] = await _try(services.UserService.getUser({ id: query.author }));
-
-                if (!err && author) {
-                    return { posts: _posts.map(post => ({ ...post, author })) };
-                } else {
-                    return { posts: _posts.map(post => ({ ...post, author: null })) };
-                }
+                const author = await this.userSrv.getUser({ id: query.author });
+                return { posts: _posts.map(post => ({ ...post, author })) };
             } else {
                 return { posts: [] };
             }

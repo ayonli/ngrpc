@@ -38,10 +38,6 @@ var confTpl = `{
 	"protoPaths": [
         "proto"
     ],
-    "protoOptions": {
-        "longs": "String",
-        "defaults": true
-    },
     "apps": [
         {
             "name": "example-server",
@@ -206,7 +202,7 @@ ngrpc.runSnippet(async () => {
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "initiate a new ngrpc project",
+	Short: "initiate a new NgRPC project",
 	Run: func(cmd *cobra.Command, args []string) {
 		tsConfFile := "tsconfig.json"
 		confFile := "ngrpc.json"

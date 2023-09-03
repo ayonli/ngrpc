@@ -3,10 +3,6 @@
     "protoPaths": [
         "proto"
     ],
-    "protoOptions": {
-        "longs": "String",
-        "defaults": true
-    },
     "apps": [
         {
             "name": "example-server",
@@ -15,7 +11,7 @@
             "services": [
                 "services.ExampleService"
             ],
-            "entry": "entry/main.go",
+            "entry": "entry/main.ts",
             "stdout": "out.log"
         },
         {
