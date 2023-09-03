@@ -12,7 +12,7 @@ import (
 	"github.com/ayonli/goext/structx"
 	"github.com/ayonli/ngrpc/config"
 	"github.com/ayonli/ngrpc/host"
-	"github.com/ayonli/ngrpc/services/github/ayonli/services_proto"
+	"github.com/ayonli/ngrpc/services/github/ayonli/ngrpc/services_proto"
 	"github.com/ayonli/ngrpc/util"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"

@@ -50,10 +50,6 @@ type ControlMessage struct {
 }
 
 func EncodeMessage(msg ControlMessage) []byte {
-	if msg.Pid == 0 {
-		msg.Pid = os.Getpid()
-	}
-
 	buf, _ := json.Marshal(msg)
 	buf = append(buf, byte('\n'))
 

@@ -19,19 +19,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEncodeMsg(t *testing.T) {
+func TestEncodeMessage(t *testing.T) {
 	msg := EncodeMessage(ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"})
 	assert.Equal(t, uint8(10), msg[len(msg)-1])
 }
 
-func TestDecodeMsg(t *testing.T) {
+func TestDecodeMessage(t *testing.T) {
 	msg := ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"}
 	data := EncodeMessage(msg)
 	packet := []byte{}
 	buf := make([]byte, 256)
 	n := copy(buf, data)
 
-	msg.Pid = os.Getpid()
 	messages := DecodeMessage(&packet, buf[:n], false)
 
 	assert.Equal(t, 1, len(messages))
@@ -39,7 +38,7 @@ func TestDecodeMsg(t *testing.T) {
 	assert.Equal(t, []byte{}, packet)
 }
 
-func TestDecodeMsgOverflow(t *testing.T) {
+func TestDecodeMessageOverflow(t *testing.T) {
 	msg := ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"}
 	data := EncodeMessage(msg)
 	packet := []byte{}
@@ -47,7 +46,6 @@ func TestDecodeMsgOverflow(t *testing.T) {
 	n := copy(buf, data)
 	offset := 0
 
-	msg.Pid = os.Getpid()
 	messages := DecodeMessage(&packet, buf[:n], false)
 	offset += 64
 
@@ -65,14 +63,13 @@ func TestDecodeMsgOverflow(t *testing.T) {
 	assert.Equal(t, []byte{}, packet)
 }
 
-func TestDecodeMsgEof(t *testing.T) {
+func TestDecodeMessageEof(t *testing.T) {
 	msg := ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"}
 	data := slicex.Slice(EncodeMessage(msg), 0, -1)
 	packet := []byte{}
 	buf := make([]byte, 256)
 	n := copy(buf, data)
 
-	msg.Pid = os.Getpid()
 	messages := DecodeMessage(&packet, buf[:n], true)
 
 	assert.Equal(t, 1, len(messages))
@@ -87,7 +84,7 @@ func TestGetSocketPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(cwd, "ngrpc.sock"), sockFile)
 
 	if runtime.GOOS == "windows" {
-		assert.Equal(t, "\\\\?\\pipe"+filepath.Join(cwd, "ngrpc.sock"), sockPath)
+		assert.Equal(t, "\\\\?\\pipe\\"+filepath.Join(cwd, "ngrpc.sock"), sockPath)
 	} else {
 		assert.Equal(t, filepath.Join(cwd, "ngrpc.sock"), sockPath)
 	}
@@ -392,7 +389,7 @@ func TestCommand_listWhenNoHost(t *testing.T) {
 	defer os.Remove("ngrpc.json")
 	defer os.Remove("tsconfig.json")
 
-	cmd := exec.Command("go", "run", "../cli/main.go", "list")
+	cmd := exec.Command("go", "run", "../cli/ngrpc/main.go", "list")
 	out := string(goext.Ok(cmd.Output()))
 	lines := strings.Split(out, "\n")
 

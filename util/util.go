@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/ayonli/goext/stringx"
 )
 
 func Exists(filename string) bool {
@@ -37,8 +39,8 @@ func AbsPath(filename string, pipePrefix bool) string {
 		filename = filepath.Join(cwd, filename)
 	}
 
-	if pipePrefix && runtime.GOOS == "windows" {
-		return "\\\\?\\pipe" + filename
+	if pipePrefix && runtime.GOOS == "windows" && stringx.Search(filename, `\\\\[.?]\\pipe\\`) == -1 {
+		return "\\\\?\\pipe\\" + filename
 	} else {
 		return filename
 	}

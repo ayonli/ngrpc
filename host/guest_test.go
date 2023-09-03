@@ -16,8 +16,8 @@ func TestNewGuest(t *testing.T) {
 		Name: "example-server",
 		Uri:  "grpc://localhost:4000",
 	}
-	onStop := func(msgId string) {}
-	guest := NewGuest(app, onStop)
+	handleStop := func(msgId string) {}
+	guest := NewGuest(app, handleStop)
 
 	assert.Equal(t, app.Name, guest.AppName)
 	assert.Equal(t, app.Uri, guest.AppUri)
@@ -31,8 +31,8 @@ func TestGuest_JoinAndLeave(t *testing.T) {
 	defer os.Remove("ngrpc.json")
 	defer os.Remove("tsconfig.json")
 
-	conf := goext.Ok(config.LoadConfig())
-	host := NewHost(conf, false)
+	cfg := goext.Ok(config.LoadConfig())
+	host := NewHost(cfg, false)
 	goext.Ok(0, host.Start(false))
 	defer host.Stop()
 
@@ -61,13 +61,10 @@ func TestGuest_JoinRedundantSocketFile(t *testing.T) {
 
 	assert.True(t, util.Exists(sockFile))
 
-	c := make(chan string)
 	guest := NewGuest(config.App{
 		Name: "example-server",
 		Uri:  "grpc://localhost:4000",
-	}, func(msgId string) {
-		c <- msgId
-	})
+	}, func(msgId string) {})
 	err := guest.connect()
 
 	assert.NotNil(t, err)

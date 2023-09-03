@@ -12,7 +12,7 @@ import (
 	"github.com/ayonli/ngrpc"
 	"github.com/ayonli/ngrpc/host"
 	"github.com/ayonli/ngrpc/services"
-	"github.com/ayonli/ngrpc/services/github/ayonli/services_proto"
+	"github.com/ayonli/ngrpc/services/github/ayonli/ngrpc/services_proto"
 	"github.com/ayonli/ngrpc/services/proto"
 	"github.com/stretchr/testify/assert"
 )

@@ -3,6 +3,7 @@ package util
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -25,6 +26,15 @@ func TestAbsPath(t *testing.T) {
 
 	assert.Equal(t, filepath.Clean(cwd+"/../ngrpc.sock"), file1)
 	assert.Equal(t, "/usr/local/bin", file2)
+
+	if runtime.GOOS == "windows" {
+		filename := "C:\\Program Files\\go\\bin"
+		file3 := AbsPath(filename, false)
+		assert.Equal(t, filename, file3)
+
+		file4 := AbsPath(filename, true)
+		assert.Equal(t, "\\\\?\\pipe\\"+filename, file4)
+	}
 }
 
 func TestRandomString(t *testing.T) {

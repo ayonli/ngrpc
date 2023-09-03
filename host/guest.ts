@@ -128,24 +128,27 @@ export class Guest {
                 this.conn = conn;
                 this.send({ cmd: "handshake", app: this.appName, pid: process.pid });
                 conn.off("error", connectFailureHandler);
+
+                (async () => {
+                    let packet = "";
+
+                    try {
+                        for await (const buf of conn) {
+                            packet = this.processHostMessage(
+                                handshake,
+                                packet,
+                                (buf as Buffer).toString());
+                        }
+                    } catch (err) {
+                        if (this.conn?.destroyed || this.conn?.closed) {
+                            this.handleHostDisconnection();
+                        } else {
+                            console.error(timed`${err}`);
+                        }
+                    }
+                })();
             });
-
-            let packet = "";
-
-            try {
-                for await (const buf of conn) {
-                    packet = this.processHostMessage(
-                        handshake,
-                        packet,
-                        (buf as Buffer).toString());
-                }
-            } catch (err) {
-                if (this.conn?.destroyed || this.conn?.closed) {
-                    this.handleHostDisconnection();
-                } else {
-                    console.error(timed`${err}`);
-                }
-            }
+            conn.once("error", connectFailureHandler);
         });
 
         if (this.appName) {
@@ -189,7 +192,7 @@ export class Guest {
         }
     }
 
-    private async handleHostDisconnection() {
+    private handleHostDisconnection() {
         if (this.state === 0) {
             return;
         } else {
