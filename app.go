@@ -270,6 +270,8 @@ type RpcApp struct {
 
 	// Whether this app will keep the process alive, will be set true once `WaitForExit()` is called.
 	isProcessKeeper bool
+
+	onStop func()
 }
 
 func (self *RpcApp) initServer() error {
@@ -446,6 +448,10 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 		theApp = nil
 	}
 
+	if self.onStop != nil {
+		self.onStop()
+	}
+
 	var msg string
 
 	if self.Name != "" {
@@ -466,6 +472,10 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 	if self.isProcessKeeper {
 		os.Exit(0)
 	}
+}
+
+func (self *RpcApp) OnStop(callback func()) {
+	self.onStop = callback
 }
 
 // WaitForExit blocks the main goroutine to prevent it exit prematurely unless received the
