@@ -114,8 +114,6 @@ func (self *Host) Start(wait bool) error {
 	}()
 
 	log.Printf("host server started (pid: %d)", os.Getpid())
-	// <-self.clientsLock
-	// <-self.callbacksLock
 
 	if wait {
 		self.waitForExit()
@@ -477,7 +475,7 @@ func (self *Host) startApp(appName string, guest *Guest) {
 		_, err := SpawnApp(app, self.tsCfg)
 
 		if err != nil {
-			log.Printf("unable to start app [%s] (reason: %s)", app.Name, err)
+			fmt.Printf("unable to start app [%s] (reason: %s)\n", app.Name, err)
 			return false
 		} else {
 			return true
@@ -496,9 +494,9 @@ func (self *Host) startApp(appName string, guest *Guest) {
 		})
 
 		if !exists {
-			log.Printf("app [%s] doesn't exist in the config file", appName)
+			fmt.Printf("app [%s] doesn't exist in the config file\n", appName)
 		} else if !app.Serve {
-			log.Printf("app [%s] is not intended to be served", appName)
+			fmt.Printf("app [%s] is not intended to be served\n", appName)
 		} else {
 			apps = append(apps, app)
 		}
