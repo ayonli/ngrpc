@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"reflect"
 	"sync"
 	"syscall"
@@ -69,15 +68,7 @@ func Use[T any](service ConnectableService[T]) {
 
 // GetAppName retrieves the app name from the `os.Args`.
 func GetAppName() string {
-	if len(os.Args) >= 3 {
-		execPath, _ := filepath.Abs(os.Args[0])
-
-		if os.Args[1] == execPath { // For PM2 compatibility
-			return os.Args[2]
-		} else {
-			return os.Args[1]
-		}
-	} else if len(os.Args) == 2 {
+	if len(os.Args) == 2 {
 		return os.Args[1]
 	} else {
 		panic("app name is not provided")

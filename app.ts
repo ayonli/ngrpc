@@ -242,8 +242,8 @@ export class RpcApp {
                 _app.interpreter = "go";
                 _app.interpreter_args = "run";
             } else if (ext === ".exe" || !ext) {
-                _app.interpreter = app.entry;
                 _app.script = app.entry;
+                _app.interpreter = "none";
             } else {
                 throw new Error(`entry file '${app.entry}' of app [${app.name}] is recognized`);
             }
@@ -291,7 +291,11 @@ export class RpcApp {
     /**
      * Like `start()` except it takes a config argument instead of loading the config file.
      */
-    static async startWithConfig(appName: string | null = "", config: Config) {
+    static async startWithConfig(appName: string | null, config: Config) {
+        return await this._start(appName, config);
+    }
+
+    static async _start(appName: string | null, config: Config, once = false) {
         if (this.theApp) {
             throw new Error("an app is already running");
         }
@@ -339,15 +343,17 @@ export class RpcApp {
         await app.initClients();
         this.theApp = app;
 
-        app.guest = new Guest(cfgApp || ({ name: "", uri: "", }), {
-            onStopCommand: (msgId) => {
-                app._stop(msgId, true);
-            },
-            onReloadCommand: (msgId) => {
-                app._reload(msgId);
-            },
-        });
-        await app.guest.join();
+        if (!once) {
+            app.guest = new Guest(cfgApp || ({ name: "", uri: "", }), {
+                onStopCommand: (msgId) => {
+                    app._stop(msgId, true);
+                },
+                onReloadCommand: (msgId) => {
+                    app._reload(msgId);
+                },
+            });
+            await app.guest.join();
+        }
 
         return app;
     }
@@ -366,7 +372,7 @@ export class RpcApp {
 
         try {
             const config = await this.loadConfig();
-            app = await this.startWithConfig(null, config);
+            app = await this._start(null, config, true);
 
             await fn();
             app.stop();

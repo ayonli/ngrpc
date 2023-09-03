@@ -693,8 +693,8 @@ hosted by PM2, too.
 
 To enable working with PM2, use the `ngrpc.loadConfigForPM2()` function in the `ecosystem.config.js`
 (or a custom filename), it loads the configurations and reorganizes them so that the same
-configurations can be used in PM2's configuration file. Moreover, it has done some hack internally
-to add support for the Golang program under PM2, regardless of whether it has been compiled or not.
+configurations can be used in PM2's configuration file. Moreover, it has done some work internally
+to support Golang programs for PM2, regardless of whether it has been compiled or not.
 
 For example:
 
