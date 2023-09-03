@@ -105,22 +105,22 @@ if (require.main?.filename === __filename) {
 package main
 
 import (
-	"log"
-	"os"
+    "log"
+    "os"
 
-	"github.com/ayonli/ngrpc"
-	_ "github.com/ayonli/ngrpc/services"
+    "github.com/ayonli/ngrpc"
+    _ "github.com/ayonli/ngrpc/services"
 )
 
 func main() {
-	appName := os.Args[1]
-	app, err := ngrpc.Boot(appName)
+    appName := os.Args[1]
+    app, err := ngrpc.Boot(appName)
 
-	if err != nil {
-		log.Fatal(err)
-	} else {
-		app.WaitForExit()
-	}
+    if err != nil {
+        log.Fatal(err)
+    } else {
+        app.WaitForExit()
+    }
 }
 ```
 
@@ -140,10 +140,10 @@ func main() {
         means the app is served by other programs and we just connect to it.
     - `services` The services served by this app.
     - `entry` The entry file used to spawn apps.
-        During development, the entry filename shall be suffixed either by `.ts` or `.go`, when
+        - During development, the entry filename shall be suffixed either by `.ts` or `.go`, when
         running the program, NgRPC automatically compiles the file when needed.
 
-        In production, the entry filename shall the compiled file's name, which is suffixed by `.js`
+        - In production, the entry filename shall the compiled file's name, which is suffixed by `.js`
         or has no suffix at all (for Golang).
 
         The program is spawned with the argument `appName`, in Node.js, we use `process.argv[2]` to
@@ -201,7 +201,8 @@ connect to the services, all is properly handled behind the scene.
 - `ngrpc init [flags]` initiate a new NgRPC project
     - `-t --template <string>` available values are "go" or "node"
 
-    TIP: we can run this command twice with different template for the setup for both languages.
+    TIP: we can run this command twice with different template for the setup for both languages,
+    existing files will be untouched.
 - `ngrpc start [app]` start an app or all apps (exclude non-served ones)
     - `app` the app name in the config file
 
@@ -211,15 +212,15 @@ connect to the services, all is properly handled behind the scene.
 - `ngrpc reload [app]` hot-reload an app or all apps
     - `app` the app name in the config file
 
-    NOTE: only Node.js supports hot-reloading, Golang programs just reply that them don't support
-    such a feature.
+    NOTE: only Node.js supports hot-reloading, Golang programs just reply that they don't support
+    this feature.
 - `ngrpc stop [app]` stop an app or all apps
     - `app` the app name in the config file
 
 - `ngrpc list` or `ngrpc ls` list all apps (exclude non-served ones)
 
-- `ngrpc run <script>` runs a script file that attaches to the services, can be either Golang or
-    Node.js (`.ts`) programs.
+- `ngrpc run <script>` runs a script file that attaches to the services, can be either
+    Golang (`.go`) or Node.js (`.ts`) programs.
 
 - `ngrpc protoc` generate golang program files from the proto files.
 
@@ -253,7 +254,7 @@ needed for the new code to run.
 
 gRPC uses the `.proto` file for definition and the `.ts` file for implementation, it's hard to keep
 track on both files at the same time. If reload immediately after a file is changed, there may be
-inconsistency between the two files and causing program failure. So this package provides the
+inconsistency between the two files and causing the program to fail. So this package provides the
 `reload` command that allows us to manually reload the app when we're done with our changes.
 
 ### About Process Management
@@ -276,7 +277,7 @@ implement our service in a well-designed fashion.
 
 For example, a typical service should be designed like this:
 
-**In Node.js**
+### In Node.js
 
 ```ts
 import { ServiceClient, service } from "@ayonli/ngrpc";
@@ -311,11 +312,11 @@ export default abstract class UserService {
 }
 ```
 
-**In Golang**
+### In Golang
 
 ```go
-// A service to be served need to embed the UnimplementedServiceServer.
 type ExampleService struct {
+    // A service to be served need to embed the UnimplementedServiceServer.
     proto.UnimplementedExampleServiceServer
 }
 ```
@@ -327,7 +328,7 @@ For NgRPC, a client-side service representation struct is needed as well:
 type ExampleService {}
 ```
 
-### func init
+#### func init
 
 In each service file, we need to define a `init` function to use the service:
 
@@ -337,7 +338,7 @@ func init() {
 }
 ```
 
-### func Serve
+#### func Serve
 
 For a service in order to be served, a `Serve()` method is required in the service struct:
 
@@ -349,7 +350,7 @@ func (self *ExampleService) Serve(s grpc.ServiceRegistrar) {
 }
 ```
 
-### func Connect
+#### func Connect
 
 All services (server-side and client-side) must implement the `Connect()` method in order to be
 connected:
@@ -360,7 +361,7 @@ func (self *Service) Connect(cc grpc.ClientConnInterface) proto.ExampleServiceCl
 }
 ```
 
-### func GetClient
+#### func GetClient
 
 The service may implement a `GetClient()` which can be used to reference the service client
 in a more expressive way:
@@ -398,6 +399,12 @@ export default class ExampleService implements LifecycleSupportInterface {
 In Golang, we use the `Serve()` method for additional setup, and the `Stop()` method for teardown.
 
 ```go
+func (self *ExampleService) Serve(s grpc.ServiceRegistrar) {
+    proto.RegisterExampleServiceServer(s, self)
+
+    // other initiations, like establishing database connections
+}
+
 func (self *ExampleService) Stop() {
     // release database connections, etc.
 }
@@ -462,7 +469,7 @@ If a service is served in multiple apps, NgRPC uses a client-side load balancer 
 the load balancer is configured with a custom routing resolver which automatically redirect traffic
 for us.
 
-There are three algorithms are used based on the `route`:
+There are three algorithms used based on the `route`:
 
 1. When `route` is not empty:
     - If it matches one of the name or URI of the apps, the traffic is routed to that app directly.
@@ -508,7 +515,7 @@ export interface RequestMessage extends RoutableMessageStruct {
 
 ```go
 func main() {
-    msg := &RequestMessage{
+    msg := &proto.RequestMessage{
         Route: "route key"
         // other fields
     }
@@ -647,8 +654,8 @@ and call their methods, for whatever the reason is, NgRPC makes this very easy f
 import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.runSnippet(async () => {
-	const result = await services.ExampleService.sayHello({ name: "World" });
-	console.log(result.message);
+    const result = await services.ExampleService.sayHello({ name: "World" });
+    console.log(result.message);
 });
 ```
 
@@ -659,24 +666,24 @@ ngrpc.runSnippet(async () => {
 package main
 
 import (
-	"context"
-	"fmt"
+    "context"
+    "fmt"
 
-	"github.com/ayonli/goext"
-	"github.com/ayonli/ngrpc"
-	"github.com/ayonli/ngrpc-test/services"
-	"github.com/ayonli/ngrpc-test/services/proto"
+    "github.com/ayonli/goext"
+    "github.com/ayonli/ngrpc"
+    "github.com/ayonli/ngrpc-test/services"
+    "github.com/ayonli/ngrpc-test/services/proto"
 )
 
 func main() {
-	done := ngrpc.ForSnippet()
-	defer done()
+    done := ngrpc.ForSnippet()
+    defer done()
 
-	ctx := context.Background()
-	exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
+    ctx := context.Background()
+    exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
 
-	result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
-	fmt.Println(result.Message)
+    result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
+    fmt.Println(result.Message)
 }
 ```
 
@@ -687,23 +694,24 @@ that NgRPC provides, we can order our project by performing the following steps.
 
 1. Uses the `proto` folder to store all the `.proto` files in one place (by default).
 
-2. Uses the `services` folder for all the service files, the namespace / package of those files
-    should be the same as the folder's name (which is also `services`).
+2. Uses the `services` folder for all the service files (by default), the namespace / package of
+    those files should be the same as the folder's name (which is also `services`).
     
     NOTE: although sub-folders and sub-namespaces / sub-packages are supported, it's a little tricky
     in Golang, try to prevent this as we can.
 
 3. Design the `.proto` files with a reasonable scoped package name, don't just name it `services`, 
-    instead, name it something like `[org].[repo].services`, the `.proto` files should be
-    shared and reused across different projects, using a long name to prevent collision and provide
-    useful information about the services. Respectively, the directory path should reflect the
-    package name. See the [proto](./proto) files of this project as examples.
+    instead, name it something like `[org].[repo].services`, `.proto` files should be shared and
+    reused across different projects, using a long name to prevent collision and provide useful
+    information about the service. Respectively, the directory path should reflect the package name.
+    See the [proto](./proto) files of this project as examples.
 
 4. **In Node.js**, use the same file structures and symbol names (as possible as we can) in the
-    class files to reflect the ones in the `.proto` files, create a consistent development experience.
+    class files to reflect the ones in the `.proto` files, create a consistent development
+    experience.
 
-    **In Golang**, Always implement the `GetClient()` method in the service and use a field in the
-    service struct to reference to each other.
+    **In Golang**, Always implement the `GetClient()` method in the service and use an exported
+    field in the service struct to reference to each other (for dependency injection).
 
 
 ## Programmatic API

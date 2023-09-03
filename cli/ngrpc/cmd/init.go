@@ -34,8 +34,8 @@ var tsConfTpl = `{
 `
 
 var confTpl = `{
-	"$schema": "https://raw.githubusercontent.com/ayonli/ngrpc/main/ngrpc.schema.json",
-	"protoPaths": [
+    "$schema": "https://raw.githubusercontent.com/ayonli/ngrpc/main/ngrpc.schema.json",
+    "protoPaths": [
         "proto"
     ],
     "apps": [
@@ -46,7 +46,7 @@ var confTpl = `{
             "services": [
                 "services.ExampleService"
             ],
-			"entry": "main.go",
+            "entry": "main.go",
             "stdout": "out.log"
         }
     ]
@@ -195,8 +195,8 @@ var scriptTsTpl = `/// <reference path="../services/ExampleService.ts" />
 import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.runSnippet(async () => {
-	const result = await services.ExampleService.sayHello({ name: "World" });
-	console.log(result.message);
+    const result = await services.ExampleService.sayHello({ name: "World" });
+    console.log(result.message);
 });
 `
 
