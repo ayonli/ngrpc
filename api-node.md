@@ -125,7 +125,7 @@ Loads the configurations.
 
 **`ngrpc.loadConfigForPM2(): { apps: any[] }`**
 
-Loads the configurations and reorganizes them so that the same configuration can be used in PM2's
+Loads the configurations and reorganizes them so that the same configurations can be used in PM2's
 configuration file.
 
 ----

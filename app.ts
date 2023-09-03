@@ -191,7 +191,7 @@ export class RpcApp {
     }
 
     /**
-     * Loads the configurations and reorganizes them so that the same configuration can be used in
+     * Loads the configurations and reorganizes them so that the same configurations can be used in
      * PM2's configuration file.
      */
     static loadConfigForPM2() {

@@ -691,10 +691,10 @@ our program, which provides more features such as monitoring, log-rotation, web 
 package is designed to work well with PM2, and not only Node.js, but the Golang program can be
 hosted by PM2, too.
 
-To enable working with PM2, use `ngrpc.loadConfigForPM2()` function in the `ecosystem.config.js` (or
-a custom filename), it loads the configurations and reorganizes them so that the same configuration
-can be used in PM2's configuration file. Moreover, it has done some hack internally to add support
-for the Golang program for PM2, regardless of whether it has been compiled or not.
+To enable working with PM2, use the `ngrpc.loadConfigForPM2()` function in the `ecosystem.config.js`
+(or a custom filename), it loads the configurations and reorganizes them so that the same
+configurations can be used in PM2's configuration file. Moreover, it has done some hack internally
+to add support for the Golang program under PM2, regardless of whether it has been compiled or not.
 
 For example:
 
