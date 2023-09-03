@@ -126,6 +126,10 @@ func NewGuest(app config.App, onStopCommand func(msgId string)) *Guest {
 	return guest
 }
 
+func (self *Guest) IsConnected() bool {
+	return self.state == 1
+}
+
 func (self *Guest) Join() {
 	err := self.connect()
 

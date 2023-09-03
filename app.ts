@@ -24,6 +24,7 @@ import {
     sServiceName,
     timed
 } from "./util";
+import { existsSync, readFileSync } from "fs";
 import { findDependencies } from "require-chain";
 import { applyMagic } from "js-magic";
 import { Guest } from "./host/guest";
@@ -135,20 +136,8 @@ export class RpcApp {
 
     private static theApp: RpcApp | null = null;
 
-    static async loadConfig() {
-        const defaultFile = absPath("ngrpc.json");
-        const localFile = absPath("ngrpc.local.json");
-        let fileContent: string | undefined;
-
-        if (await exists(localFile)) {
-            fileContent = await fs.readFile(localFile, "utf8");
-        } else if (await exists(defaultFile)) {
-            fileContent = await fs.readFile(defaultFile, "utf8");
-        } else {
-            throw new Error(`unable to load config file: ${defaultFile}`);
-        }
-
-        const conf: Config = JSON.parse(fileContent as string);
+    private static parseConfig(content: string) {
+        const conf: Config = JSON.parse(content as string);
 
         if (conf.entry && conf.apps?.length) {
             conf.apps.forEach(app => {
@@ -184,56 +173,256 @@ export class RpcApp {
         return conf;
     }
 
-    static async loadConfigForPM2() {
-        const conf = await this.loadConfig();
-        const resolveEntry = (entry = "") => {
-            entry ||= path.join(__dirname, "cli");
-            const ext = path.extname(entry);
+    /** Loads the configurations. */
+    static async loadConfig() {
+        const defaultFile = absPath("ngrpc.json");
+        const localFile = absPath("ngrpc.local.json");
+        let fileContent: string | undefined;
 
-            if (ext === ".ts") {
-                entry += entry.slice(0, -ext.length) + ".js";
-            } else if (!ext) {
-                entry += ".js";
-            } else if (ext !== ".js") {
-                throw new Error(`entry file '${entry}' is not a JavaScript file`);
+        if (await exists(localFile)) {
+            fileContent = await fs.readFile(localFile, "utf8");
+        } else if (await exists(defaultFile)) {
+            fileContent = await fs.readFile(defaultFile, "utf8");
+        } else {
+            throw new Error(`unable to load config file: ${defaultFile}`);
+        }
+
+        return this.parseConfig(fileContent);
+    }
+
+    /**
+     * Loads the configurations and reorganizes them so that the same configuration can be used in
+     * PM2's configuration file.
+     */
+    static loadConfigForPM2() {
+        const defaultFile = absPath("ngrpc.json");
+        const localFile = absPath("ngrpc.local.json");
+        let fileContent: string | undefined;
+
+        if (existsSync(localFile)) {
+            fileContent = readFileSync(localFile, "utf8");
+        } else if (existsSync(defaultFile)) {
+            fileContent = readFileSync(defaultFile, "utf8");
+        } else {
+            throw new Error(`unable to load config file: ${defaultFile}`);
+        }
+
+        const cfg = this.parseConfig(fileContent);
+        type PM2App = {
+            name: string;
+            script?: string;
+            args: string;
+            interpreter?: string;
+            interpreter_args?: string;
+            env?: { [name: string]: string; };
+            log_file?: string;
+            out_file?: string;
+            err_file?: string;
+        };
+        const apps: PM2App[] = [];
+
+        for (const app of cfg.apps) {
+            if (!app.serve || !app.entry)
+                continue;
+
+            const ext = path.extname(app.entry);
+            const _app: PM2App = {
+                name: app.name,
+                args: `"${app.name}"`,
+                env: app.env || {},
+            };
+
+            if (ext === ".js") {
+                _app.script = app.entry;
+            } else if (ext === ".ts") {
+                _app.script = app.entry;
+                _app.interpreter_args = "-r ts-node/register";
+            } else if (ext === ".go") {
+                _app.script = app.entry;
+                _app.interpreter = "go";
+                _app.interpreter_args = "run";
+            } else if (ext === ".exe" || !ext) {
+                _app.interpreter = app.entry;
+                _app.script = app.entry;
+            } else {
+                throw new Error(`entry file '${app.entry}' of app [${app.name}] is recognized`);
             }
 
-            return entry;
-        };
-
-        return {
-            apps: conf.apps.filter(app => app.serve).map(app => {
-                const _app: {
-                    name: string;
-                    script: string;
-                    args: string,
-                    env?: { [name: string]: string; };
-                    log_file?: string;
-                    out_file?: string;
-                    err_file?: string;
-                } = {
-                    name: app.name,
-                    script: app.entry ? resolveEntry(app.entry) : path.resolve(__dirname, "cli.js"),
-                    args: [app.name]
-                        .map(arg => arg.includes(" ") ? `"${arg}"` : arg)
-                        .join(" "),
-                    env: app.env || {},
-                };
-
-                if (app.stdout && app.stderr) {
-                    if (app.stdout === app.stderr) {
-                        _app["log_file"] = app.stdout;
-                    } else {
-                        _app["out_file"] = app.stdout;
-                        _app["err_file"] = app.stderr;
-                    }
-                } else if (app.stdout) {
+            if (app.stdout && app.stderr) {
+                if (app.stdout === app.stderr) {
                     _app["log_file"] = app.stdout;
+                } else {
+                    _app["out_file"] = app.stdout;
+                    _app["err_file"] = app.stderr;
                 }
+            } else if (app.stdout) {
+                _app["log_file"] = app.stdout;
+            }
 
-                return _app;
-            })
-        };
+            apps.push(_app);
+        }
+
+        return apps;
+    }
+
+    /** Retrieves the app name from the `process.argv`. */
+    static getAppName() {
+        if (process.argv.length >= 3) {
+            return process.argv[2];
+        } else {
+            throw new Error("app name is not provided");
+        }
+    }
+
+    /**
+     * Initiates an app by the given name and loads the config file, it initiates the server
+     * (if served) and client connections, prepares the services ready for use.
+     *
+     *  NOTE: There can only be one named app running in the same process.
+     * 
+     * @param appName The app's name that should be started as a server. If not provided, the app
+     *  only connects to other servers but not serves as one.
+     */
+    static async start(appName: string | null = "",) {
+        const config = await this.loadConfig();
+        return await this.startWithConfig(appName, config);
+    }
+
+    /**
+     * Like `start()` except it takes a config argument instead of loading the config file.
+     */
+    static async startWithConfig(appName: string | null = "", config: Config) {
+        if (this.theApp) {
+            throw new Error("an app is already running");
+        }
+
+        const app = new RpcApp();
+        app.config = config;
+        let xdsApp: App | undefined;
+        let cfgApp: App | undefined;
+
+        if (!xdsEnabled &&
+            (xdsApp = config.apps?.find(item => !!item.serve && item.uri?.startsWith("xds:")))
+        ) {
+            try {
+                const _module = require("@grpc/grpc-js-xds");
+                _module.register();
+                xdsEnabled = true;
+            } catch (err) {
+                if (err["code"] === "MODULE_NOT_FOUND") {
+                    throw new Error(`'xds:' protocol is used in app [${xdsApp.name}]`
+                        + `, but package '@grpc/grpc-js-xds' is not installed`);
+                }
+            }
+        }
+
+        if (appName) {
+            app.name = appName;
+            cfgApp = config.apps.find(item => item.name === appName);
+
+            if (!cfgApp) {
+                throw new Error(`app [${appName}] is not configured`);
+            }
+        }
+
+        // Set global namespace.
+        const nsp = config.namespace || "services";
+        set(global, nsp, createChainingProxy(nsp));
+
+        await app.loadProtoFiles(config.protoPaths, config.protoOptions);
+        await app.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);
+
+        if (cfgApp?.serve && cfgApp?.services?.length) {
+            await app.initServer(cfgApp);
+        }
+
+        await app.initClients();
+        this.theApp = app;
+
+        app.guest = new Guest(cfgApp || ({ name: "", uri: "", }), {
+            onStopCommand: (msgId) => {
+                app._stop(msgId, true);
+            },
+            onReloadCommand: (msgId) => {
+                app._reload(msgId);
+            },
+        });
+        await app.guest.join();
+
+        return app;
+    }
+
+    /**
+     * Runs a snippet inside the apps context.
+     * 
+     * This function is for temporary scripting usage, it starts a runs pure-clients app so we
+     * can use the services as we normally do in our program, and after the main `fn` function runs,
+     * the app is automatically stopped.
+     * 
+     * @param fn The function to be run.
+     */
+    static async runSnippet(fn: () => void | Promise<void>) {
+        let app: RpcApp | undefined;
+
+        try {
+            const config = await this.loadConfig();
+            app = await this.startWithConfig(null, config);
+
+            await fn();
+            app.stop();
+        } catch (err) {
+            app?.stop();
+            throw err;
+        }
+    }
+
+    /**
+     * Returns the service client by the given service name.
+     * @param route is used to route traffic by the client-side load balancer.
+     */
+    static getServiceClient<T extends object>(serviceName: string, route: string = ""): ServiceClient<T> {
+        if (!this.theApp) {
+            throw new Error("no app is running");
+        }
+
+        const remoteService = this.theApp.remoteServices.get(serviceName);
+
+        if (!remoteService) {
+            throw new Error(`service ${serviceName} is not registered`);
+        }
+
+        const instances = remoteService.instances.filter(item => {
+            const state = item.client.getChannel().getConnectivityState(false);
+            return state != connectivityState.SHUTDOWN;
+        });
+
+        if (!instances.length) {
+            throw new Error(`service ${serviceName} is not available`);
+            // return null as unknown as ServiceClient<object>;
+        }
+
+        let client: ServiceClient<object>;
+
+        if (route) {
+            // First, try to match the route directly against the services' uris, if match any,
+            // return it respectively.
+            const item = instances.find(item => item.app === route || item.uri === route);
+
+            if (item) {
+                client = item.client;
+            } else {
+                // Then, try to use the hash algorithm to retrieve a remote instance.
+                const id = hash(route);
+                const idx = id % instances.length;
+                client = instances[idx].client;
+            }
+        } else {
+            // Use round-robin algorithm by default.
+            const idx = remoteService.counter % instances.length;
+            client = instances[idx].client;
+        }
+
+        return client as ServiceClient<T>;
     }
 
     protected async loadProtoFiles(dirs: string[], options?: ProtoOptions) {
@@ -565,133 +754,6 @@ export class RpcApp {
         }
     }
 
-    /**
-     * Returns the service client by the given service name.
-     * @param route is used to route traffic by the client-side load balancer.
-     */
-    static getServiceClient<T extends object>(serviceName: string, route: string = ""): ServiceClient<T> {
-        if (!this.theApp) {
-            throw new Error("no app is running");
-        }
-
-        const remoteService = this.theApp.remoteServices.get(serviceName);
-
-        if (!remoteService) {
-            throw new Error(`service ${serviceName} is not registered`);
-        }
-
-        const instances = remoteService.instances.filter(item => {
-            const state = item.client.getChannel().getConnectivityState(false);
-            return state != connectivityState.SHUTDOWN;
-        });
-
-        if (!instances.length) {
-            throw new Error(`service ${serviceName} is not available`);
-            // return null as unknown as ServiceClient<object>;
-        }
-
-        let client: ServiceClient<object>;
-
-        if (route) {
-            // First, try to match the route directly against the services' uris, if match any,
-            // return it respectively.
-            const item = instances.find(item => item.app === route || item.uri === route);
-
-            if (item) {
-                client = item.client;
-            } else {
-                // Then, try to use the hash algorithm to retrieve a remote instance.
-                const id = hash(route);
-                const idx = id % instances.length;
-                client = instances[idx].client;
-            }
-        } else {
-            // Use round-robin algorithm by default.
-            const idx = remoteService.counter % instances.length;
-            client = instances[idx].client;
-        }
-
-        return client as ServiceClient<T>;
-    }
-
-    /**
-     * Initiates an app by the given name and loads the config file, it initiates the server
-     * (if served) and client connections, prepares the services ready for use.
-     *
-     *  NOTE: There can only be one named app running in the same process.
-     * 
-     * @param appName The app's name that should be started as a server. If not provided, the app
-     *  only connects to other servers but not serves as one.
-     */
-    static async start(appName: string | null = "",) {
-        const config = await this.loadConfig();
-        return await this.startWithConfig(appName, config);
-    }
-
-    /**
-     * Like `start()` except it takes a config argument instead of loading the config file.
-     */
-    static async startWithConfig(appName: string | null = "", config: Config) {
-        if (this.theApp) {
-            throw new Error("an app is already running");
-        }
-
-        const app = new RpcApp();
-        app.config = config;
-        let xdsApp: App | undefined;
-        let cfgApp: App | undefined;
-
-        if (!xdsEnabled &&
-            (xdsApp = config.apps?.find(item => !!item.serve && item.uri?.startsWith("xds:")))
-        ) {
-            try {
-                const _module = require("@grpc/grpc-js-xds");
-                _module.register();
-                xdsEnabled = true;
-            } catch (err) {
-                if (err["code"] === "MODULE_NOT_FOUND") {
-                    throw new Error(`'xds:' protocol is used in app [${xdsApp.name}]`
-                        + `, but package '@grpc/grpc-js-xds' is not installed`);
-                }
-            }
-        }
-
-        if (appName) {
-            app.name = appName;
-            cfgApp = config.apps.find(item => item.name === appName);
-
-            if (!cfgApp) {
-                throw new Error(`app [${appName}] is not configured`);
-            }
-        }
-
-        // Set global namespace.
-        const nsp = config.namespace || "services";
-        set(global, nsp, createChainingProxy(nsp));
-
-        await app.loadProtoFiles(config.protoPaths, config.protoOptions);
-        await app.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);
-
-        if (cfgApp?.serve && cfgApp?.services?.length) {
-            await app.initServer(cfgApp);
-        }
-
-        await app.initClients();
-        this.theApp = app;
-
-        app.guest = new Guest(cfgApp || ({ name: "", uri: "", }), {
-            onStopCommand: (msgId) => {
-                app._stop(msgId, true);
-            },
-            onReloadCommand: (msgId) => {
-                app._reload(msgId);
-            },
-        });
-        await app.guest.join();
-
-        return app;
-    }
-
     /** 
      * Closes client connections and stops the server (if served), and runs any `destroy()` method in
      * the bound services.
@@ -726,7 +788,7 @@ export class RpcApp {
             msg = "app (anonymous) stopped";
         }
 
-        if (this.guest && graceful) {
+        if (this.guest?.connected && graceful) {
             this.guest.leave(msg, msgId);
 
             if (this.name) {
@@ -844,30 +906,6 @@ export class RpcApp {
                     close();
                 }
             });
-    }
-
-    /**
-     * Runs a snippet inside the apps context.
-     * 
-     * This function is for temporary scripting usage, it starts a runs pure-clients app so we
-     * can use the services as we normally do in our program, and after the main `fn` function runs,
-     * the app is automatically stopped.
-     * 
-     * @param fn The function to be run.
-     */
-    static async runSnippet(fn: () => void | Promise<void>) {
-        let app: RpcApp | undefined;
-
-        try {
-            const config = await this.loadConfig();
-            app = await this.startWithConfig(null, config);
-
-            await fn();
-            app.stop();
-        } catch (err) {
-            app?.stop();
-            throw err;
-        }
     }
 }
 

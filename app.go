@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"syscall"
@@ -64,6 +65,23 @@ func getServiceName[T any](service ConnectableService[T]) string {
 // Use registers the service for use.
 func Use[T any](service ConnectableService[T]) {
 	serviceStore.Set(getServiceName(service), service)
+}
+
+// GetAppName retrieves the app name from the `os.Args`.
+func GetAppName() string {
+	if len(os.Args) >= 3 {
+		execPath, _ := filepath.Abs(os.Args[0])
+
+		if os.Args[1] == execPath { // For PM2 compatibility
+			return os.Args[2]
+		} else {
+			return os.Args[1]
+		}
+	} else if len(os.Args) == 2 {
+		return os.Args[1]
+	} else {
+		panic("app name is not provided")
+	}
 }
 
 // Start initiates an app by the given name and loads the config file, it initiates the server
@@ -460,7 +478,7 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 		msg = "app (anonymous) stopped"
 	}
 
-	if self.guest != nil && graceful {
+	if self.guest != nil && self.guest.IsConnected() && graceful {
 		self.guest.Leave(msg, msgId)
 
 		if self.Name != "" {

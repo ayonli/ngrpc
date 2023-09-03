@@ -56,15 +56,13 @@ var entryGoTpl = `package main
 
 import (
 	"log"
-	"os"
 
 	"github.com/ayonli/ngrpc"
 	_ "github.com/ayonli/ngrpc/services"
 )
 
 func main() {
-	appName := os.Args[1]
-	app, err := ngrpc.Start(appName)
+	app, err := ngrpc.Start(ngrpc.GetAppName())
 
 	if err != nil {
 		log.Fatal(err)
@@ -77,9 +75,7 @@ func main() {
 var entryTsTpl = `import ngrpc from "@ayonli/ngrpc";
 
 if (require.main?.filename === __filename) {
-    const appName = process.argv[2];
-
-    ngrpc.start(appName).then(app => {
+    ngrpc.start(ngrpc.getAppName()).then(app => {
         process.send?.("ready"); // for PM2
         app.waitForExit();
     }).catch(err => {

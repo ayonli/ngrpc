@@ -123,10 +123,16 @@ Loads the configurations.
 
 ----
 
-**`ngrpc.loadConfigForPM2(): Promise<{ apps: any[] }>`**
+**`ngrpc.loadConfigForPM2(): { apps: any[] }`**
 
-Loads the configurations and reorganize them so that the same configuration can be used in PM2's
+Loads the configurations and reorganizes them so that the same configuration can be used in PM2's
 configuration file.
+
+----
+
+**`ngrpc.getAppName(): string`**
+
+Retrieves the app name from the `process.argv`.
 
 ----
 

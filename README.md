@@ -87,9 +87,7 @@ We have two different entry files here, let's dig in each of them.
 import ngrpc from "@ayonli/ngrpc";
 
 if (require.main?.filename === __filename) {
-    const appName = process.argv[2];
-
-    ngrpc.start(appName).then(app => {
+    ngrpc.start(ngrpc.getAppName()).then(app => {
         process.send?.("ready"); // for PM2 compatibility
         app.waitForExit();
     }).catch(err => {
@@ -106,15 +104,13 @@ package main
 
 import (
     "log"
-    "os"
 
     "github.com/ayonli/ngrpc"
     _ "github.com/ayonli/ngrpc/services"
 )
 
 func main() {
-    appName := os.Args[1]
-    app, err := ngrpc.Start(appName)
+    app, err := ngrpc.Start(ngrpc.GetAppName())
 
     if err != nil {
         log.Fatal(err)
@@ -146,8 +142,8 @@ func main() {
         - In production, the entry filename shall the compiled file's name, which is suffixed by `.js`
         or has no suffix at all (for Golang, or `.exe` in Windows).
 
-        The program is spawned with the argument `appName`, in Node.js, we use `process.argv[2]` to
-        retrieve it, and in Golang, we use `os.Args[1]`.
+        The program is spawned with the app name in the command line argument, we can use
+        `ngrpc.getAppName()` or `ngrpc.GetAppName()` to retrieve it.
     - `stdout` Log file used for stdout.
     
     **More Options for `apps`**
@@ -185,7 +181,7 @@ func main() {
 In Node.js, services are automatically discoverd and imported when the program starts, in Golang, we
 import the `services` package and name it `_` for its side-effect which registers the services.
 
-Then we use the `ngrpc.start()` / `ngrpc.Start()` function to initiate the app by the given name, it
+Then we use the `ngrpc.start()` / `ngrpc.Start()` function to initiate the app with the app name, it
 initiates the server (if served) and client connections, prepares the services ready for use.
 
 Next we use the `app.waitForExit()` / `app.WaitForExit()` function to wait for the interrupt / exit
@@ -596,8 +592,7 @@ import * as fs from "fs/promises";
 
 if (require.main?.filename === __filename) {
     (async () => {
-        const appName = process.argv[2];
-
+        const appName = ngrpc.getAppName();
         const app = await ngrpc.start(appName);
         let httpServer: http.Server;
         let httpsServer: https.Server;
@@ -686,6 +681,27 @@ func main() {
     result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
     fmt.Println(result.Message)
 }
+```
+
+## PM2 Integration
+
+In production, instead of using the built-in process management feature, we can use PM2 to govern
+our program, which provides more features such as monitoring, log-rotation, web admin, etc. This
+package is designed to work well with PM2, and not only Node.js, but the Golang program can be
+hosted by PM2, too.
+
+To enable working with PM2, use `ngrpc.loadConfigForPM2()` function in the `ecosystem.config.js` (or
+a custom filename), it loads the configurations and reorganizes them so that the same configuration
+can be used in PM2's configuration file. Moreover, it has done some hack internally to add support
+for the Golang program for PM2, regardless of whether it has been compiled or not.
+
+For example:
+
+```js
+// ecosystem.config.js
+const { default: ngrpc } = require("@ayonli/ngrpc");
+
+module.exports = ngrpc.loadConfigForPM2();
 ```
 
 ## Good Practices

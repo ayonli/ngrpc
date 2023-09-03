@@ -99,6 +99,10 @@ export class Guest {
         this.handleReloadCommand = options?.onReloadCommand;
     }
 
+    get connected() {
+        return this.state === 1;
+    }
+
     async join() {
         try {
             await this.connect();
