@@ -25,6 +25,8 @@ import (
 	"github.com/rodaine/table"
 )
 
+var defaultTsOutDir = "node_modules/.ngrpc"
+
 type clientRecord struct {
 	conn net.Conn
 	app  string
@@ -851,7 +853,7 @@ func ResolveTsEntry(entry string, tsCfg config.TsConfig) (outDir string, outFile
 			outDir = ""
 		}
 	} else {
-		outDir = ".dist"
+		outDir = defaultTsOutDir
 		ext := filepath.Ext(entry)
 		outFile = filepath.Join(outDir, stringx.Slice(entry, 0, -len(ext))+".js")
 	}
@@ -865,6 +867,10 @@ func CompileTs(tsCfg config.TsConfig, outDir string) error {
 	if outDir == "" {
 		cmd = exec.Command("npx", "tsc")
 	} else {
+		if outDir != defaultTsOutDir && util.Exists(defaultTsOutDir) {
+			os.RemoveAll(defaultTsOutDir) // remove redundant files
+		}
+
 		cmd = exec.Command("npx", "tsc", "--outDir", outDir)
 	}
 
