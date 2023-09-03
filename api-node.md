@@ -8,7 +8,10 @@ This decorator function is used to link the service class to a gRPC service.
 
 **`ngrpc.start(appName?: string): Promise<RpcApp>`**
 
-Starts the app programmatically.
+Initiates an app by the given name and loads the config file, it initiates the server (if served)
+and client connections, prepares the services ready for use.
+
+*NOTE: There can only be one named app running in the same process.*
 
 - `appName` The app's name that should be started as a server. If not provided, the app only
     connects to other servers but not serves as one.
@@ -39,7 +42,8 @@ Like `start()` except it takes a config argument instead of loading the config f
 
 **`app.stop(): Promise<void>`**
 
-Stops the app programmatically.
+Closes client connections and stops the server (if served), and runs any `destroy()` method in the
+bound services.
 
 **Example**
 
@@ -62,8 +66,7 @@ ngrpc.start("example-server").then(app => {
 
 Reloads the app programmatically.
 
-This function is rarely used explicitly, prefer to use the CLI `reload` command or
-`ngrpc.sendCommand("reload")` instead.
+This function is rarely used explicitly, prefer the CLI `reload` command instead.
 
 ----
 

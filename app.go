@@ -419,7 +419,7 @@ func (self *RpcApp) initClient(apps []config.App) error {
 	return err
 }
 
-// Stop closes client connections and stops the server (if served), and runs any Stop() method in
+// Stop closes client connections and stops the server (if served), and runs any `Stop()` method in
 // the bound services.
 func (self *RpcApp) Stop() {
 	self.stop("", true)
@@ -473,6 +473,7 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 	}
 }
 
+// OnStop registers a callback to run after the app is stopped.
 func (self *RpcApp) OnStop(callback func()) {
 	self.onStop = callback
 }

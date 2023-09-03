@@ -692,7 +692,10 @@ export class RpcApp {
         return app;
     }
 
-    /** Stops the app programmatically. */
+    /** 
+     * Closes client connections and stops the server (if served), and runs any `destroy()` method in
+     * the bound services.
+     */
     async stop() {
         return await this._stop("", true);
     }
