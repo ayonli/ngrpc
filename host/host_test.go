@@ -100,7 +100,7 @@ func TestNewHost(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
-	host := NewHost(config)
+	host := NewHost(config, false)
 
 	assert.Equal(t, config.Apps, host.apps)
 	assert.Equal(t, 0, host.state)
@@ -115,7 +115,7 @@ func TestHost_Start(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
-	host := NewHost(config)
+	host := NewHost(config, false)
 	err := host.Start(false)
 	defer host.Stop()
 
@@ -124,7 +124,7 @@ func TestHost_Start(t *testing.T) {
 	assert.NotNil(t, host.server)
 	assert.Equal(t, filepath.Join(goext.Ok(os.Getwd()), "ngrpc.sock"), host.sockFile)
 
-	host2 := NewHost(config)
+	host2 := NewHost(config, false)
 	err2 := host2.Start(false)
 
 	assert.Contains(t, err2.Error(), "address already in use")
@@ -140,7 +140,7 @@ func TestHost_Stop(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
-	host := NewHost(config)
+	host := NewHost(config, false)
 	err := host.Start(false)
 
 	assert.Nil(t, err)
@@ -159,7 +159,7 @@ func TestHost_WaitForExit(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	config := goext.Ok(config.LoadConfig())
-	host := NewHost(config)
+	host := NewHost(config, false)
 
 	go func() {
 		time.Sleep(time.Second)
@@ -186,7 +186,7 @@ func TestIsLive(t *testing.T) {
 	assert.False(t, IsLive())
 
 	conf := goext.Ok(config.LoadConfig())
-	host := NewHost(conf)
+	host := NewHost(conf, false)
 	goext.Ok(0, host.Start(false))
 	defer host.Stop()
 
@@ -216,7 +216,7 @@ func TestSendCommand_stop(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
-	host := NewHost(conf)
+	host := NewHost(conf, false)
 	goext.Ok(0, host.Start(false))
 	defer host.Stop()
 
@@ -254,7 +254,7 @@ func TestSendCommand_stopAll(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
-	host := NewHost(conf)
+	host := NewHost(conf, false)
 	goext.Ok(0, host.Start(false))
 	defer host.Stop()
 
@@ -302,7 +302,7 @@ func TestSendCommand_list(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
-	host := NewHost(conf)
+	host := NewHost(conf, false)
 	goext.Ok(0, host.Start(false))
 	defer host.Stop()
 
@@ -361,7 +361,7 @@ func TestSendCommand_stopHost(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
-	host := NewHost(conf)
+	host := NewHost(conf, false)
 	goext.Ok(0, host.Start(false))
 	defer host.Stop()
 

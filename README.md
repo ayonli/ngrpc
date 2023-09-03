@@ -144,7 +144,7 @@ func main() {
         running the program, NgRPC automatically compiles the file when needed.
 
         - In production, the entry filename shall the compiled file's name, which is suffixed by `.js`
-        or has no suffix at all (for Golang).
+        or has no suffix at all (for Golang, or `.exe` in Windows).
 
         The program is spawned with the argument `appName`, in Node.js, we use `process.argv[2]` to
         retrieve it, and in Golang, we use `os.Args[1]`.
@@ -170,10 +170,10 @@ func main() {
 - `importRoot` Where to begin searching for TypeScript / JavaScript files, the default is `.`. If
     given, there are two rules for setting this option:
     
-    - During development, if we use a source directory, say `src` (respectfully, set
+    - During development, if we use a source directory, say `src` (respectively, set
         `compilerOptions.rootDir` to `src` in `tsconfig.json`), then this option should be set to
         `src` as well.
-    - In production, if we compile our program to a build directory, say `dist` (respectfully, set
+    - In production, if we compile our program to a build directory, say `dist` (respectively, set
         `compilerOptions.outDir` to `dist` in `tsconfig.json`), then this option should be set to
         `dist` as well.
     
@@ -219,14 +219,14 @@ connect to the services, all is properly handled behind the scene.
 
 - `ngrpc list` or `ngrpc ls` list all apps (exclude non-served ones)
 
-- `ngrpc run <script>` runs a script file that attaches to the services, can be either
+- `ngrpc run <filename> [args...]` runs a script file that attaches to the services, can be either
     Golang (`.go`) or Node.js (`.ts`) programs.
 
 - `ngrpc protoc` generate golang program files from the proto files.
 
     NOTE: this command is not used if our project only contains Node.js programs.
 
-- `ngrpc host [flags]` start the host server standalone
+- `ngrpc host [flags]` start the host server in standalone mode
     - `--stop` stop the host server
 
     NOTE: when `start` command is issued, the host server will be automatically started. The `host`
@@ -264,11 +264,12 @@ the app, the CLI tool also starts a host server to hold communication between ap
 responsible to accept commands sent by the CLI tool and distribute them to the app.
 
 When an app crashes, the host server is also responsible for re-spawning it, this feature guarantees
-that our app is always online.
+that our app is always online. Except when the host server is running in standalone mode, at which
+the app should be re-spawned by the external process management like PM2.
 
-It's necessary to point out, though, that the CLI tool only works for the app instance, if the
-process contains other logics that prevent the process to exit, the `stop` command will not be able
-to terminate the process.
+Moreover, that the CLI tool only works for the app instance, if the process contains other logics
+that prevent the process to exit, the `stop` command will not be able to terminate the process, in
+such case, a hard kill is required.
 
 ## Implement a Service
 

@@ -20,7 +20,8 @@ func main() {
 			return
 		}
 
-		host := host.NewHost(config)
+		standalone := len(args) > 2 && args[2] == "--standalone"
+		host := host.NewHost(config, standalone)
 		err = host.Start(true)
 
 		if err != nil {

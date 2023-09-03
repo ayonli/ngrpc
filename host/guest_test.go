@@ -32,7 +32,7 @@ func TestGuest_JoinAndLeave(t *testing.T) {
 	defer os.Remove("tsconfig.json")
 
 	conf := goext.Ok(config.LoadConfig())
-	host := NewHost(conf)
+	host := NewHost(conf, false)
 	goext.Ok(0, host.Start(false))
 	defer host.Stop()
 

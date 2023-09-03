@@ -12,7 +12,7 @@ import (
 
 var hostCmd = &cobra.Command{
 	Use:   "host",
-	Short: "start the host server standalone",
+	Short: "start the host server in standalone mode",
 	Run: func(cmd *cobra.Command, args []string) {
 		flag := cmd.Flag("stop")
 
@@ -25,7 +25,7 @@ var hostCmd = &cobra.Command{
 		} else if host.IsLive() {
 			fmt.Println("host server is already running")
 		} else {
-			err := startHost()
+			err := startHost(true)
 
 			if err != nil {
 				fmt.Println(err)
@@ -39,8 +39,12 @@ func init() {
 	hostCmd.Flags().Bool("stop", false, "stop the host server")
 }
 
-func startHost() error {
+func startHost(standalone bool) error {
 	cmd := exec.Command(os.Args[0], "host-server")
+
+	if standalone {
+		cmd.Args = append(cmd.Args, "--standalone")
+	}
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

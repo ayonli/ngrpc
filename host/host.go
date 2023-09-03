@@ -47,23 +47,25 @@ type messageRecord struct {
 //
 // This mechanism is primarily used for the CLI tool sending control commands to the apps.
 type Host struct {
-	apps      []config.App
-	tsCfg     config.TsConfig
-	sockFile  string
-	state     int
-	server    net.Listener
-	clients   []clientRecord
-	callbacks *collections.Map[string, func(reply ControlMessage)]
+	apps       []config.App
+	tsCfg      config.TsConfig
+	sockFile   string
+	state      int
+	standalone bool
+	server     net.Listener
+	clients    []clientRecord
+	callbacks  *collections.Map[string, func(reply ControlMessage)]
 
 	isProcessKeeper bool
 	clientsLock     sync.RWMutex
 	callbacksLock   sync.Mutex
 }
 
-func NewHost(conf config.Config) *Host {
+func NewHost(conf config.Config, standalone bool) *Host {
 	host := &Host{
 		apps:          conf.Apps,
 		state:         0,
+		standalone:    standalone,
 		server:        nil,
 		clients:       []clientRecord{},
 		callbacks:     collections.NewMap[string, func(reply ControlMessage)](),
@@ -268,7 +270,7 @@ func (self *Host) handleGuestDisconnection(conn net.Conn) {
 		)
 	}
 
-	if client.app != "" && client.app != ":cli" && self.state == 1 {
+	if client.app != "" && client.app != ":cli" && self.state == 1 && !self.standalone {
 		// When the guest app is closed expectedly, it sends a `goodbye` command to the
 		// host server and the server removes it normally. Otherwise, the connection is
 		// closed due to program failure on the guest app, we can try to revive it.
@@ -739,7 +741,7 @@ func SendCommand(cmd string, appName string) {
 		return
 	}
 
-	host := NewHost(config)
+	host := NewHost(config, true)
 	host.sendCommand(cmd, appName)
 }
 
