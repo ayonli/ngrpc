@@ -27,13 +27,13 @@ func LoadTsConfig(filename string) (TsConfig, error) {
 		filename = "tsconfig.json"
 	}
 
-	fileContents, err := os.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 
 	if err != nil {
 		return tsCfg, err
 	}
 
-	err = json.Unmarshal(jsonc.ToJSON(fileContents), &tsCfg)
+	err = json.Unmarshal(jsonc.ToJSON(data), &tsCfg)
 
 	return tsCfg, err
 }

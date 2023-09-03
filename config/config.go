@@ -10,6 +10,7 @@ import (
 
 	"github.com/ayonli/goext"
 	"github.com/ayonli/ngrpc/util"
+	"github.com/tidwall/jsonc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -56,7 +57,7 @@ func LoadConfig() (Config, error) {
 		data, err := os.ReadFile(localFile)
 
 		if err == nil {
-			json.Unmarshal(data, &cfg)
+			json.Unmarshal(jsonc.ToJSON(data), &cfg)
 		}
 	}
 
@@ -64,7 +65,7 @@ func LoadConfig() (Config, error) {
 		data, err := os.ReadFile(defaultFile)
 
 		if err == nil {
-			err = json.Unmarshal(data, &cfg)
+			err = json.Unmarshal(jsonc.ToJSON(data), &cfg)
 		}
 
 		if err != nil {
