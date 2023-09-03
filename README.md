@@ -2,7 +2,8 @@
 
 Make it easy to create clear, expressive and elegant gRPC based microservices.
 
-This package is written in and for both Node.js and Golang.
+This package is written in and for both Node.js and Golang, and allowing them to work with each
+other seamlessly.
 
 *Windows OS is not yet supported but on the way to go.*
 
