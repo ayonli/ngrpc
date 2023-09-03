@@ -756,7 +756,7 @@ func SpawnApp(app config.App, tsCfg config.TsConfig) (int, error) {
 		if ext == ".go" {
 			cmd = exec.Command("go", "run", entry, app.Name)
 		} else if ext == ".js" {
-			cmd = exec.Command("node", entry, app.Name)
+			cmd = exec.Command("node", "-r", "source-map-support/register", entry, app.Name)
 		} else {
 			cwd, _ := os.Getwd()
 			cmd = exec.Command(filepath.Join(cwd, entry), app.Name)

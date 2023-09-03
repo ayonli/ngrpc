@@ -234,6 +234,7 @@ export class RpcApp {
 
             if (ext === ".js") {
                 _app.script = app.entry;
+                _app.interpreter_args = "-r source-map-support/register";
             } else if (ext === ".ts") {
                 _app.script = app.entry;
                 _app.interpreter_args = "-r ts-node/register";

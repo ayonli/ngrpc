@@ -87,7 +87,7 @@ export function timed(callSite: TemplateStringsArray, ...bindings: any[]) {
  * 
  * @param name The service name defined in the `.proto` file.
  */
-export function service(name: string): <T extends new (...args: any[]) => any>(
+export function service(name: string): <T extends abstract new (...args: any[]) => any>(
     target: T,
     ctx?: any
 ) => void | T {
