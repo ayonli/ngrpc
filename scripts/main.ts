@@ -12,7 +12,9 @@ if (require.main?.filename === __filename) {
         const posts = await services.UserService.getMyPosts({ id: userId });
         console.log(posts);
 
-        const result = await services.ExampleService.sayHello({ name: "World" });
-        console.log(result.message);
+        const reply = await services.ExampleService.sayHello({ name: "World" });
+        console.log(reply.message);
+
+        process.exit(0) // do not wait for idle
     });
 }

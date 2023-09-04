@@ -26,6 +26,6 @@ func main() {
 	fmt.Println(posts)
 
 	exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
-	result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
-	fmt.Println(result.Message)
+	reply := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
+	fmt.Println(reply.Message)
 }
