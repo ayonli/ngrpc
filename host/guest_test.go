@@ -21,7 +21,7 @@ func TestNewGuest(t *testing.T) {
 
 	assert.Equal(t, app.Name, guest.AppName)
 	assert.Equal(t, app.Uri, guest.AppUri)
-	assert.Equal(t, false, guest.IsConnected())
+	assert.Equal(t, 0, guest.state)
 	assert.NotNil(t, guest.handleStopCommand)
 }
 
@@ -45,13 +45,13 @@ func TestGuest_JoinAndLeave(t *testing.T) {
 	})
 	guest.Join()
 
-	assert.Equal(t, true, guest.IsConnected())
+	assert.Equal(t, 1, guest.state)
 	assert.Equal(t, 1, len(host.clients))
 
 	guest.Leave("app [example-server] stopped", "")
 
 	time.Sleep(time.Second)
-	assert.Equal(t, false, guest.IsConnected())
+	assert.Equal(t, 0, guest.state)
 	assert.Equal(t, 0, len(host.clients))
 }
 

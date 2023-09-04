@@ -9,7 +9,6 @@ import (
 
 	"github.com/ayonli/goext"
 	"github.com/ayonli/ngrpc"
-	"github.com/ayonli/ngrpc/host"
 	"github.com/ayonli/ngrpc/services"
 	"github.com/ayonli/ngrpc/services/github/ayonli/ngrpc/services_proto"
 	"github.com/ayonli/ngrpc/services/proto"
@@ -54,23 +53,16 @@ func TestGetServiceClient(t *testing.T) {
 }
 
 func TestForSnippet(t *testing.T) {
-	// Starts the server in the background.
-	cmd := exec.Command("go", "run", "entry/main.go", "example-server")
-	goext.Ok(0, cmd.Start())
-	goext.Ok(0, cmd.Process.Release())
-	time.Sleep(time.Second)
-
-	close := ngrpc.ForSnippet()
-
-	defer func() {
-		close()
-
-		host.SendCommand("stop", "example-server")
-	}()
+	goext.Ok(0, exec.Command("ngrpc", "start", "example-server").Run())
+	done := ngrpc.ForSnippet()
+	defer done()
 
 	ctx := context.Background()
 	ins := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
 	text := goext.Ok(ins.SayHello(ctx, &proto.HelloRequest{Name: "A-yon Lee"}))
 
 	assert.Equal(t, "Hello, A-yon Lee", text.Message)
+
+	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
+	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
 }

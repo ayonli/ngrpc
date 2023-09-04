@@ -9,7 +9,7 @@
     "postpublish": "node postpublish.js",
     "pretest": "tsc",
     "posttest": "node postpublish.js",
-    "test": "mocha -r ts-node/register test.ts"
+    "test": "mocha"
   },
   "bin": {
     "ngrpc": "cli.js"

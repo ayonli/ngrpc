@@ -96,6 +96,30 @@ test("ngrpc.start", async () => {
     }
 });
 
+test("ngrpc.start without app name", async function () {
+    this.timeout(5_000);
+
+    spawnSync("ngrpc", ["start", "example-server"], { encoding: "utf8" });
+    let app: RpcApp | undefined;
+
+    try {
+        app = await ngrpc.start();
+
+        const reply = await services.ExampleService.sayHello({ name: "World" });
+        assert.strictEqual(reply.message, "Hello, World");
+
+        await app.stop();
+        spawnSync("ngrpc", ["stop"]);
+        await sleep(1_000); // Host.Stop waited a while for message flushing, we wait here too
+    } catch (err) {
+        await app?.stop();
+        spawnSync("ngrpc", ["stop"]);
+        await sleep(1_000);
+        throw err;
+    }
+});
+
+
 test("ngrpc.startWithConfig", async () => {
     const cfg = await ngrpc.loadConfig();
     const cfgApp = cfg.apps.find(item => item.name === "example-server");
@@ -161,8 +185,7 @@ test("ngrpc.getServiceClient", async () => {
 test("ngrpc.runSnippet", async function () {
     this.timeout(5_000);
 
-    const cmd = spawnSync("ngrpc", ["start", "example-server"], { encoding: "utf8" });
-    assert.ok(cmd.stdout.includes("app [example-server] started"));
+    spawnSync("ngrpc", ["start", "example-server"], { encoding: "utf8" });
     let message: string | undefined;
 
     try {

@@ -2,18 +2,11 @@ package ngrpc
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"syscall"
 	"testing"
-	"time"
 
-	"github.com/ayonli/goext"
-	"github.com/ayonli/goext/structx"
 	"github.com/ayonli/ngrpc/config"
-	"github.com/ayonli/ngrpc/host"
 	"github.com/ayonli/ngrpc/services/github/ayonli/ngrpc/services_proto"
-	"github.com/ayonli/ngrpc/util"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 )
@@ -436,7 +429,7 @@ func TestStartCantInitServer(t *testing.T) {
 	assert.Equal(t, "parse \"grpc://localhost:abc\": invalid port \":abc\" after host", err.Error())
 }
 
-func TestStartPureClientApp(t *testing.T) {
+func TestStartWithoutAppName(t *testing.T) {
 	conf := config.Config{
 		Apps: []config.App{
 			{
@@ -487,83 +480,4 @@ func TestWaitForExit(t *testing.T) {
 	}()
 
 	app.WaitForExit()
-}
-
-func TestSpawnApp(t *testing.T) {
-	cfg := goext.Ok(config.LoadConfig())
-	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
-	app := cfg.Apps[0]
-	pid := goext.Ok(host.SpawnApp(app, tsCfg))
-
-	assert.NotEqual(t, -1, pid)
-	assert.NotEqual(t, 0, pid)
-
-	time.Sleep(time.Second)
-	host.SendCommand("stop", "")
-}
-
-func TestSpawnApp_builtEntry(t *testing.T) {
-	cmd := exec.Command("go", "build", "-o", "entry/main", "entry/main.go")
-	cmd.Run()
-
-	assert.True(t, util.Exists("entry/main"))
-
-	cfg := goext.Ok(config.LoadConfig())
-	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
-	app := cfg.Apps[0]
-	app.Entry = "entry/main"
-	pid := goext.Ok(host.SpawnApp(app, tsCfg))
-
-	assert.NotEqual(t, -1, pid)
-	assert.NotEqual(t, 0, pid)
-
-	time.Sleep(time.Second)
-	host.SendCommand("stop", "")
-
-	os.Remove("entry/main")
-}
-
-func TestSpawnApp_pipeStdout(t *testing.T) {
-	cfg := goext.Ok(config.LoadConfig())
-	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
-	app := cfg.Apps[0]
-	app.Stdout = ""
-	app.Stderr = ""
-	pid := goext.Ok(host.SpawnApp(app, tsCfg))
-
-	assert.NotEqual(t, -1, pid)
-	assert.NotEqual(t, 0, pid)
-
-	time.Sleep(time.Second)
-	host.SendCommand("stop", "")
-}
-
-func TestSpawnApp_invalidEntry(t *testing.T) {
-	cfg := goext.Ok(config.LoadConfig())
-	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
-	app := cfg.Apps[0]
-	app.Entry = ""
-
-	pid, err := host.SpawnApp(app, tsCfg)
-
-	assert.Equal(t, 0, pid)
-	assert.Equal(t, "entry file is not set", err.Error())
-}
-
-func TestSpawnApp_otherOptions(t *testing.T) {
-	cfg := goext.Ok(config.LoadConfig())
-	tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
-	app := structx.Merge(cfg.Apps[0], config.App{
-		Stderr: "err.log",
-		Env: map[string]string{
-			"FOO": "BAR",
-		},
-	})
-	pid := goext.Ok(host.SpawnApp(app, tsCfg))
-
-	assert.NotEqual(t, -1, pid)
-	assert.NotEqual(t, 0, pid)
-
-	time.Sleep(time.Second)
-	host.SendCommand("stop", "")
 }

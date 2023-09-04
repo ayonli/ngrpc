@@ -226,7 +226,7 @@ func TestSendCommand_stop(t *testing.T) {
 	})
 	guest.Join()
 
-	assert.Equal(t, true, guest.IsConnected())
+	assert.Equal(t, 1, guest.state)
 	assert.Equal(t, 1, len(host.clients))
 
 	go func() {
@@ -238,7 +238,7 @@ func TestSendCommand_stop(t *testing.T) {
 	guest.Leave("app [example-server] stopped", msgId)
 
 	assert.NotEqual(t, "", msgId)
-	assert.Equal(t, false, guest.IsConnected())
+	assert.Equal(t, 0, guest.state)
 
 	time.Sleep(time.Second)
 	assert.Equal(t, 0, len(host.clients))
@@ -368,7 +368,7 @@ func TestSendCommand_stopHost(t *testing.T) {
 	}, func(msgId string) {})
 	guest.Join()
 
-	assert.Equal(t, true, guest.IsConnected())
+	assert.Equal(t, 1, guest.state)
 	assert.Equal(t, 1, len(host.clients))
 
 	go func() {
@@ -377,7 +377,7 @@ func TestSendCommand_stopHost(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	assert.Equal(t, false, guest.IsConnected())
+	assert.Equal(t, 0, guest.state)
 	assert.Equal(t, 0, host.state)
 	assert.Equal(t, 1, len(host.clients))
 	assert.Equal(t, ":cli", host.clients[0].app)
