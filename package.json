@@ -7,8 +7,6 @@
   "scripts": {
     "prepublishOnly": "tsc",
     "postpublish": "node postpublish.js",
-    "pretest": "tsc",
-    "posttest": "node postpublish.js",
     "test": "mocha"
   },
   "bin": {
