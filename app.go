@@ -469,7 +469,7 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 		msg = "app (anonymous) stopped"
 	}
 
-	if self.guest != nil && self.guest.IsConnected() && graceful {
+	if self.guest != nil && graceful {
 		self.guest.Leave(msg, msgId)
 
 		if self.Name != "" {

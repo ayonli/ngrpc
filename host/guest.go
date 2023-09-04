@@ -110,6 +110,7 @@ type Guest struct {
 	state             int
 	handleStopCommand func(msgId string)
 	replyChan         chan ControlMessage
+	cancelSignal      chan bool
 }
 
 func NewGuest(app config.App, onStopCommand func(msgId string)) *Guest {
@@ -120,10 +121,6 @@ func NewGuest(app config.App, onStopCommand func(msgId string)) *Guest {
 	}
 
 	return guest
-}
-
-func (self *Guest) IsConnected() bool {
-	return self.state == 1
 }
 
 func (self *Guest) Join() {
@@ -214,6 +211,8 @@ func (self *Guest) Leave(reason string, replyId string) {
 		} else {
 			self.Send(ControlMessage{Cmd: "goodbye", App: self.AppName, Fin: true})
 		}
+	} else if self.cancelSignal != nil {
+		self.cancelSignal <- true
 	}
 
 	self.state = 0
@@ -225,13 +224,19 @@ func (self *Guest) Send(msg ControlMessage) error {
 }
 
 func (self *Guest) reconnect() {
+	self.cancelSignal = make(chan bool)
+loop:
 	for self.state == 0 {
-		// constantly trying to reconnect
-		time.Sleep(time.Second)
-		err := self.connect()
+		select {
+		case <-time.After(time.Second):
+			err := self.connect()
 
-		if err == nil {
-			break
+			if err == nil {
+				break loop
+			}
+		case <-self.cancelSignal:
+			close(self.cancelSignal)
+			break loop
 		}
 	}
 }
