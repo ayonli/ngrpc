@@ -3,7 +3,6 @@ package ngrpc_test
 import (
 	"context"
 	"fmt"
-	"log"
 	"os/exec"
 	"testing"
 	"time"
@@ -18,13 +17,8 @@ import (
 )
 
 func Example() {
-	app, err := ngrpc.Start("user-server")
-
-	if err != nil {
-		log.Fatal(err)
-	} else {
-		defer app.Stop()
-	}
+	app := goext.Ok(ngrpc.Start("user-server"))
+	defer app.Stop()
 
 	ctx := context.Background()
 	userId := "ayon.li"
@@ -45,17 +39,12 @@ func Example() {
 }
 
 func TestGetServiceClient(t *testing.T) {
-	app, err := ngrpc.Start("user-server")
-
-	if err != nil {
-		log.Fatal(err)
-	} else {
-		defer app.Stop()
-	}
+	app := goext.Ok(ngrpc.Start("user-server"))
+	defer app.Stop()
 
 	ins1 := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, ""))
 	ins2 := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, "user-server"))
-	ins3 := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, "grpc://localhost:4000"))
+	ins3 := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, "grpcs://localhost:4001"))
 
 	assert.NotNil(t, ins1)
 	assert.NotNil(t, ins2)

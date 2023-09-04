@@ -6,54 +6,24 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ayonli/goext"
+	"github.com/ayonli/ngrpc/util"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadConfigFile(t *testing.T) {
-	data, err := os.ReadFile("../ngrpc.json")
+	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
+	defer os.Remove("ngrpc.json")
 
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	os.WriteFile("ngrpc.json", data, 0755)
-
-	defer func() {
-		os.Remove("ngrpc.json")
-	}()
-
-	config, err := LoadConfig()
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
+	config := goext.Ok(LoadConfig())
 	assert.True(t, len(config.Apps) > 0)
 }
 
 func TestLoadLocalConfigFile(t *testing.T) {
-	data, err := os.ReadFile("../ngrpc.json")
+	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.local.json"))
+	defer os.Remove("ngrpc.local.json")
 
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	os.WriteFile("ngrpc.local.json", data, 0755)
-
-	defer func() {
-		os.Remove("ngrpc.local.json")
-	}()
-
-	config, err := LoadConfig()
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
+	config := goext.Ok(LoadConfig())
 	assert.True(t, len(config.Apps) > 0)
 }
 
