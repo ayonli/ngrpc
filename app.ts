@@ -64,6 +64,18 @@ export interface App {
     options?: ChannelOptions;
 }
 
+export interface PM2App {
+    name: string;
+    script: string;
+    args: string;
+    interpreter?: string;
+    interpreter_args?: string;
+    env?: { [name: string]: string; };
+    log_file?: string;
+    out_file?: string;
+    err_file?: string;
+}
+
 export interface Config {
     $schema?: string;
     namespace?: string;
@@ -194,7 +206,7 @@ export class RpcApp {
      * Loads the configurations and reorganizes them so that the same configurations can be used in
      * PM2's configuration file.
      */
-    static loadConfigForPM2() {
+    static loadConfigForPM2(): { [x: string]: any; apps: PM2App[]; } {
         const defaultFile = absPath("ngrpc.json");
         const localFile = absPath("ngrpc.local.json");
         let fileContent: string | undefined;
@@ -208,17 +220,6 @@ export class RpcApp {
         }
 
         const cfg = this.parseConfig(fileContent);
-        type PM2App = {
-            name: string;
-            script?: string;
-            args: string;
-            interpreter?: string;
-            interpreter_args?: string;
-            env?: { [name: string]: string; };
-            log_file?: string;
-            out_file?: string;
-            err_file?: string;
-        };
         const apps: PM2App[] = [];
 
         for (const app of cfg.apps) {
@@ -228,7 +229,8 @@ export class RpcApp {
             const ext = path.extname(app.entry);
             const _app: PM2App = {
                 name: app.name,
-                args: `"${app.name}"`,
+                script: "",
+                args: app.name.includes(" ") ? `"${app.name}"` : app.name,
                 env: app.env || {},
             };
 
@@ -263,7 +265,7 @@ export class RpcApp {
             apps.push(_app);
         }
 
-        return apps;
+        return { apps };
     }
 
     /** Retrieves the app name from the `process.argv`. */
@@ -296,7 +298,7 @@ export class RpcApp {
         return await this._start(appName, config);
     }
 
-    static async _start(appName: string | null, config: Config, once = false) {
+    private static async _start(appName: string | null, config: Config, once = false) {
         if (this.theApp) {
             throw new Error("an app is already running");
         }
