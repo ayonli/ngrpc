@@ -26,9 +26,12 @@ import (
 )
 
 func init() {
+	// The default logger writes log to the stderr, which is not intended for the CLI program, reset
+	// it to the stdout instead.
 	log.SetOutput(os.Stdout)
 }
 
+var openForAppend = os.O_CREATE | os.O_APPEND | os.O_WRONLY
 var defaultTsOutDir = "node_modules/.ngrpc"
 
 type clientRecord struct {
@@ -108,7 +111,6 @@ func (self *Host) Start(wait bool) error {
 				if self.state == 0 { // server has shut down
 					break
 				} else {
-					log.Println(err)
 					continue
 				}
 			} else if self.state == 0 {
@@ -119,8 +121,6 @@ func (self *Host) Start(wait bool) error {
 		}
 	}()
 
-	log.Printf("host server started (pid: %d)", os.Getpid())
-
 	if wait {
 		self.waitForExit()
 	}
@@ -130,8 +130,6 @@ func (self *Host) Start(wait bool) error {
 
 func (self *Host) Stop() {
 	self.state = 0
-
-	log.Println("host server shuting down")
 
 	if self.clients != nil {
 		for _, client := range self.clients {
@@ -285,7 +283,20 @@ func (self *Host) handleGuestDisconnection(conn net.Conn) {
 
 		if exists {
 			time.Sleep(time.Second)
-			log.Printf("reviving app [%v] ...", client.app)
+
+			if app.Stdout != "" {
+				// Write the log to the app's log file instead, because the host daemon does not
+				// have its own logger.
+				file, err := os.OpenFile(app.Stdout, openForAppend, 0644)
+
+				if err == nil {
+					logger := log.New(file, "", log.LstdFlags)
+					logger.Printf("app [%v] exited accidentally, reviving...", client.app)
+				}
+
+				file.Close()
+			}
+
 			SpawnApp(app, self.tsCfg)
 		}
 	}
@@ -713,6 +724,7 @@ func (self *Host) sendAndWait(msg ControlMessage, guest *Guest, fin bool) {
 		if msg.Cmd == "stop" && msg.App == "" {
 			// After all the apps have been stopped, stop the host server as well.
 			self.sendAndWait(ControlMessage{Cmd: "stop-host"}, guest, true)
+			log.Println("host server shut down")
 		} else {
 			guest.Leave("", "")
 		}
@@ -768,24 +780,14 @@ func SpawnApp(app config.App, tsCfg config.TsConfig) (int, error) {
 			cmd = exec.Command(filepath.Join(cwd, entry), app.Name)
 		}
 
-		openFlags := os.O_CREATE | os.O_APPEND | os.O_WRONLY
-
 		if app.Stdout != "" {
-			filename := util.AbsPath(app.Stdout, false)
-			util.EnsureDir(filepath.Dir(filename))
-			cmd.Stdout = goext.Ok(os.OpenFile(filename, openFlags, 0644))
-		} else {
-			cmd.Stdout = os.Stdout
+			cmd.Stdout = goext.Ok(os.OpenFile(app.Stdout, openForAppend, 0644))
 		}
 
 		if app.Stderr != "" {
-			filename := util.AbsPath(app.Stderr, false)
-			util.EnsureDir(filepath.Dir(filename))
-			cmd.Stderr = goext.Ok(os.OpenFile(filename, openFlags, 0644))
+			cmd.Stderr = goext.Ok(os.OpenFile(app.Stderr, openForAppend, 0644))
 		} else if app.Stdout != "" {
-			cmd.Stderr = goext.Ok(os.OpenFile(util.AbsPath(app.Stdout, false), openFlags, 0644))
-		} else {
-			cmd.Stderr = os.Stderr
+			cmd.Stderr = goext.Ok(os.OpenFile(app.Stdout, openForAppend, 0644))
 		}
 
 		if len(env) > 0 {

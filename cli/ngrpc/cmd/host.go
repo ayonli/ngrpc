@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"time"
@@ -21,6 +22,7 @@ var hostCmd = &cobra.Command{
 				fmt.Println("host server is not running")
 			} else {
 				host.SendCommand("stop-host", "")
+				log.Println("host server shut down")
 			}
 		} else if host.IsLive() {
 			fmt.Println("host server is already running")
@@ -46,14 +48,12 @@ func startHost(standalone bool) error {
 		cmd.Args = append(cmd.Args, "--standalone")
 	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
 	err := cmd.Start()
 
 	if err != nil {
 		return err
 	} else {
+		log.Printf("host server started (pid: %d)", cmd.Process.Pid)
 		cmd.Process.Release()
 		time.Sleep(time.Millisecond * 200) // wait a while for the host server to serve
 		return nil
