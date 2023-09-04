@@ -81,19 +81,13 @@ test("ngrpc.loadConfigForPM2", async () => {
 });
 
 test("ngrpc.start", async () => {
-    let app: RpcApp | undefined;
+    const app = await ngrpc.start("example-server");
+    assert.strictEqual(app.name, "example-server");
 
-    try {
-        app = await ngrpc.start("example-server");
-        assert.strictEqual(app.name, "example-server");
+    const reply = await services.ExampleService.sayHello({ name: "World" });
+    assert.strictEqual(reply.message, "Hello, World");
 
-        const reply = await services.ExampleService.sayHello({ name: "World" });
-        assert.strictEqual(reply.message, "Hello, World");
-        await app.stop();
-    } catch (err) {
-        await app?.stop();
-        throw err;
-    }
+    await app.stop();
 });
 
 test("ngrpc.start without app name", async function () {
@@ -122,26 +116,12 @@ test("ngrpc.start without app name", async function () {
 
 test("ngrpc.startWithConfig", async () => {
     const cfg = await ngrpc.loadConfig();
-    const cfgApp = cfg.apps.find(item => item.name === "example-server");
+    const app = await ngrpc.startWithConfig("example-server", cfg);
+    assert.strictEqual(app.name, "example-server");
 
-    if (!cfgApp) {
-        throw new Error("app [example-server] not found");
-    }
-
-    cfgApp.entry = "entry/main.ts";
-    let app: RpcApp | undefined;
-
-    try {
-        app = await ngrpc.startWithConfig("example-server", cfg);
-        assert.strictEqual(app.name, "example-server");
-
-        const reply = await services.ExampleService.sayHello({ name: "World" });
-        assert.strictEqual(reply.message, "Hello, World");
-        await app.stop();
-    } catch (err) {
-        await app?.stop();
-        throw err;
-    }
+    const reply = await services.ExampleService.sayHello({ name: "World" });
+    assert.strictEqual(reply.message, "Hello, World");
+    await app.stop();
 });
 
 test("ngrpc.startWithConfig with xds protocol", async () => {
@@ -153,33 +133,61 @@ test("ngrpc.startWithConfig with xds protocol", async () => {
     }
 
     cfgApp.entry = "entry/main.ts";
-    cfgApp.uri = "xds:localhost:4000";
+    cfgApp.uri = "xds://localhost:4000";
 
     const [err, app] = await _try(ngrpc.startWithConfig("example-server", cfg));
 
-    assert.ok(err.message.includes("'xds:' protocol is used in app"));
     assert.ok(!app);
+    assert.strictEqual(err.message,
+        `app [example-server] cannot be served since it uses 'xds:' protocol`);
+});
+
+test("ngrpc.start invalid app", async () => {
+    const [err, app] = await _try(ngrpc.start("test-server"));
+
+    assert.ok(!app);
+    assert.strictEqual(err.message, "app [test-server] is not configured");
+});
+
+test("ngrpc.startWithConfig with invalid URI", async () => {
+    const cfg = await ngrpc.loadConfig();
+    const cfgApp = cfg.apps.find(item => item.name === "example-server");
+
+    if (!cfgApp) {
+        throw new Error("app [example-server] not found");
+    }
+
+    cfgApp.entry = "entry/main.ts";
+    cfgApp.uri = "grpc://localhost:abc";
+
+    const [err, app] = await _try(ngrpc.startWithConfig("example-server", cfg));
+
+    assert.ok(!app);
+    assert.strictEqual(err.message, `Invalid URL`);
+});
+
+test("ngrpc.start duplicated call", async () => {
+    const app1 = await ngrpc.start("example-server");
+    const [err, app2] = await _try(ngrpc.start("post-server"));
+
+    assert.ok(!app2);
+    assert.strictEqual(err.message, "an app is already running");
+
+    app1.stop();
 });
 
 test("ngrpc.getServiceClient", async () => {
-    let app: RpcApp | undefined;
+    const app = await ngrpc.start("post-server");
 
-    try {
-        app = await ngrpc.start("post-server");
+    const ins1 = ngrpc.getServiceClient("services.PostService");
+    const ins2 = ngrpc.getServiceClient("services.PostService", "post-server");
+    const ins3 = ngrpc.getServiceClient("services.PostService", "grpcs://localhost:4002");
 
-        const ins1 = ngrpc.getServiceClient("services.PostService");
-        const ins2 = ngrpc.getServiceClient("services.PostService", "post-server");
-        const ins3 = ngrpc.getServiceClient("services.PostService", "grpcs://localhost:4002");
+    assert.ok(!!ins1);
+    assert.ok(!!ins2);
+    assert.ok(!!ins3);
 
-        assert.ok(!!ins1);
-        assert.ok(!!ins2);
-        assert.ok(!!ins3);
-
-        await app.stop();
-    } catch (err) {
-        await app?.stop();
-        throw err;
-    }
+    await app.stop();
 });
 
 test("ngrpc.runSnippet", async function () {
@@ -205,43 +213,26 @@ test("ngrpc.runSnippet", async function () {
 });
 
 test("app.stop and app.onStop", async () => {
-    let app: RpcApp | undefined;
+    const app = await ngrpc.start("example-server");
+    let stopped = false;
 
-    try {
-        app = await ngrpc.start("example-server");
-        let stopped = false;
+    app.onStop(() => {
+        stopped = true;
+    });
 
-        app.onStop(() => {
-            stopped = true;
-        });
-
-        await app.stop();
-
-        assert.ok(stopped);
-    } catch (err) {
-        await app?.stop();
-        throw err;
-    }
+    await app.stop();
+    assert.ok(stopped);
 });
 
 test("app.reload and app.onReload", async () => {
-    let app: RpcApp | undefined;
+    const app = await ngrpc.start("example-server");
+    let reloaded = false;
 
-    try {
-        app = await ngrpc.start("example-server");
-        let reloaded = false;
+    app.onReload(() => {
+        reloaded = true;
+    });
 
-        app.onReload(() => {
-            reloaded = true;
-        });
-
-        await app.reload();
-
-        assert.ok(reloaded);
-
-        app.stop();
-    } catch (err) {
-        await app?.stop();
-        throw err;
-    }
+    await app.reload();
+    assert.ok(reloaded);
+    await app.stop();
 });

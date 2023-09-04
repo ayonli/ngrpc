@@ -305,23 +305,7 @@ export class RpcApp {
 
         const app = new RpcApp();
         app.config = config;
-        let xdsApp: App | undefined;
         let cfgApp: App | undefined;
-
-        if (!xdsEnabled &&
-            (xdsApp = config.apps?.find(item => !!item.serve && item.uri?.startsWith("xds:")))
-        ) {
-            try {
-                const _module = require("@grpc/grpc-js-xds");
-                _module.register();
-                xdsEnabled = true;
-            } catch (err: any) {
-                if (err["code"] === "MODULE_NOT_FOUND") {
-                    throw new Error(`'xds:' protocol is used in app [${xdsApp.name}]`
-                        + `, but package '@grpc/grpc-js-xds' is not installed`);
-                }
-            }
-        }
 
         if (appName) {
             app.name = appName;
@@ -656,6 +640,21 @@ export class RpcApp {
     }
 
     protected async initClients() {
+        const app = this.config?.apps?.find(item => item.name === this.name);
+
+        if (!xdsEnabled && app?.uri.startsWith("xds:")) {
+            try {
+                const _module = require("@grpc/grpc-js-xds");
+                _module.register();
+                xdsEnabled = true;
+            } catch (err: any) {
+                if (err["code"] === "MODULE_NOT_FOUND") {
+                    throw new Error(`app [${app.name}] uses 'xds:' protocol `
+                        + `but package '@grpc/grpc-js-xds' is not installed`);
+                }
+            }
+        }
+
         const conf = this.config as Config;
         const cas = new Map<string, Buffer>();
         const certs = new Map<string, Buffer>();

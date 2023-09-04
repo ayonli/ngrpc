@@ -1,473 +1,164 @@
-package ngrpc
+package ngrpc_test
 
 import (
+	"context"
 	"fmt"
+	"os/exec"
 	"syscall"
 	"testing"
+	"time"
 
+	"github.com/ayonli/goext"
+	"github.com/ayonli/ngrpc"
 	"github.com/ayonli/ngrpc/config"
+	"github.com/ayonli/ngrpc/services"
 	"github.com/ayonli/ngrpc/services/github/ayonli/ngrpc/services_proto"
+	"github.com/ayonli/ngrpc/services/proto"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
 )
 
-type UserService struct{}
-
-func (self *UserService) Serve(s grpc.ServiceRegistrar) {
-	services_proto.RegisterUserServiceServer(s, nil)
-}
-
-func (self *UserService) Connect(cc grpc.ClientConnInterface) services_proto.UserServiceClient {
-	return services_proto.NewUserServiceClient(cc)
-}
-
-type PostService struct {
-	User *UserService // Used to test DI
-}
-
-func (self *PostService) Serve(s grpc.ServiceRegistrar) {
-	services_proto.RegisterPostServiceServer(s, nil)
-}
-
-func (self *PostService) Connect(cc grpc.ClientConnInterface) services_proto.PostServiceClient {
-	return services_proto.NewPostServiceClient(cc)
-}
-
-type UnservableService struct{}
-
-func (self *UnservableService) Connect(cc grpc.ClientConnInterface) services_proto.PostServiceClient {
-	return services_proto.NewPostServiceClient(cc)
-}
-
-type UnregisteredService struct{}
-
-func (self *UnregisteredService) Connect(cc grpc.ClientConnInterface) services_proto.PostServiceClient {
-	return services_proto.NewPostServiceClient(cc)
-}
-
-func init() {
-	Use(&UserService{})
-	Use(&PostService{})
-	Use(&UnservableService{})
-}
-
-func TestInitServer(t *testing.T) {
-	var conf = config.Config{
-		Apps: []config.App{
-			{
-				Name:  "server-1",
-				Uri:   "grpc://localhost:5001",
-				Serve: true,
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-			{
-				Name: "server-2",
-				Uri:  "grpc://localhost:5002",
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initServer()
-
+func TestStart(t *testing.T) {
+	app := goext.Ok(ngrpc.Start("user-server"))
 	defer app.Stop()
 
-	assert.Nil(t, err)
-	assert.NotNil(t, app.server)
+	assert.Equal(t, "user-server", app.Name)
 
-	// test dependency injection
-	userService := app.services[0].(*UserService)
-	postService := app.services[1].(*PostService)
-	assert.Equal(t, postService.User, userService)
+	userId := "ayon.li"
+	userSrv := goext.Ok((&services.UserService{}).GetClient(""))
+	user := goext.Ok(userSrv.GetUser(context.Background(), &services_proto.UserQuery{Id: &userId}))
+
+	assert.Equal(t, "A-yon Lee", user.Name)
 }
 
-func TestInitServerXdsUri(t *testing.T) {
-	var conf = config.Config{
+func TestStartWithoutAppName(t *testing.T) {
+	goext.Ok(0, exec.Command("ngrpc", "start", "example-server").Run())
+
+	app := goext.Ok(ngrpc.Start(""))
+	defer app.Stop()
+
+	srv := goext.Ok((&services.ExampleService{}).GetClient(""))
+	reply := goext.Ok(srv.SayHello(context.Background(), &proto.HelloRequest{Name: "World"}))
+	assert.Equal(t, "Hello, World", reply.Message)
+
+	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
+	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+}
+
+func TestStartWithConfig(t *testing.T) {
+	cfg := goext.Ok(config.LoadConfig())
+	app := goext.Ok(ngrpc.StartWithConfig("user-server", cfg))
+	defer app.Stop()
+
+	assert.Equal(t, "user-server", app.Name)
+
+	userId := "ayon.li"
+	userSrv := goext.Ok((&services.UserService{}).GetClient(""))
+	user := goext.Ok(userSrv.GetUser(context.Background(), &services_proto.UserQuery{Id: &userId}))
+
+	assert.Equal(t, "A-yon Lee", user.Name)
+}
+
+func TestStartWithConfigWithXdsProtocol(t *testing.T) {
+	cfg := config.Config{
 		Apps: []config.App{
 			{
-				Name:  "server-1",
+				Name:  "example-server",
 				Uri:   "xds://localhost:5001",
 				Serve: true,
 				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
+					"services.ExampleService",
 				},
 			},
 		},
 	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initServer()
+	app, err := ngrpc.StartWithConfig("example-server", cfg)
 
-	assert.Equal(t, "app [server-1] cannot be served since it uses 'xds:' protocol", err.Error())
-}
-
-func TestInitServerInvalidUri(t *testing.T) {
-	var conf = config.Config{
-		Apps: []config.App{
-			{
-				Name:  "server-1",
-				Uri:   "grpc://localhost:abc",
-				Serve: true,
-				Services: []string{
-					getServiceName(&UserService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initServer()
-
+	assert.Nil(t, app)
 	assert.Equal(t,
-		"parse \"grpc://localhost:abc\": invalid port \":abc\" after host",
+		"app [example-server] cannot be served since it uses 'xds:' protocol",
 		err.Error())
-}
-
-func TestInitServerInvalidCredentials(t *testing.T) {
-	var conf = config.Config{
-		Apps: []config.App{
-			{
-				Name:  "server-1",
-				Uri:   "grpcs://localhost:6000",
-				Serve: true,
-				Services: []string{
-					getServiceName(&UserService{}),
-				},
-				Ca:   "./certs/ca.pem",
-				Cert: "./certs/cert.pem",
-				Key:  "../certs/cert.key",
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initServer()
-
-	assert.Equal(t, "open ../certs/cert.key: no such file or directory", err.Error())
-}
-
-func TestInitServerUnregisteredService(t *testing.T) {
-	var conf = config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "grpc://localhost:6000",
-				Services: []string{
-					getServiceName(&UnregisteredService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initServer()
-
-	assert.Equal(t, "service [ngrpc.UnregisteredService] hasn't been registered", err.Error())
-}
-
-func TestInitServerUnservableService(t *testing.T) {
-	var conf = config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "grpc://localhost:6000",
-				Services: []string{
-					getServiceName(&UnservableService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initServer()
-
-	assert.Equal(t, "service [ngrpc.UnservableService] doesn't implement the Serve() method", err.Error())
-}
-
-func TestInitServerUnavailablePort(t *testing.T) {
-	app1 := &RpcApp{
-		App: config.App{
-			Name:  "server-1",
-			Uri:   "grpc://localhost:6000",
-			Serve: true,
-			Services: []string{
-				getServiceName(&UserService{}),
-			},
-		},
-	}
-	app2 := &RpcApp{
-		App: config.App{
-			Name:  "server-2",
-			Uri:   "grpc://localhost:6000",
-			Serve: true,
-			Services: []string{
-				getServiceName(&UserService{}),
-			},
-		},
-	}
-
-	err1 := app1.initServer()
-	err2 := app2.initServer()
-
-	defer app1.Stop()
-
-	assert.Nil(t, err1)
-	assert.Contains(t, err2.Error(), "bind: address already in use")
-}
-
-func TestInitClient(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "grpc://localhost:6001",
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-			{
-				Name: "server-2",
-				Uri:  "grpc://localhost:6002",
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initClient(conf.Apps)
-
-	assert.Nil(t, err)
-	assert.Equal(t, 2, app.serviceDialers.Size())
-}
-
-func TestInitClientTLS(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "grpcs://localhost:6000",
-				Services: []string{
-					getServiceName(&UserService{}),
-				},
-				Ca:   "./certs/ca.pem",
-				Cert: "./certs/cert.pem",
-				Key:  "./certs/cert.key",
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initClient(conf.Apps)
-
-	assert.Nil(t, err)
-	assert.Equal(t, 1, app.serviceDialers.Size())
-}
-
-func TestInitClientXdsUri(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "xds://localhost:6000",
-				Services: []string{
-					getServiceName(&UserService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initClient(conf.Apps)
-
-	assert.Nil(t, err)
-	assert.Equal(t, 1, app.serviceDialers.Size())
-}
-
-func TestInitClientInvalidUri(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "grpc://localhost:abc",
-				Services: []string{
-					getServiceName(&UserService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initClient(conf.Apps)
-
-	assert.Equal(t,
-		"parse \"grpc://localhost:abc\": invalid port \":abc\" after host",
-		err.Error())
-}
-
-func TestInitClientInvalidCredentials(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "grpcs://localhost:6000",
-				Services: []string{
-					getServiceName(&UserService{}),
-				},
-				Ca:   "./certs/ca.pem",
-				Cert: "./certs/cert.pem",
-				Key:  "../certs/cert.key",
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initClient(conf.Apps)
-
-	assert.Equal(t, "open ../certs/cert.key: no such file or directory", err.Error())
-}
-
-func TestInitClientUnregisteredService(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name: "server-1",
-				Uri:  "grpc://localhost:6000",
-				Services: []string{
-					getServiceName(&UnregisteredService{}),
-				},
-			},
-		},
-	}
-	app := &RpcApp{App: conf.Apps[0]}
-	err := app.initClient(conf.Apps)
-
-	assert.Equal(t, "service [ngrpc.UnregisteredService] hasn't been registered", err.Error())
-}
-
-func TestStartDuplicateCall(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name:  "server-1",
-				Uri:   "grpc://localhost:5003",
-				Serve: true,
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-			{
-				Name: "server-2",
-				Uri:  "grpc://localhost:5004",
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-		},
-	}
-
-	app1, err1 := StartWithConfig("server-1", conf)
-	app2, err2 := StartWithConfig("server-2", conf)
-
-	defer app1.Stop()
-
-	assert.NotNil(t, app1)
-	assert.Nil(t, err1)
-	assert.Nil(t, app2)
-	assert.Equal(t, "an app is already running", err2.Error())
 }
 
 func TestStartInvalidApp(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name:  "server-1",
-				Uri:   "grpc://localhost:5003",
-				Serve: true,
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-			{
-				Name: "server-2",
-				Uri:  "grpc://localhost:5004",
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-		},
-	}
-
-	app, err := StartWithConfig("server-3", conf)
+	app, err := ngrpc.Start("test-server")
 
 	assert.Nil(t, app)
-	assert.Equal(t, "app [server-3] is not configured", err.Error())
+	assert.Equal(t, "app [test-server] is not configured", err.Error())
 }
 
-func TestStartCantInitServer(t *testing.T) {
-	conf := config.Config{
+func TestStartInvalidUri(t *testing.T) {
+	cfg := config.Config{
 		Apps: []config.App{
 			{
-				Name:  "server-1",
+				Name:  "example-server",
 				Uri:   "grpc://localhost:abc",
 				Serve: true,
 				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
+					"services.ExampleService",
 				},
 			},
 		},
 	}
 
-	app, err := StartWithConfig("server-1", conf)
+	app, err := ngrpc.StartWithConfig("example-server", cfg)
 
 	assert.Nil(t, app)
 	assert.Equal(t, "parse \"grpc://localhost:abc\": invalid port \":abc\" after host", err.Error())
 }
 
-func TestStartWithoutAppName(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name:  "server-1",
-				Uri:   "grpc://localhost:6000",
-				Serve: true,
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-		},
-	}
+func TestStartDuplicateCall(t *testing.T) {
+	app1 := goext.Ok(ngrpc.Start("user-server"))
+	app2, err := ngrpc.Start("user-server")
+	defer app1.Stop()
 
-	app, err := StartWithConfig("", conf)
+	assert.Nil(t, app2)
+	assert.Equal(t, "an app is already running", err.Error())
+}
 
-	assert.Nil(t, err)
-	assert.Equal(t, 2, app.serviceDialers.Size())
+func TestGetServiceClient(t *testing.T) {
+	app := goext.Ok(ngrpc.Start("user-server"))
+	defer app.Stop()
+
+	ins1 := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, ""))
+	ins2 := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, "user-server"))
+	ins3 := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, "grpcs://localhost:4001"))
+
+	assert.NotNil(t, ins1)
+	assert.NotNil(t, ins2)
+	assert.NotNil(t, ins3)
+	assert.Equal(t, ins1, ins2)
+	assert.Equal(t, ins1, ins3)
+}
+
+func TestForSnippet(t *testing.T) {
+	goext.Ok(0, exec.Command("ngrpc", "start", "example-server").Run())
+	done := ngrpc.ForSnippet()
+	defer done()
+
+	ctx := context.Background()
+	ins := goext.Ok((&services.ExampleService{}).GetClient(""))
+	text := goext.Ok(ins.SayHello(ctx, &proto.HelloRequest{Name: "A-yon Lee"}))
+
+	assert.Equal(t, "Hello, A-yon Lee", text.Message)
+
+	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
+	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+}
+
+func TestStopAndOnStop(t *testing.T) {
+	app := goext.Ok(ngrpc.Start("user-server"))
+	stopped := false
+
+	app.OnStop(func() {
+		stopped = true
+	})
 
 	app.Stop()
+	assert.True(t, stopped)
 }
 
 func TestWaitForExit(t *testing.T) {
-	conf := config.Config{
-		Apps: []config.App{
-			{
-				Name:  "server-1",
-				Uri:   "grpc://localhost:5005",
-				Serve: true,
-				Services: []string{
-					getServiceName(&UserService{}),
-					getServiceName(&PostService{}),
-				},
-			},
-		},
-	}
-
-	app, _ := StartWithConfig("server-1", conf)
+	app, _ := ngrpc.Start("user-server")
 
 	go func() {
 		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
