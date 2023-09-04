@@ -201,7 +201,7 @@ test("app.stop and app.onStop", async () => {
     }
 });
 
-test("app.reload and app.onStop", async () => {
+test("app.reload and app.onReload", async () => {
     let app: RpcApp | undefined;
 
     try {

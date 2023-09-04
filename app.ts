@@ -797,7 +797,7 @@ export class RpcApp {
             msg = "app (anonymous) stopped";
         }
 
-        if (this.guest?.connected && graceful) {
+        if (this.guest && graceful) {
             this.guest.leave(msg, msgId);
 
             if (this.name) {

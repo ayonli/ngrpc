@@ -3,7 +3,6 @@ import * as net from "net";
 import * as fs from "fs/promises";
 import type { App } from "../app";
 import { CpuUsage, absPath, exists, getCpuUsage, timed } from "../util";
-import sleep from "@hyurl/utils/sleep";
 
 export interface AppStat {
     app: string;
@@ -83,8 +82,9 @@ export function getSocketPath() {
 export class Guest {
     appName: string;
     appUri: string;
-    private conn: net.Socket | undefined;
     private state = 0;
+    private conn: net.Socket | undefined;
+    private reconnector: NodeJS.Timeout | null = null;
     private handleStopCommand: (msgId: string | undefined) => void;
     private handleReloadCommand: (msgId: string | undefined) => void;
     private cpuUsage: CpuUsage | null = null;
@@ -97,10 +97,6 @@ export class Guest {
         this.appUri = app.uri;
         this.handleStopCommand = options?.onStopCommand;
         this.handleReloadCommand = options?.onReloadCommand;
-    }
-
-    get connected() {
-        return this.state === 1;
     }
 
     async join() {
@@ -157,20 +153,25 @@ export class Guest {
     }
 
     async leave(reason: string, replyId = "") {
-        if (replyId) {
-            // If `replyId` is provided, that means the stop event is issued by a guest app, for
-            // example, the CLI tool, in this case, we need to send feedback to acknowledge the
-            // sender that the process has finished.
-            this.send({ cmd: "goodbye", app: this.appName });
-            this.send({
-                cmd: "reply",
-                app: this.appName,
-                msgId: replyId,
-                text: reason,
-                fin: true,
-            });
-        } else {
-            this.send({ cmd: "goodbye", app: this.appName, fin: true });
+        if (this.state !== 0) {
+            if (replyId) {
+                // If `replyId` is provided, that means the stop event is issued by a guest app, for
+                // example, the CLI tool, in this case, we need to send feedback to acknowledge the
+                // sender that the process has finished.
+                this.send({ cmd: "goodbye", app: this.appName });
+                this.send({
+                    cmd: "reply",
+                    app: this.appName,
+                    msgId: replyId,
+                    text: reason,
+                    fin: true,
+                });
+            } else {
+                this.send({ cmd: "goodbye", app: this.appName, fin: true });
+            }
+        } else if (this.reconnector) {
+            clearInterval(this.reconnector);
+            this.reconnector = null;
         }
 
         this.state = 0;
@@ -181,15 +182,16 @@ export class Guest {
     }
 
     private async reconnect() {
-        while (this.state === 0) {
-            // constantly trying to reconnect
-            await sleep(1_000);
-
+        this.reconnector = setInterval(async () => {
             try {
                 await this.connect();
-                break;
+
+                if (this.state !== 0 && this.reconnector) {
+                    clearInterval(this.reconnector);
+                    this.reconnector = null;
+                }
             } catch { }
-        }
+        }, 1_000);
     }
 
     private handleHostDisconnection() {

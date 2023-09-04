@@ -115,7 +115,6 @@ test("new Guest", () => {
 
     assert.strictEqual(guest.appName, app.name);
     assert.strictEqual(guest.appUri, app.uri);
-    assert.strictEqual(guest.connected, false);
     assert.strictEqual(guest["handleStopCommand"], handleStop);
     assert.strictEqual(guest["handleReloadCommand"], handleReload);
 });
