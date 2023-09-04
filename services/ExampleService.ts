@@ -1,5 +1,4 @@
-import { ServiceClient } from "..";
-import { service } from "../util";
+import { ServiceClient, service } from "@ayonli/ngrpc";
 
 declare global {
     namespace services {

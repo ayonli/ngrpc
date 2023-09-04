@@ -1,6 +1,6 @@
 /// <reference path="../services/UserService.ts" />
 /// <reference path="../services/ExampleService.ts" />
-import ngrpc from ".."; // replace `.` with `@ayonli/ngrpc`
+import ngrpc from "@ayonli/ngrpc";
 
 if (require.main?.filename === __filename) {
     ngrpc.runSnippet(async () => {

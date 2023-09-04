@@ -15,16 +15,20 @@ var tsConfTpl = `{
     "compilerOptions": {
         "module": "commonjs",
         "target": "es2018",
-        "incremental": true,
         "newLine": "LF",
+        "incremental": true,
         "importHelpers": true,
-        "strictNullChecks": true,
+        "sourceMap": true,
+        "strict": true,
         "noUnusedParameters": true,
         "noUnusedLocals": true,
+        "noImplicitAny": true,
         "noImplicitThis": true,
-        "sourceMap": true,
-        "resolveJsonModule": true,
-        "esModuleInterop": true
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "noUncheckedIndexedAccess": true
     },
     "include": [
         "*.ts",

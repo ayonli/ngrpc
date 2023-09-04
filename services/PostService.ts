@@ -1,8 +1,7 @@
 /// <reference path="./ExampleService.ts" />
 /// <reference path="./UserService.ts" />
 import _try from "dotry";
-import { ServiceClient, LifecycleSupportInterface } from "..";
-import { service } from "../util";
+import { ServiceClient, LifecycleSupportInterface, service } from "@ayonli/ngrpc";
 import { Post } from "./struct";
 
 declare global {

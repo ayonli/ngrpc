@@ -1,4 +1,4 @@
-import ngrpc from ".."; // replace `.` with `@ayonli/ngrpc`
+import ngrpc from "@ayonli/ngrpc";
 
 if (require.main?.filename === __filename) {
     ngrpc.start(ngrpc.getAppName()).then(app => {

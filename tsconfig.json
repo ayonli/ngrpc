@@ -6,6 +6,7 @@
         "newLine": "LF",
         "incremental": true,
         "importHelpers": true,
+        "sourceMap": true,
         "strict": true,
         "noUnusedParameters": true,
         "noUnusedLocals": true,
@@ -15,13 +16,7 @@
         "noImplicitReturns": true,
         "noFallthroughCasesInSwitch": true,
         "noPropertyAccessFromIndexSignature": true,
-        "noUncheckedIndexedAccess": true,
-        "sourceMap": true,
-        "paths": {
-            "@ayonli/ngrpc": [
-                "."
-            ]
-        }
+        "noUncheckedIndexedAccess": true
     },
     "include": [
         "*.ts",

@@ -1,5 +1,4 @@
-import { ServiceClient } from "..";
-import { service } from "../util";
+import { ServiceClient, service } from "@ayonli/ngrpc";
 import { Post, User } from "./struct";
 
 declare global {

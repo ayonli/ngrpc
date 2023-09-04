@@ -42,6 +42,7 @@
     "string-hash": "^1.1.3"
   },
   "devDependencies": {
+    "@ayonli/ngrpc": "file:../ngrpc",
     "@types/humanize-duration": "^3.27.1",
     "@types/lodash": "^4.14.197",
     "@types/mocha": "^10.0.1",
