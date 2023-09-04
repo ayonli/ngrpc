@@ -25,6 +25,10 @@ import (
 	"github.com/rodaine/table"
 )
 
+func init() {
+	log.SetOutput(os.Stdout)
+}
+
 var defaultTsOutDir = "node_modules/.ngrpc"
 
 type clientRecord struct {
