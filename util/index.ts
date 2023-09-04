@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
+// @ts-ignore
 export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
 export const sServiceName = Symbol.for("serviceName");
 
@@ -91,7 +92,7 @@ export function service(name: string): <T extends abstract new (...args: any[]) 
     target: T,
     ctx?: any
 ) => void | T {
-    return (target) => {
+    return (target: any) => {
         target[sServiceName] = name;
         return target;
     };

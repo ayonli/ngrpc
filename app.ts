@@ -108,7 +108,7 @@ export interface RoutableMessageStruct {
 }
 
 export class RpcApp {
-    name: string;
+    name: string | null = null;
     private config: Config | null = null;
     private oldConfig: Config | null = null;
     private pkgDef: GrpcObject | null = null;
@@ -313,7 +313,7 @@ export class RpcApp {
                 const _module = require("@grpc/grpc-js-xds");
                 _module.register();
                 xdsEnabled = true;
-            } catch (err) {
+            } catch (err: any) {
                 if (err["code"] === "MODULE_NOT_FOUND") {
                     throw new Error(`'xds:' protocol is used in app [${xdsApp.name}]`
                         + `, but package '@grpc/grpc-js-xds' is not installed`);
@@ -421,12 +421,12 @@ export class RpcApp {
                 // Then, try to use the hash algorithm to retrieve a remote instance.
                 const id = hash(route);
                 const idx = id % instances.length;
-                client = instances[idx].client;
+                client = instances[idx]!.client;
             }
         } else {
             // Use round-robin algorithm by default.
             const idx = remoteService.counter % instances.length;
-            client = instances[idx].client;
+            client = instances[idx]!.client;
         }
 
         return client as ServiceClient<T>;
@@ -494,7 +494,7 @@ export class RpcApp {
                 }
 
                 const protoServiceName = classCtor[sServiceName];
-                const protoCtor: ServiceClientConstructor = get(this.pkgDef, protoServiceName);
+                const protoCtor: ServiceClientConstructor = get(this.pkgDef, protoServiceName) as any;
 
                 if (!protoCtor) {
                     throw new Error(`service '${serviceName}' is not correctly declared`);
@@ -921,6 +921,7 @@ export default ngrpc;
 
 @applyMagic
 class ChainingProxy {
+    [x: string]: any;
     protected __target: string;
     // protected __app: RpcApp;
     protected __children: { [prop: string]: ChainingProxy; } = {};
@@ -930,7 +931,7 @@ class ChainingProxy {
         // this.__app = app;
     }
 
-    protected __get(prop: string | symbol) {
+    protected __get(prop: string) {
         if (prop in this) {
             return this[prop];
         } else if (prop in this.__children) {
@@ -952,7 +953,7 @@ export function createChainingProxy(target: string) {
         const index = target.lastIndexOf(".");
         const serviceName = target.slice(0, index);
         const method = target.slice(index + 1);
-        const ins = RpcApp.getServiceClient(serviceName, data);
+        const ins = RpcApp.getServiceClient(serviceName, data) as any;
 
         if (typeof ins[method] === "function") {
             return ins[method](data);

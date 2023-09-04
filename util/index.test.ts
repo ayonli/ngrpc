@@ -1,7 +1,7 @@
 import { test } from "mocha";
-import { absPath, exists, getCpuUsage, service, timed } from ".";
-import assert from "assert";
+import * as assert from "assert";
 import * as path from "path";
+import { absPath, exists, getCpuUsage, service, timed } from ".";
 
 test("exists", async () => {
     const ok1 = await exists("ngrpc.json");
@@ -46,6 +46,8 @@ test("@service", () => {
     service("services.Foo")(Foo);
     service("services.Bar")(Bar, {});
 
+    // @ts-ignore
     assert.strictEqual(Foo[Symbol.for("serviceName")], "services.Foo");
+    // @ts-ignore
     assert.strictEqual(Bar[Symbol.for("serviceName")], "services.Bar");
 });

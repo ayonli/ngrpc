@@ -1,16 +1,11 @@
 import { test } from "mocha";
-import assert from "assert";
-import { encodeMessage } from "./guest";
-import { ControlMessage } from "./guest";
-import { decodeMessage } from "./guest";
-import { AppStat } from "./guest";
-import { getSocketPath } from "./guest";
+import * as assert from "assert";
 import * as path from "path";
 import * as fs from "fs";
-import { App } from "../app";
-import { Guest } from "./guest";
 import _try from "dotry";
+import { App } from "../app";
 import { exists } from "../util";
+import { Guest, AppStat, ControlMessage, encodeMessage, decodeMessage, getSocketPath } from "./guest";
 
 function newMsg(msg: ControlMessage): ControlMessage {
     msg.app ??= "";

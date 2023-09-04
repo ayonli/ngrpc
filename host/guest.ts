@@ -49,7 +49,7 @@ export function decodeMessage(packet: string, buf: string, eof = false): {
         chunks = chunks.filter(chunk => chunk.length > 0);
     } else if (chunks.length > 1) {
         // The last chunk is unfinished, we store it in the packet for more data.
-        packet = chunks[chunks.length - 1];
+        packet = chunks[chunks.length - 1] as string;
         // All chunks (except the last one) will be processed.
         chunks = chunks.slice(0, -1);
     } else { // chunks.length === 1
