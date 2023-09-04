@@ -143,8 +143,8 @@ export class RpcApp {
     private guest: Guest | null = null;
     private isProcessKeeper = false;
 
-    private _onReload: (() => void) | null = null;
-    private _onStop: (() => void) | null = null;
+    private _onReload: (() => void | Promise<void>) | null = null;
+    private _onStop: (() => void | Promise<void>) | null = null;
 
     private static theApp: RpcApp | null = null;
 
@@ -785,7 +785,7 @@ export class RpcApp {
         });
 
         this.server?.forceShutdown();
-        this._onStop?.();
+        await this._onStop?.();
         RpcApp.theApp = null;
 
         let msg: string;
@@ -884,16 +884,16 @@ export class RpcApp {
             this.guest?.send({ cmd: "reply", msgId: msgId, text: msg });
         }
 
-        this._onReload?.();
+        await this._onReload?.();
     }
 
     /** Registers a callback to run after the app is reloaded. */
-    onReload(callback: () => void) {
+    onReload(callback: () => void | Promise<void>) {
         this._onReload = callback;
     }
 
     /** Registers a callback to run after the app is stopped. */
-    onStop(callback: () => void) {
+    onStop(callback: () => void | Promise<void>) {
         this._onStop = callback;
     }
 

@@ -79,7 +79,7 @@ call the `stop()` method explicitly when the program is going to terminate.
 
 ----
 
-**`app.onStop(callback: () => void): void`**
+**`app.onStop(callback: () => void | Promise<void>): void`**
 
 Registers a callback to run after the app is stopped.
 
@@ -98,7 +98,7 @@ ngrpc.start("example-server").then(app => {
 
 ----
 
-**`app.onReload(callback: () => void): void`**
+**`app.onReload(callback: () => void | Promise<void>): void`**
 
 Registers a callback to run after the app is reloaded.
 
