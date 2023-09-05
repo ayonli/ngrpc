@@ -105,7 +105,7 @@ func StartWithConfig(appName string, cfg config.Config) (*RpcApp, error) {
 			})
 
 			if !ok {
-				panic(fmt.Errorf("app [%v] is not configured", appName))
+				panic(fmt.Errorf("app [%s] is not configured", appName))
 			}
 
 			app = &RpcApp{App: cfgApp}
@@ -124,6 +124,8 @@ func StartWithConfig(appName string, cfg config.Config) (*RpcApp, error) {
 		theApp = app
 
 		if app.Name != "" {
+			log.Printf("app [%s] started (pid: %d)", app.Name, os.Getpid())
+
 			// TODO: could an anonymous app join the group?
 			app.guest = host.NewGuest(app.App, func(msgId string) {
 				app.stop(msgId, true)
@@ -349,7 +351,6 @@ func (self *RpcApp) initServer() error {
 			}
 		}()
 
-		log.Printf("app [%s] started (pid: %d)", self.Name, os.Getpid())
 		return 0
 	})
 
@@ -473,7 +474,7 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 		self.guest.Leave(msg, msgId)
 
 		if self.Name != "" {
-			log.Printf("app [%v] has left the group", self.Name)
+			log.Printf("app [%s] has left the group", self.Name)
 		}
 	}
 

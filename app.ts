@@ -365,6 +365,10 @@ export class RpcApp implements App {
         await app.initClients(config.apps);
         this.theApp = app;
 
+        if (app.name) {
+            console.info(timed`app [${app.name}] started (pid: ${process.pid})`);
+        }
+
         if (!once) {
             app.guest = new Guest(cfgApp || defaultApp, {
                 onStopCommand: (msgId) => {
@@ -673,7 +677,6 @@ export class RpcApp implements App {
                         reject(err);
                     } else {
                         (this.server as Server).start();
-                        console.info(timed`app [${this.name}] started (pid: ${process.pid})`);
                         resolve();
                     }
                 });
