@@ -131,14 +131,17 @@ func (self *Host) Start(wait bool) error {
 func (self *Host) Stop() {
 	self.state = 0
 
-	if self.clients != nil {
+	if len(self.clients) > 0 { // the :cli client may still be online
 		for _, client := range self.clients {
 			client.conn.Write(EncodeMessage(ControlMessage{Cmd: "goodbye", Fin: true}))
 		}
 	}
 
 	if self.server != nil {
-		time.Sleep(time.Second) // wait a while for the message to be flushed
+		if len(self.clients) > 0 {
+			time.Sleep(time.Millisecond * 10) // wait a while for the message to be flushed
+		}
+
 		self.server.Close()
 	}
 
@@ -693,6 +696,7 @@ func (self *Host) sendAndWait(msg ControlMessage, guest *Guest, fin bool) {
 		if msg.Cmd == "stop" && msg.App == "" {
 			// After all the apps have been stopped, stop the host server as well.
 			self.sendAndWait(ControlMessage{Cmd: "stop-host"}, guest, true)
+			time.Sleep(time.Microsecond * 20) // wait a while for the host to stop
 			log.Println("host server shut down")
 		} else {
 			guest.Leave("", "")

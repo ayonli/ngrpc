@@ -41,7 +41,7 @@ func TestStartWithoutAppName(t *testing.T) {
 	assert.Equal(t, "Hello, World", reply.Message)
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestStartWithConfig(t *testing.T) {
@@ -142,7 +142,7 @@ func TestForSnippet(t *testing.T) {
 	assert.Equal(t, "Hello, A-yon Lee", text.Message)
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestStopAndOnStop(t *testing.T) {

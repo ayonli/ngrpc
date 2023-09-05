@@ -93,7 +93,7 @@ test("ngrpc.start", async () => {
 test("ngrpc.start without app name", async function () {
     this.timeout(5_000);
 
-    spawnSync("ngrpc", ["start", "example-server"], { encoding: "utf8" });
+    spawnSync("ngrpc", ["start", "example-server"]);
     let app: RpcApp | undefined;
 
     try {
@@ -104,11 +104,11 @@ test("ngrpc.start without app name", async function () {
 
         await app.stop();
         spawnSync("ngrpc", ["stop"]);
-        await sleep(1_000); // Host.Stop waited a while for message flushing, we wait here too
+        await sleep(10); // Host.Stop waited a while for message flushing, we wait here too
     } catch (err) {
         await app?.stop();
         spawnSync("ngrpc", ["stop"]);
-        await sleep(1_000);
+        await sleep(10);
         throw err;
     }
 });
@@ -193,7 +193,7 @@ test("ngrpc.getServiceClient", async () => {
 test("ngrpc.runSnippet", async function () {
     this.timeout(5_000);
 
-    spawnSync("ngrpc", ["start", "example-server"], { encoding: "utf8" });
+    spawnSync("ngrpc", ["start", "example-server"]);
     let message: string | undefined;
 
     try {
@@ -204,10 +204,10 @@ test("ngrpc.runSnippet", async function () {
 
         assert.strictEqual(message, "Hello, World");
         spawnSync("ngrpc", ["stop"]);
-        await sleep(1_000); // Host.Stop waited a while for message flushing, we wait here too
+        await sleep(10); // Host.Stop waited a while for message flushing, we wait here too
     } catch (err) {
         spawnSync("ngrpc", ["stop"]);
-        await sleep(1_000);
+        await sleep(10);
         throw err;
     }
 });

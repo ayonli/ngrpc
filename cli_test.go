@@ -27,7 +27,7 @@ func TestHostCommand(t *testing.T) {
 	output = goext.Ok(exec.Command("ngrpc", "host", "--stop").Output())
 	assert.Contains(t, string(output), "host server shut down")
 
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 	exam = goext.Ok(exec.Command("ps", "aux").Output())
 	assert.NotContains(t, string(exam), "ngrpc host-server --standalone")
 }
@@ -51,7 +51,7 @@ func TestStartAndStopCommand_singleApp(t *testing.T) {
 	assert.NotContains(t, string(exam), "example-server")
 
 	goext.Ok(0, exec.Command("ngrpc", "host", "--stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestStartAndStopCommand_allApps(t *testing.T) {
@@ -89,7 +89,7 @@ func TestStartAndStopCommand_allApps(t *testing.T) {
 	assert.NotContains(t, string(exam), "user-server")
 	assert.NotContains(t, string(exam), "post-server")
 
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestListCommand(t *testing.T) {
@@ -130,7 +130,7 @@ func TestListCommand(t *testing.T) {
 	}
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 10)
 
 	output = goext.Ok(exec.Command("ngrpc", "list").Output())
 	rows = strings.Split(string(output), "\n")
@@ -197,7 +197,7 @@ func TestReloadCommand_singleApp(t *testing.T) {
 	assert.Equal(t, "Hi, World", reply.Message)
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestReloadCommand_allApps(t *testing.T) {
@@ -225,7 +225,7 @@ func TestReloadCommand_allApps(t *testing.T) {
 	assert.Equal(t, "Hi, World", reply.Message)
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestRestartCommand_singleApp(t *testing.T) {
@@ -252,7 +252,7 @@ func TestRestartCommand_singleApp(t *testing.T) {
 	assert.Equal(t, "Hi, World", reply.Message)
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestRestartCommand_allApps(t *testing.T) {
@@ -283,7 +283,7 @@ func TestRestartCommand_allApps(t *testing.T) {
 	assert.Equal(t, "Hi, World", reply.Message)
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestRunCommand_go(t *testing.T) {
@@ -293,7 +293,7 @@ func TestRunCommand_go(t *testing.T) {
 	assert.Contains(t, string(output), "Hello, World")
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }
 
 func TestRunCommand_ts(t *testing.T) {
@@ -303,5 +303,5 @@ func TestRunCommand_ts(t *testing.T) {
 	assert.Contains(t, string(output), "Hello, World")
 
 	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Second) // Host.Stop waited a while for message flushing, we wait here too
+	time.Sleep(time.Millisecond * 10)
 }

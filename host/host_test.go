@@ -159,7 +159,7 @@ func TestHost_WaitForExit(t *testing.T) {
 	host := NewHost(config, false)
 
 	go func() {
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * 10) // wait a while for the host to start
 		assert.Equal(t, 1, host.state)
 		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 	}()
@@ -240,7 +240,7 @@ func TestSendCommand_stop(t *testing.T) {
 	assert.NotEqual(t, "", msgId)
 	assert.Equal(t, 0, guest.state)
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 10)
 	assert.Equal(t, 0, len(host.clients))
 }
 
@@ -287,7 +287,7 @@ func TestSendCommand_stopAll(t *testing.T) {
 	guest1.Leave("app [example-server] stopped", msgIds[0])
 	guest2.Leave("app [user-server] stopped", msgIds[1])
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 10)
 	assert.Equal(t, 1, len(host.clients))
 	assert.Equal(t, ":cli", host.clients[0].app)
 }
@@ -319,24 +319,24 @@ func TestSendCommand_list(t *testing.T) {
 	go func() {
 		SendCommand("list", "")
 
-		time.Sleep(time.Millisecond * 500)
+		time.Sleep(time.Millisecond * 10)
 		SendCommand("list", "")
 
-		time.Sleep(time.Millisecond * 500)
+		time.Sleep(time.Millisecond * 10)
 		SendCommand("list", "")
 
-		time.Sleep(time.Millisecond * 500)
+		time.Sleep(time.Millisecond * 10)
 		SendCommand("stop", "")
 	}()
 
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Millisecond * 10)
 	guest1 := NewGuest(config.App{
 		Name: "example-server",
 		Uri:  "grpc://localhost:4000",
 	}, push)
 	guest1.Join()
 
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(time.Millisecond * 10)
 	guest2 := NewGuest(config.App{
 		Name: "user-server",
 		Uri:  "grpc://localhost:4001",
@@ -348,7 +348,7 @@ func TestSendCommand_list(t *testing.T) {
 	guest1.Leave("app [example-server] stopped", "")
 	guest2.Leave("app [user-server] stopped", "")
 
-	time.Sleep(time.Microsecond * 500)
+	time.Sleep(time.Microsecond * 10)
 }
 
 func TestSendCommand_stopHost(t *testing.T) {
@@ -375,7 +375,7 @@ func TestSendCommand_stopHost(t *testing.T) {
 		SendCommand("stop-host", "")
 	}()
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 10)
 
 	assert.Equal(t, 0, guest.state)
 	assert.Equal(t, 0, host.state)

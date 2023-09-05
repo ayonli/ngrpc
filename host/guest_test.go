@@ -50,7 +50,7 @@ func TestGuest_JoinAndLeave(t *testing.T) {
 
 	guest.Leave("app [example-server] stopped", "")
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 10) // wait a while for the host to close the connection
 	assert.Equal(t, 0, guest.state)
 	assert.Equal(t, 0, len(host.clients))
 }

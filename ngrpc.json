@@ -42,14 +42,6 @@
             "cert": "certs/cert.pem",
             "key": "certs/cert.key",
             "ca": "certs/ca.pem"
-        },
-        {
-            "name": "web-server",
-            "uri": "http://localhost:3000",
-            "serve": true,
-            "services": [],
-            "entry": "web/main.go",
-            "stdout": "out.log"
         }
     ]
 }
