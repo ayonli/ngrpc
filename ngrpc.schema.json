@@ -111,10 +111,6 @@
                             "type": "string"
                         }
                     },
-                    "ca": {
-                        "type": "string",
-                        "description": "The CA filename when using TLS/SSL."
-                    },
                     "cert": {
                         "type": "string",
                         "description": "The certificate filename when using TLS/SSL."
@@ -122,6 +118,10 @@
                     "key": {
                         "type": "string",
                         "description": "The private key filename when using TLS/SSL."
+                    },
+                    "ca": {
+                        "type": "string",
+                        "description": "The CA filename used to verify the other peer's certificates, when omitted, the system's root CAs will be used."
                     },
                     "connectTimeout": {
                         "type": "integer",

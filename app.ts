@@ -50,12 +50,19 @@ export interface App {
     serve?: boolean;
     /** The services served by this app. */
     services?: string[];
-    /** The CA filename when using TLS/SSL. */
-    ca?: string;
     /** The certificate filename when using TLS/SSL. */
     cert?: string;
     /** The private key filename when using TLS/SSL. */
     key?: string;
+    /**
+     * The CA filename used to verify the other peer's certificates, when omitted, the system's root
+     * CAs will be used.
+     *
+     * It's recommended that the gRPC application uses a self-signed certificate with a non-public
+     * CA, so the client and the server can establish a private connection that no outsiders can
+     * join.
+     */
+    ca?: string;
     stdout?: string;
     stderr?: string;
     entry?: string;
@@ -130,7 +137,7 @@ export class RpcApp {
         protoCtor: ServiceClientConstructor;
     }>();
     private instanceMap = new Map<string, any>();
-    private sslOptions: { ca: Buffer, cert: Buffer, key: Buffer; } | null = null;
+    private sslOptions: { cert: Buffer; key: Buffer; ca?: Buffer; } | null = null;
     private remoteServices = new Map<string, {
         instances: {
             app: string;
@@ -499,12 +506,10 @@ export class RpcApp {
     protected getAddress(app: App, url: URL): { address: string, useSSL: boolean; } {
         const { protocol, hostname, port } = url;
         let address = hostname;
-        let useSSL = !!(app.ca && app.cert && app.key);
+        let useSSL = !!(app.cert && app.key);
 
         if (protocol === "grpcs:" || protocol === "https:") {
-            if (!app.ca) {
-                throw new Error(`missing 'ca' config for app [${app.name}]`);
-            } else if (!app.cert) {
+            if (!app.cert) {
                 throw new Error(`missing 'cert' config for app [${app.name}]`);
             } else if (!app.key) {
                 throw new Error(`missing 'key' config for app [${app.name}]`);
@@ -533,9 +538,9 @@ export class RpcApp {
 
         const { address, useSSL } = this.getAddress(app, url);
         let newServer = !this.server;
-        let ca: Buffer;
         let cert: Buffer;
         let key: Buffer;
+        let ca: Buffer | undefined;
 
         if (reload) {
             if (this.sslOptions) {
@@ -543,24 +548,33 @@ export class RpcApp {
                     this.sslOptions = null;
                     newServer = true;
                 } else {
-                    ca = await fs.readFile(app.ca as string);
                     cert = await fs.readFile(app.cert as string);
                     key = await fs.readFile(app.key as string);
 
-                    if (Buffer.compare(ca, this.sslOptions.ca) ||
-                        Buffer.compare(cert, this.sslOptions.cert) ||
-                        Buffer.compare(key, this.sslOptions.key)
+                    if (app.ca) {
+                        ca = await fs.readFile(app.ca as string);
+                    }
+
+                    if (Buffer.compare(cert, this.sslOptions.cert) ||
+                        Buffer.compare(key, this.sslOptions.key) ||
+                        (ca && this.sslOptions.ca && Buffer.compare(ca, this.sslOptions.ca)) ||
+                        (!ca && this.sslOptions.ca) ||
+                        (ca && !this.sslOptions.ca)
                     ) {
                         // SSL credentials changed
-                        this.sslOptions = { ca, cert, key };
+                        this.sslOptions = { cert, key, ca };
                         newServer = true;
                     }
                 }
             } else if (useSSL) { // non-SSL to SSL
-                ca = await fs.readFile(app.ca as string);
                 cert = await fs.readFile(app.cert as string);
                 key = await fs.readFile(app.key as string);
-                this.sslOptions = { ca, cert, key };
+
+                if (app.ca) {
+                    ca = await fs.readFile(app.ca as string);
+                }
+
+                this.sslOptions = { cert, key, ca };
                 newServer = true;
             }
 
@@ -573,10 +587,14 @@ export class RpcApp {
                 }
             }
         } else if (useSSL) {
-            ca = await fs.readFile(app.ca as string);
             cert = await fs.readFile(app.cert as string);
             key = await fs.readFile(app.key as string);
-            this.sslOptions = { ca, cert, key };
+
+            if (app.ca) {
+                ca = await fs.readFile(app.ca as string);
+            }
+
+            this.sslOptions = { cert, key, ca };
         }
 
         if (newServer) {
@@ -617,8 +635,8 @@ export class RpcApp {
 
                 // Create different knd of server credentials according to whether the certificates
                 // are set.
-                if (ca && cert && key) {
-                    cred = ServerCredentials.createSsl(ca, [{
+                if (cert && key) {
+                    cred = ServerCredentials.createSsl(ca ?? null, [{
                         private_key: key,
                         cert_chain: cert,
                     }], true);
@@ -656,19 +674,13 @@ export class RpcApp {
         }
 
         const conf = this.config as Config;
-        const cas = new Map<string, Buffer>();
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
+        const cas = new Map<string, Buffer>();
 
         // Preload `cert`s and `key`s so in the "connection" phase, there would be no latency for
         // loading resources asynchronously.
         for (const app of conf.apps) {
-            if (app.ca) {
-                const filename = absPath(app.ca);
-                const ca = await fs.readFile(filename);
-                cas.set(filename, ca);
-            }
-
             if (app.cert) {
                 const filename = absPath(app.cert);
                 const cert = await fs.readFile(filename);
@@ -679,6 +691,12 @@ export class RpcApp {
                 const filename = absPath(app.key);
                 const key = await fs.readFile(filename);
                 keys.set(filename, key);
+            }
+
+            if (app.ca) {
+                const filename = absPath(app.ca);
+                const ca = await fs.readFile(filename);
+                cas.set(filename, ca);
             }
         }
 
@@ -727,10 +745,15 @@ export class RpcApp {
             const address = getAddress(app);
             let cred: ChannelCredentials;
 
-            if (app.ca && app.cert && app.key) {
-                const ca = cas.get(absPath(app.ca));
+            if (app.cert && app.key) {
                 const cert = certs.get(absPath(app.cert));
                 const key = keys.get(absPath(app.key));
+                let ca: Buffer | undefined;
+
+                if (app.ca) {
+                    ca = cas.get(absPath(app.ca));
+                }
+
                 cred = credentials.createSsl(ca, key, cert);
             } else {
                 cred = credentials.createInsecure();

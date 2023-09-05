@@ -23,9 +23,9 @@
             ],
             "entry": "entry/main.go",
             "stdout": "out.log",
-            "ca": "certs/ca.pem",
             "cert": "certs/cert.pem",
-            "key": "certs/cert.key"
+            "key": "certs/cert.key",
+            "ca": "certs/ca.pem"
         },
         {
             "name": "post-server",
@@ -36,9 +36,9 @@
             ],
             "entry": "entry/main.ts",
             "stdout": "out.log",
-            "ca": "certs/ca.pem",
             "cert": "certs/cert.pem",
-            "key": "certs/cert.key"
+            "key": "certs/cert.key",
+            "ca": "certs/ca.pem"
         }
     ]
 }

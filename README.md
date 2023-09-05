@@ -59,9 +59,9 @@ First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
             ],
             "entry": "entry/main.go",
             "stdout": "out.log",
-            "ca": "certs/ca.pem",
             "cert": "certs/cert.pem",
-            "key": "certs/cert.key"
+            "key": "certs/cert.key",
+            "ca": "certs/ca.pem"
         },
         {
             "name": "post-server",
@@ -72,9 +72,9 @@ First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
             ],
             "entry": "entry/main.ts",
             "stdout": "out.log",
-            "ca": "certs/ca.pem",
             "cert": "certs/cert.pem",
-            "key": "certs/cert.key"
+            "key": "certs/cert.key",
+            "ca": "certs/ca.pem"
         }
     ]
 }
@@ -149,12 +149,14 @@ func main() {
     
     **More Options for `apps`**
     
-    - `ca` The CA filename when using TLS/SSL.
     - `cert` The certificate filename when using TLS/SSL.
     - `key` The private key filename when using TLS/SSL.
+    - `ca` The CA filename used to verify the other peer's certificates, when omitted, the system's
+        root CAs will be used.
       
-        NOTE: We only need a pair of certificates for both the server and the client, since they are
-        inside one project, using different certificates makes no sense.
+        It's recommended that the gRPC application uses a self-signed certificate with a non-public
+        CA, so the client and the server can establish a private connection that no outsiders can
+        join.
     - `stderr` Log file used for stderr. If omitted and `stdout` is set, the program uses `stdout`
         for `stderr` as well.
     - `env` Additional environment variables passed to the `entry` file.

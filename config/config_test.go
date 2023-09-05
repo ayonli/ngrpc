@@ -67,33 +67,18 @@ func TestGetCredentials(t *testing.T) {
 	urlObj1, _ := url.Parse(app1.Uri)
 	urlObj2, _ := url.Parse(app2.Uri)
 	cred1, _ := GetCredentials(app1, urlObj1)
-	_, err := GetCredentials(app1, urlObj2)
 	cred2, _ := GetCredentials(app2, urlObj2)
 	cred3, _ := GetCredentials(app2, urlObj1)
 
 	assert.Equal(t, "insecure", cred1.Info().SecurityProtocol)
-	assert.Equal(t, "missing 'Ca' config for app [test-server]", err.Error())
 	assert.Equal(t, "tls", cred2.Info().SecurityProtocol)
 	assert.Equal(t, "tls", cred3.Info().SecurityProtocol)
-}
-
-func TestGetCredentialsMissingCaFile(t *testing.T) {
-	app := App{
-		Name: "server-1",
-		Uri:  "grpcs://localhost:6000",
-	}
-
-	urlObj, _ := url.Parse(app.Uri)
-	_, err := GetCredentials(app, urlObj)
-
-	assert.Equal(t, "missing 'Ca' config for app [server-1]", err.Error())
 }
 
 func TestGetCredentialsMissingCertFile(t *testing.T) {
 	app := App{
 		Name: "server-1",
 		Uri:  "grpcs://localhost:6000",
-		Ca:   "../certs/ca.pem",
 	}
 
 	urlObj, _ := url.Parse(app.Uri)
@@ -106,28 +91,12 @@ func TestGetCredentialsMissingKeyFile(t *testing.T) {
 	app := App{
 		Name: "server-1",
 		Uri:  "grpcs://localhost:6000",
-		Ca:   "../certs/ca.pem",
 		Cert: "../certs/cert.pem"}
 
 	urlObj, _ := url.Parse(app.Uri)
 	_, err := GetCredentials(app, urlObj)
 
 	assert.Equal(t, "missing 'Key' config for app [server-1]", err.Error())
-}
-
-func TestGetCredentialsInvalidCaFile(t *testing.T) {
-	app := App{
-		Name: "server-1",
-		Uri:  "grpcs://localhost:6000",
-		Ca:   "./certs/ca.pem",
-		Cert: "./certs/cert.pem",
-		Key:  "./certs/cert.key",
-	}
-
-	urlObj, _ := url.Parse(app.Uri)
-	_, err := GetCredentials(app, urlObj)
-
-	assert.Equal(t, "open ./certs/ca.pem: no such file or directory", err.Error())
 }
 
 func TestGetCredentialsInvalidCertFile(t *testing.T) {

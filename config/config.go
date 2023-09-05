@@ -26,12 +26,17 @@ type App struct {
 	Serve bool `json:"serve"`
 	// The services served by this app.
 	Services []string `json:"services"`
-	// The CA filename when using TLS/SSL.
-	Ca string `json:"ca"`
 	// The certificate filename when using TLS/SSL.
 	Cert string `json:"cert"`
 	// The private key filename when using TLS/SSL.
-	Key    string            `json:"key"`
+	Key string `json:"key"`
+	// The CA filename used to verify the other peer's certificates, when omitted, the system's root
+	// CAs will be used.
+	//
+	// It's recommended that the gRPC application uses a self-signed certificate with a non-public
+	// CA, so the client and the server can establish a private connection that no outsiders can
+	// join.
+	Ca     string            `json:"ca"`
 	Stdout string            `json:"stdout"`
 	Stderr string            `json:"stderr"`
 	Entry  string            `json:"entry"`
@@ -113,14 +118,17 @@ func GetAddress(urlObj *url.URL) string {
 func GetCredentials(app App, urlObj *url.URL) (credentials.TransportCredentials, error) {
 	// Create secure (SSL/TLS) credentials, use x509 standard.
 	var createSecure = goext.Wrap(func(args ...any) credentials.TransportCredentials {
-		ca := goext.Ok(os.ReadFile(app.Ca))
-		certPool := x509.NewCertPool()
-
-		if ok := certPool.AppendCertsFromPEM(ca); !ok {
-			panic(fmt.Errorf("unable to create cert pool for CA: %v", app.Ca))
-		}
-
 		cert := goext.Ok(tls.LoadX509KeyPair(app.Cert, app.Key))
+		var certPool *x509.CertPool
+
+		if app.Ca != "" {
+			certPool = x509.NewCertPool()
+			ca := goext.Ok(os.ReadFile(app.Ca))
+
+			if ok := certPool.AppendCertsFromPEM(ca); !ok {
+				panic(fmt.Errorf("unable to create cert pool for CA: %v", app.Ca))
+			}
+		}
 
 		return credentials.NewTLS(&tls.Config{
 			Certificates: []tls.Certificate{cert},
@@ -129,16 +137,14 @@ func GetCredentials(app App, urlObj *url.URL) (credentials.TransportCredentials,
 	})
 
 	if urlObj.Scheme == "grpcs" || urlObj.Scheme == "https" {
-		if app.Ca == "" {
-			return nil, fmt.Errorf("missing 'Ca' config for app [%s]", app.Name)
-		} else if app.Cert == "" {
+		if app.Cert == "" {
 			return nil, fmt.Errorf("missing 'Cert' config for app [%s]", app.Name)
 		} else if app.Key == "" {
 			return nil, fmt.Errorf("missing 'Key' config for app [%s]", app.Name)
 		} else {
 			return createSecure()
 		}
-	} else if app.Ca != "" && app.Cert != "" && app.Key != "" {
+	} else if app.Cert != "" && app.Key != "" {
 		return createSecure()
 	} else {
 		// Create insure credentials if no certificates are set.
