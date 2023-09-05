@@ -154,9 +154,8 @@ func main() {
     - `ca` The CA filename used to verify the other peer's certificates, when omitted, the system's
         root CAs will be used.
       
-        It's recommended that the gRPC application uses a self-signed certificate with a non-public
-        CA, so the client and the server can establish a private connection that no outsiders can
-        join.
+        It's recommended that the gRPC application uses a non-public CA, so the client and the
+        server can establish a private connection that no outsiders can join in.
     - `stderr` Log file used for stderr. If omitted and `stdout` is set, the program uses `stdout`
         for `stderr` as well.
     - `env` Additional environment variables passed to the `entry` file.
@@ -224,6 +223,12 @@ connect to the services, all is properly handled behind the scene.
 - `ngrpc protoc` generate golang program files from the proto files.
 
     NOTE: this command is not used if our project only contains Node.js programs.
+
+- `ngrpc cert <out> [flags]` generate a pair of self-signed certificate.
+    - `--ca string` use a ca.pem for signing, if doesn't exist, it will be auto-generated
+        (default "certs/ca.pem")
+    - `--caKey string` use a ca.key for signing, if doesn't exist, it will be auto-generated
+        (default "certs/ca.key")
 
 - `ngrpc host [flags]` start the host server in standalone mode
     - `--stop` stop the host server
