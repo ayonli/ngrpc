@@ -216,41 +216,16 @@ func (self *Host) handleGuestConnection(conn net.Conn) {
 	buf := make([]byte, 256)
 
 	for {
-		// self.pushGuestReading()
-
 		if n, err := conn.Read(buf); err != nil {
 			if errors.Is(err, io.EOF) {
-				// self.pushClientReading(clientReading{
-				// 	conn:    conn,
-				// 	packet:  &packet,
-				// 	bufRead: buf[:n],
-				// 	eof:     true,
-				// })
-				// self.pushClientReading(clientReading{
-				// 	conn: conn,
-				// 	eof:  true,
-				// })
-
 				self.processGuestMessage(conn, &packet, buf[:n], true)
 				self.handleGuestDisconnection(conn)
-				// self.pushDisconnection(conn)
 				break
 			} else if errors.Is(err, net.ErrClosed) {
 				self.handleGuestDisconnection(conn)
-				// self.pushDisconnection(conn)
-				// self.pushClientReading(clientReading{
-				// 	conn: conn,
-				// 	eof:  false,
-				// })
 				break
 			}
 		} else {
-			// self.pushClientReading(clientReading{
-			// 	conn:    conn,
-			// 	packet:  &packet,
-			// 	bufRead: buf[:n],
-			// 	eof:     false,
-			// })
 			self.processGuestMessage(conn, &packet, buf[:n], false)
 		}
 	}
@@ -315,13 +290,10 @@ func (self *Host) processGuestMessage(
 
 func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 	if msg.Cmd == "handshake" {
-		// self.pushHandshake(messageRecord{conn: conn, msg: msg})
 		self.handleHandshake(conn, msg)
 	} else if msg.Cmd == "goodbye" {
-		// self.pushGoodbye(messageRecord{conn: conn, msg: msg})
 		self.handleGoodbye(conn, msg)
 	} else if msg.Cmd == "reply" {
-		// self.pushReply(messageRecord{conn: conn, msg: msg})
 		self.handleReply(conn, msg)
 	} else if msg.Cmd == "stop" || msg.Cmd == "reload" {
 		// When the host server receives a control command, it distribute the command to the target
@@ -424,7 +396,6 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 	}
 }
 
-// NOTE: this function should only be called inside `Host.pushHandshake()`.
 func (self *Host) handleHandshake(conn net.Conn, msg ControlMessage) {
 	// After a guest establish the socket connection, it sends a `handshake` command indicates a
 	// signing-in, we then store the client in the `hostClients` property for broadcast purposes.
@@ -452,7 +423,6 @@ func (self *Host) handleHandshake(conn net.Conn, msg ControlMessage) {
 	}
 }
 
-// NOTE: this function should only be called inside `Host.pushHandshake()`.
 func (self *Host) handleGoodbye(conn net.Conn, msg ControlMessage) {
 	self.removeClient(func(client clientRecord) bool {
 		return client.conn == conn
@@ -463,7 +433,6 @@ func (self *Host) handleGoodbye(conn net.Conn, msg ControlMessage) {
 	}
 }
 
-// NOTE: this function should only be called inside `Host.pushHandshake()`.
 func (self *Host) handleReply(conn net.Conn, msg ControlMessage) {
 	// When a guest app finishes a control command, it send feedback via the `reply` command,
 	// we use the `msgId` to retrieve the callback, run it and remove it.
