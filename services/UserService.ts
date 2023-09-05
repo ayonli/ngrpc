@@ -1,5 +1,6 @@
 import { ServiceClient, service } from "@ayonli/ngrpc";
-import { Post, User } from "./struct";
+import { Gender, User } from "./struct";
+import { PostSearchResult } from "./PostService";
 
 declare global {
     namespace services {
@@ -12,13 +13,19 @@ export type UserQuery = {
     email?: string;
 };
 
-export type UserPostList = {
-    author: User;
-    posts: Post[];
+export type UsersQuery = {
+    gender?: Gender;
+    minAge?: number;
+    maxAge?: number;
+};
+
+export type UserQueryResult = {
+    users: User[];
 };
 
 @service("github.ayonli.ngrpc.services.UserService")
 export default abstract class UserService {
     abstract getUser(query: UserQuery): Promise<User>;
-    abstract getMyPosts(query: UserQuery): Promise<UserPostList>;
+    abstract getUsers(query: UsersQuery): Promise<UserQueryResult>;
+    abstract getMyPosts(query: UserQuery): Promise<PostSearchResult>;
 }

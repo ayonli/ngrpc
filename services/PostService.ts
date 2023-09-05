@@ -2,7 +2,7 @@
 /// <reference path="./UserService.ts" />
 import _try from "dotry";
 import { ServiceClient, LifecycleSupportInterface, service } from "@ayonli/ngrpc";
-import { Post } from "./struct";
+import { Post, User } from "./struct";
 
 declare global {
     namespace services {
@@ -67,8 +67,13 @@ export default class PostService implements LifecycleSupportInterface {
             const _posts = this.postStore?.filter(item => item.author === query.author);
 
             if (_posts?.length) {
-                const author = await this.userSrv.getUser({ id: query.author });
-                return { posts: _posts.map(post => ({ ...post, author })) };
+                const { users } = await this.userSrv.getUsers({});
+                return {
+                    posts: _posts.map(post => {
+                        const author = users.find(user => user.id === post.author) as User;
+                        return { ...post, author };
+                    }),
+                };
             } else {
                 return { posts: [] };
             }
@@ -79,8 +84,13 @@ export default class PostService implements LifecycleSupportInterface {
             });
 
             if (_posts?.length) {
-                const author = await this.userSrv.getUser({ id: query.author });
-                return { posts: _posts.map(post => ({ ...post, author })) };
+                const { users } = await this.userSrv.getUsers({});
+                return {
+                    posts: _posts.map(post => {
+                        const author = users.find(user => user.id === post.author) as User;
+                        return { ...post, author };
+                    }),
+                };
             } else {
                 return { posts: [] };
             }

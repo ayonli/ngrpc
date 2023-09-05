@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/ayonli/goext"
+	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/ngrpc"
 	"github.com/ayonli/ngrpc/services/github/ayonli/ngrpc/services_proto"
 	"google.golang.org/grpc"
@@ -52,7 +53,7 @@ func (self *UserService) GetClient(route string) (services_proto.UserServiceClie
 }
 
 func (self *UserService) GetUser(ctx context.Context, query *services_proto.UserQuery) (*services_proto.User, error) {
-	if *query.Id != "" {
+	if query.Id != nil {
 		idx := slices.IndexFunc[[]*services_proto.User](self.userStore, func(u *services_proto.User) bool {
 			return u.Id == *query.Id
 		})
@@ -62,7 +63,7 @@ func (self *UserService) GetUser(ctx context.Context, query *services_proto.User
 		} else {
 			return nil, fmt.Errorf("user '%s' not found", *query.Id)
 		}
-	} else if *query.Email != "" {
+	} else if query.Email != nil {
 		idx := slices.IndexFunc[[]*services_proto.User](self.userStore, func(u *services_proto.User) bool {
 			return u.Email == *query.Email
 		})
@@ -77,16 +78,43 @@ func (self *UserService) GetUser(ctx context.Context, query *services_proto.User
 	}
 }
 
+func (self *UserService) GetUsers(
+	ctx context.Context,
+	query *services_proto.UsersQuery,
+) (*services_proto.UserQueryResult, error) {
+	users := self.userStore
+
+	if query.Gender != nil {
+		users = slicex.Filter(users, func(user *services_proto.User, _ int) bool {
+			return user.Gender == *query.Gender
+		})
+	}
+
+	if query.MinAge != nil {
+		users = slicex.Filter(users, func(user *services_proto.User, _ int) bool {
+			return user.Age >= *query.MinAge
+		})
+	}
+
+	if query.MaxAge != nil && *query.MaxAge != 0 {
+		users = slicex.Filter(users, func(user *services_proto.User, _ int) bool {
+			return user.Age <= *query.MaxAge
+		})
+	}
+
+	return &services_proto.UserQueryResult{Users: users}, nil
+}
+
 func (self *UserService) GetMyPosts(
 	ctx context.Context,
 	query *services_proto.UserQuery,
-) (*services_proto.PostQueryResult, error) {
-	return goext.Try(func() *services_proto.PostQueryResult {
+) (*services_proto.PostSearchResult, error) {
+	return goext.Try(func() *services_proto.PostSearchResult {
 		user := goext.Ok(self.GetUser(ctx, query))
 		ins := goext.Ok(self.PostSrv.GetClient(user.Id))
 		result := goext.Ok(ins.SearchPosts(ctx, &services_proto.PostsQuery{Author: &user.Id}))
 
-		return (*services_proto.PostQueryResult)(result)
+		return (*services_proto.PostSearchResult)(result)
 	})
 }
 

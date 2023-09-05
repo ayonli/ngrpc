@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	UserService_GetUser_FullMethodName    = "/github.ayonli.ngrpc.services.UserService/GetUser"
+	UserService_GetUsers_FullMethodName   = "/github.ayonli.ngrpc.services.UserService/GetUsers"
 	UserService_GetMyPosts_FullMethodName = "/github.ayonli.ngrpc.services.UserService/GetMyPosts"
 )
 
@@ -28,7 +29,8 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UserServiceClient interface {
 	GetUser(ctx context.Context, in *UserQuery, opts ...grpc.CallOption) (*User, error)
-	GetMyPosts(ctx context.Context, in *UserQuery, opts ...grpc.CallOption) (*PostQueryResult, error)
+	GetUsers(ctx context.Context, in *UsersQuery, opts ...grpc.CallOption) (*UserQueryResult, error)
+	GetMyPosts(ctx context.Context, in *UserQuery, opts ...grpc.CallOption) (*PostSearchResult, error)
 }
 
 type userServiceClient struct {
@@ -48,8 +50,17 @@ func (c *userServiceClient) GetUser(ctx context.Context, in *UserQuery, opts ...
 	return out, nil
 }
 
-func (c *userServiceClient) GetMyPosts(ctx context.Context, in *UserQuery, opts ...grpc.CallOption) (*PostQueryResult, error) {
-	out := new(PostQueryResult)
+func (c *userServiceClient) GetUsers(ctx context.Context, in *UsersQuery, opts ...grpc.CallOption) (*UserQueryResult, error) {
+	out := new(UserQueryResult)
+	err := c.cc.Invoke(ctx, UserService_GetUsers_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetMyPosts(ctx context.Context, in *UserQuery, opts ...grpc.CallOption) (*PostSearchResult, error) {
+	out := new(PostSearchResult)
 	err := c.cc.Invoke(ctx, UserService_GetMyPosts_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -62,7 +73,8 @@ func (c *userServiceClient) GetMyPosts(ctx context.Context, in *UserQuery, opts 
 // for forward compatibility
 type UserServiceServer interface {
 	GetUser(context.Context, *UserQuery) (*User, error)
-	GetMyPosts(context.Context, *UserQuery) (*PostQueryResult, error)
+	GetUsers(context.Context, *UsersQuery) (*UserQueryResult, error)
+	GetMyPosts(context.Context, *UserQuery) (*PostSearchResult, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -73,7 +85,10 @@ type UnimplementedUserServiceServer struct {
 func (UnimplementedUserServiceServer) GetUser(context.Context, *UserQuery) (*User, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
 }
-func (UnimplementedUserServiceServer) GetMyPosts(context.Context, *UserQuery) (*PostQueryResult, error) {
+func (UnimplementedUserServiceServer) GetUsers(context.Context, *UsersQuery) (*UserQueryResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
+}
+func (UnimplementedUserServiceServer) GetMyPosts(context.Context, *UserQuery) (*PostSearchResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMyPosts not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
@@ -107,6 +122,24 @@ func _UserService_GetUser_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_GetUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UsersQuery)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUsers(ctx, req.(*UsersQuery))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_GetMyPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UserQuery)
 	if err := dec(in); err != nil {
@@ -135,6 +168,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUser",
 			Handler:    _UserService_GetUser_Handler,
+		},
+		{
+			MethodName: "GetUsers",
+			Handler:    _UserService_GetUsers_Handler,
 		},
 		{
 			MethodName: "GetMyPosts",
