@@ -15,6 +15,7 @@ import {
 import { serve, unserve, connect, ServiceClient } from "@ayonli/grpc-async";
 import get = require("lodash/get");
 import set = require("lodash/set");
+import pick = require("lodash/pick");
 import isEqual = require("lodash/isEqual");
 import hash = require("string-hash");
 import {
@@ -49,7 +50,7 @@ export interface App {
     /** If this app can be served by as the gRPC server. */
     serve?: boolean;
     /** The services served by this app. */
-    services?: string[];
+    services: string[];
     /** The certificate filename when using TLS/SSL. */
     cert?: string;
     /** The private key filename when using TLS/SSL. */
@@ -70,6 +71,23 @@ export interface App {
     connectTimeout?: number;
     options?: ChannelOptions;
 }
+
+const defaultApp: App = {
+    name: "",
+    uri: "",
+    serve: false,
+    services: [],
+    cert: undefined,
+    key: undefined,
+    ca: undefined,
+    stdout: undefined,
+    stderr: undefined,
+    entry: undefined,
+    env: undefined,
+    connectTimeout: undefined,
+    options: undefined,
+};
+Object.seal(defaultApp);
 
 export interface PM2App {
     name: string;
@@ -126,10 +144,20 @@ export interface RoutableMessageStruct {
     route: string;
 }
 
-export class RpcApp {
-    name: string | null = null;
-    private config: Config | null = null;
-    private oldConfig: Config | null = null;
+export class RpcApp implements App {
+    name = "";
+    uri = "";
+    serve = false;
+    services: string[] = [];
+    cert?: string | undefined;
+    key?: string | undefined;
+    ca?: string | undefined;
+    stdout?: string | undefined;
+    stderr?: string | undefined;
+    entry?: string | undefined;
+    env?: { [name: string]: string; } | undefined;
+    connectTimeout?: number | undefined;
+    options?: ChannelOptions | undefined;
     private pkgDef: GrpcObject | null = null;
     private server: Server | null = null;
     private ctorsMap = new Map<string, {
@@ -276,9 +304,9 @@ export class RpcApp {
     }
 
     /** Retrieves the app name from the `process.argv`. */
-    static getAppName() {
+    static getAppName(): string {
         if (process.argv.length >= 3) {
-            return process.argv[2];
+            return process.argv[2] as string;
         } else {
             throw new Error("app name is not provided");
         }
@@ -311,16 +339,16 @@ export class RpcApp {
         }
 
         const app = new RpcApp();
-        app.config = config;
         let cfgApp: App | undefined;
 
         if (appName) {
-            app.name = appName;
             cfgApp = config.apps.find(item => item.name === appName);
 
             if (!cfgApp) {
                 throw new Error(`app [${appName}] is not configured`);
             }
+
+            Object.assign(app, cfgApp);
         }
 
         // Set global namespace.
@@ -331,14 +359,14 @@ export class RpcApp {
         await app.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);
 
         if (cfgApp?.serve && cfgApp?.services?.length) {
-            await app.initServer(cfgApp);
+            await app.initServer();
         }
 
-        await app.initClients();
+        await app.initClients(config.apps);
         this.theApp = app;
 
         if (!once) {
-            app.guest = new Guest(cfgApp || ({ name: "", uri: "", }), {
+            app.guest = new Guest(cfgApp || defaultApp, {
                 onStopCommand: (msgId) => {
                     app._stop(msgId, true);
                 },
@@ -503,7 +531,7 @@ export class RpcApp {
         }
     }
 
-    protected getAddress(app: App, url: URL): { address: string, useSSL: boolean; } {
+    private static getAddress(app: App, url: URL): { address: string, useSSL: boolean; } {
         const { protocol, hostname, port } = url;
         let address = hostname;
         let useSSL = !!(app.cert && app.key);
@@ -529,30 +557,30 @@ export class RpcApp {
         return { address, useSSL };
     }
 
-    protected async initServer(app: App, reload = false) {
-        const url = new URL(app.uri);
+    protected async initServer(oldApp: App | null = null) {
+        const url = new URL(this.uri);
 
         if (url.protocol === "xds:") {
-            throw new Error(`app [${app.name}] cannot be served since it uses 'xds:' protocol`);
+            throw new Error(`app [${this.name}] cannot be served since it uses 'xds:' protocol`);
         }
 
-        const { address, useSSL } = this.getAddress(app, url);
+        const { address, useSSL } = RpcApp.getAddress(this, url);
         let newServer = !this.server;
         let cert: Buffer;
         let key: Buffer;
         let ca: Buffer | undefined;
 
-        if (reload) {
+        if (oldApp) {
             if (this.sslOptions) {
                 if (!useSSL) { // SSL to non-SSL
                     this.sslOptions = null;
                     newServer = true;
                 } else {
-                    cert = await fs.readFile(app.cert as string);
-                    key = await fs.readFile(app.key as string);
+                    cert = await fs.readFile(this.cert as string);
+                    key = await fs.readFile(this.key as string);
 
-                    if (app.ca) {
-                        ca = await fs.readFile(app.ca as string);
+                    if (this.ca) {
+                        ca = await fs.readFile(this.ca as string);
                     }
 
                     if (Buffer.compare(cert, this.sslOptions.cert) ||
@@ -567,31 +595,27 @@ export class RpcApp {
                     }
                 }
             } else if (useSSL) { // non-SSL to SSL
-                cert = await fs.readFile(app.cert as string);
-                key = await fs.readFile(app.key as string);
+                cert = await fs.readFile(this.cert as string);
+                key = await fs.readFile(this.key as string);
 
-                if (app.ca) {
-                    ca = await fs.readFile(app.ca as string);
+                if (this.ca) {
+                    ca = await fs.readFile(this.ca as string);
                 }
 
                 this.sslOptions = { cert, key, ca };
                 newServer = true;
             }
 
-            if (this.oldConfig) {
-                const oldApp = this.oldConfig.apps.find(_app => _app.name === app.name);
-
-                if (!oldApp || oldApp.uri !== app.uri || !isEqual(oldApp.options, app.options)) {
-                    // server configurations changed
-                    newServer = true;
-                }
+            if (oldApp.uri !== this.uri || !isEqual(oldApp.options, this.options)) {
+                // server configurations changed
+                newServer = true;
             }
         } else if (useSSL) {
-            cert = await fs.readFile(app.cert as string);
-            key = await fs.readFile(app.key as string);
+            cert = await fs.readFile(this.cert as string);
+            key = await fs.readFile(this.key as string);
 
-            if (app.ca) {
-                ca = await fs.readFile(app.ca as string);
+            if (this.ca) {
+                ca = await fs.readFile(this.ca as string);
             }
 
             this.sslOptions = { cert, key, ca };
@@ -599,10 +623,10 @@ export class RpcApp {
 
         if (newServer) {
             this.server?.forceShutdown();
-            this.server = new Server(app.options);
+            this.server = new Server(this.options);
         }
 
-        for (const serviceName of (app.services as string[])) {
+        for (const serviceName of this.services) {
             let ins: any;
 
             const ctors = this.ctorsMap.get(serviceName);
@@ -649,7 +673,7 @@ export class RpcApp {
                         reject(err);
                     } else {
                         (this.server as Server).start();
-                        console.info(timed`app [${app.name}] started (pid: ${process.pid})`);
+                        console.info(timed`app [${this.name}] started (pid: ${process.pid})`);
                         resolve();
                     }
                 });
@@ -657,30 +681,29 @@ export class RpcApp {
         }
     }
 
-    protected async initClients() {
-        const app = this.config?.apps?.find(item => item.name === this.name);
+    protected async initClients(apps: App[]) {
+        const xdsApp = apps.find(item => item.uri.startsWith("xds:"));
 
-        if (!xdsEnabled && app?.uri.startsWith("xds:")) {
+        if (!xdsEnabled && xdsApp) {
             try {
                 const _module = require("@grpc/grpc-js-xds");
                 _module.register();
                 xdsEnabled = true;
             } catch (err: any) {
                 if (err["code"] === "MODULE_NOT_FOUND") {
-                    throw new Error(`app [${app.name}] uses 'xds:' protocol `
+                    throw new Error(`app [${xdsApp.name}] uses 'xds:' protocol `
                         + `but package '@grpc/grpc-js-xds' is not installed`);
                 }
             }
         }
 
-        const conf = this.config as Config;
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
         const cas = new Map<string, Buffer>();
 
         // Preload `cert`s and `key`s so in the "connection" phase, there would be no latency for
         // loading resources asynchronously.
-        for (const app of conf.apps) {
+        for (const app of apps) {
             if (app.cert) {
                 const filename = absPath(app.cert);
                 const cert = await fs.readFile(filename);
@@ -712,7 +735,7 @@ export class RpcApp {
 
         // Reorganize client-side configuration based on the service name since the gRPC clients are
         // created based on the service.
-        const serviceApps = conf.apps.reduce((registry, app) => {
+        const serviceApps = apps.reduce((registry, app) => {
             for (const serviceName of (app.services as string[])) {
                 const ctors = this.ctorsMap.get(serviceName);
 
@@ -737,7 +760,7 @@ export class RpcApp {
             if (url.protocol === "xds:") {
                 return app.uri;
             } else {
-                const { address } = this.getAddress(app, url);
+                const { address } = RpcApp.getAddress(app, url);
                 return address;
             }
         };
@@ -838,12 +861,10 @@ export class RpcApp {
     }
 
     protected async _reload(msgId = "") {
-        this.oldConfig = this.config;
-        this.config = await RpcApp.loadConfig();
+        const config = await RpcApp.loadConfig();
+        const app = config.apps.find(app => app.name === this.name);
 
-        await this.loadProtoFiles(this.config.protoPaths, this.config.protoOptions);
-
-        const app = this.config.apps.find(app => app.name === this.name);
+        await this.loadProtoFiles(config.protoPaths, config.protoOptions);
 
         if (this.server) {
             // Unserve old service instance and possibly call the `destroy()` lifecycle method.
@@ -853,7 +874,7 @@ export class RpcApp {
                 }
             }
 
-            const importRoot = process.env["IMPORT_ROOT"] || this.config.importRoot || "";
+            const importRoot = process.env["IMPORT_ROOT"] || config.importRoot || "";
 
             // Remove cached files and their dependencies so, when reloading, they could be
             // reimported and use any changes inside them.
@@ -878,17 +899,20 @@ export class RpcApp {
             this.instanceMap = new Map();
 
             // reload class files
-            await this.loadClassFiles(this.config.apps, importRoot);
+            await this.loadClassFiles(config.apps, importRoot);
         }
 
+        const oldApp = pick(this, Object.keys(defaultApp)) as App;
+        Object.assign(this, app ?? defaultApp);
+
         if (app && app.serve && app.services?.length) {
-            await this.initServer(app, true);
+            await this.initServer(oldApp);
         } else if (this.server) { // The app has been removed from the config or no longer serve.
             this.server.forceShutdown();
             this.server = null;
         }
 
-        await this.initClients();
+        await this.initClients(config.apps);
 
         if (msgId) {
             // If `msgId` is provided, that means the stop event is issued by a guest app, for

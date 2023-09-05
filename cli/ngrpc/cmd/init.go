@@ -42,6 +42,9 @@ var confTpl = `{
     "protoPaths": [
         "proto"
     ],
+    "protoOptions": {
+        "defaults": true
+    },
     "apps": [
         {
             "name": "example-server",

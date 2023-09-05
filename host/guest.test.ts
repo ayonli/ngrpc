@@ -108,6 +108,7 @@ test("new Guest", () => {
     const app: App = {
         name: "example-server",
         uri: "grpc://localhost:4000",
+        services: [],
     };
     const handleStop = () => void 0;
     const handleReload = () => void 0;
@@ -128,6 +129,7 @@ test("Guest join redundant socket file", async () => {
     const guest = new Guest({
         name: "example-server",
         uri: "grpc://localhost:4000",
+        services: [],
     }, {
         onStopCommand: () => void 0,
         onReloadCommand: () => void 0,
