@@ -276,7 +276,7 @@ the app should be re-spawned by the external process management like PM2.
 
 Moreover, that the CLI tool only works for the app instance, if the process contains other logics
 that prevent the process to exit, the `stop` command will not be able to terminate the process, in
-such case, a hard kill is required.
+such case, a force kill is required.
 
 ## Implement a Service
 
@@ -382,8 +382,9 @@ func (self *ExampleService) GetClient(route string) (proto.ExampleServiceClient,
 
 ## Lifecycle Support
 
-The service class served by NgRPC application supports lifecycle functions, to use this feature,
-in Node.js, simply implement the `LifecycleSupportInterface` for the service class, for example:
+**In Node.js**
+
+Simply implement the `LifecycleSupportInterface` for the service class, for example:
 
 ```ts
 import { LifecycleSupportInterface, service } from "@ayonli/ngrpc";
@@ -404,7 +405,9 @@ export default class ExampleService implements LifecycleSupportInterface {
 }
 ```
 
-In Golang, we use the `Serve()` method for additional setup, and the `Stop()` method for teardown.
+**In Golang**
+
+We use the `Serve()` method for additional setup, and the `Stop()` method for teardown.
 
 ```go
 func (self *ExampleService) Serve(s grpc.ServiceRegistrar) {
@@ -449,6 +452,7 @@ export default class PostService {
 **In Golang**
 
 Just add an exported field that points to another service, like this:
+
 ```go
 type UserService struct {
     proto.UnimplementedUserServiceServer
