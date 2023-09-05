@@ -1,5 +1,3 @@
-/// <reference path="../services/UserService.ts" />
-/// <reference path="../services/ExampleService.ts" />
 import ngrpc from "@ayonli/ngrpc";
 
 if (require.main?.filename === __filename) {
