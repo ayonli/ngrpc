@@ -1,9 +1,10 @@
 import * as http from "http";
 import * as https from "https";
+import * as fs from "fs/promises";
 import * as express from "express";
 import ngrpc from "@ayonli/ngrpc";
 import _try from "dotry";
-import { Post, User } from "../services/struct";
+import { Gender, Post, User } from "../services/struct";
 
 type ApiResponse<T> = {
     code: number;
@@ -25,11 +26,15 @@ type ApiResponse<T> = {
     let httpsServer: https.Server;
     const route = express();
 
-    const startWebServer = () => {
+    const startWebServer = async () => {
         const { protocol, port } = new URL(app.uri);
 
         if (protocol === "https:") {
-            httpsServer = https.createServer(route).listen(port || "443", () => {
+            httpsServer = https.createServer({
+                cert: await fs.readFile(app.cert as string),
+                key: await fs.readFile(app.key as string),
+                ca: app.ca ? await fs.readFile(app.ca as string) : undefined,
+            }, route).listen(port || "443", () => {
                 process.send?.("ready");
             });
         } else {
@@ -39,7 +44,7 @@ type ApiResponse<T> = {
         }
     };
 
-    startWebServer();
+    await startWebServer();
 
     app.onStop(() => {
         httpServer?.close();
@@ -67,14 +72,14 @@ type ApiResponse<T> = {
         }
     }).get("/users/gender/:gender", async (req, res) => {
         type UsersResponse = ApiResponse<User[]>;
-        let gender: 0 | 1 | 2;
+        let gender: Gender;
 
         if (req.params.gender === "unknown") {
-            gender = 0;
+            gender = Gender.UNKNOWN;
         } else if (req.params.gender === "male") {
-            gender = 1;
+            gender = Gender.MALE;
         } else if (req.params.gender === "female") {
-            gender = 2;
+            gender = Gender.FEMALE;
         } else {
             res.json({
                 code: 400,
@@ -83,20 +88,20 @@ type ApiResponse<T> = {
             return;
         }
 
-        const [err, result] = await _try(services.UserService.getUsers({ gender: gender }));
+        const [err, result] = await _try(services.UserService.getUsers({ gender }));
 
         if (err) {
             res.json({ code: 500, error: err.message } satisfies UsersResponse);
         } else {
             res.json({ code: 0, data: result.users } satisfies UsersResponse);
         }
-    }).get("/users/age/:min-:max", async (req, res) => {
+    }).get("/users/age/:min/to/:max", async (req, res) => {
         type UsersResponse = ApiResponse<User[]>;
         const minAge = parseInt(req.params.min);
         const maxAge = parseInt(req.params.max);
 
         if (isNaN(minAge) || isNaN(maxAge)) {
-            res.json({ code: 400, error: "unrecognized age range" } satisfies UsersResponse);
+            res.json({ code: 400, error: "unrecognized age range", } satisfies UsersResponse);
             return;
         }
 
@@ -137,10 +142,10 @@ type ApiResponse<T> = {
         } else {
             res.json({ code: 0, data: post } satisfies PostResponse);
         }
-    }).get("/posts/search/:keywords", async (req, res) => {
+    }).get("/posts/search/:keyword", async (req, res) => {
         type PostsResponse = ApiResponse<Post[]>;
         const [err, result] = await _try(services.PostService.searchPosts({
-            keyword: req.params.keywords,
+            keyword: req.params.keyword,
         }));
 
         if (err) {
@@ -149,7 +154,4 @@ type ApiResponse<T> = {
             res.json({ code: 0, data: result.posts } satisfies PostsResponse);
         }
     });
-})().catch(err => {
-    console.error(err);
-    process.exit(1);
-});
+})();

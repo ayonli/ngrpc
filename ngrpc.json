@@ -48,7 +48,7 @@
             "uri": "http://localhost:3000",
             "serve": true,
             "services": [],
-            "entry": "web/main.ts",
+            "entry": "web/main.go",
             "stdout": "out.log"
         }
     ]

@@ -35,10 +35,13 @@ First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
 
 ```json
 {
-    "$schema": "./ngrpc.schema.json",
+    "$schema": "https://raw.githubusercontent.com/ayonli/ngrpc/main/ngrpc.schema.json",
     "protoPaths": [
         "proto"
     ],
+    "protoOptions": {
+        "defaults": true
+    },
     "apps": [
         {
             "name": "example-server",
@@ -579,9 +582,9 @@ For example:
     "apps": [
         {
             "name": "web-server",
-            "uri": "http://localhost:4000",
+            "uri": "http://localhost:3000",
             "serve": true,
-            "services": [] // leave this blank
+            "services": [], // leave this blank
             // ...
         },
         // ...
@@ -591,60 +594,11 @@ For example:
 
 **In Node.js**
 
-```ts
-// main.ts
-import ngrpc, { Config } from "@ayonli/ngrpc";
-import * as http from "http";
-import * as https from "https";
-import * as fs from "fs/promises";
-
-if (require.main?.filename === __filename) {
-    (async () => {
-        const appName = ngrpc.getAppName();
-        const app = await ngrpc.start(appName);
-        let httpServer: http.Server;
-        let httpsServer: https.Server;
-        
-        if (appName === "web-server") {
-            const conf = await ngrpc.loadConfig();
-            const _app = conf.apps.find(app => app.name === appName) as Config["apps"][0];
-            let { protocol, port } = new URL(_app.uri);
-
-            if (protocol === "https:") {
-                port ||= "443";
-                httpsServer = https.createServer({
-                    cert: await fs.readFile(_app.cert as string),
-                    key: await fs.readFile(_app.key as string),
-                }, (req, res) => {
-                    // ...
-                }).listen(port);
-            } else if (protocol === "http:") {
-                port ||= "80";
-                httpServer = http.createServer((req, res) => {
-                    // ...
-                }).listen(port);
-            }
-        } 
-
-        app.onReload(() => {
-            // do some logic to reload the HTTP(S) server
-        });
-        app.onStop(() => {
-            httpServer?.close();
-            httpsServer?.close();
-        });
-
-        process.send?.("ready");
-    })().catch(err => {
-        console.error(err);
-        process.exit(1);
-    });
-}
-```
+Check out [web/main.ts](./web/main.ts).
 
 **In Golang**
 
-It's similar to the Node.js version, except it uses Golang's `net/http` package and it's own way.
+Check out [web/main.go](./web/main.go).
 
 ## Running Scripts
 
