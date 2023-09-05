@@ -3,6 +3,9 @@
     "protoPaths": [
         "proto"
     ],
+    "protoOptions": {
+        "defaults": true
+    },
     "apps": [
         {
             "name": "example-server",
@@ -39,6 +42,14 @@
             "cert": "certs/cert.pem",
             "key": "certs/cert.key",
             "ca": "certs/ca.pem"
+        },
+        {
+            "name": "web-server",
+            "uri": "http://localhost:3000",
+            "serve": true,
+            "services": [],
+            "entry": "web/main.ts",
+            "stdout": "out.log"
         }
     ]
 }
