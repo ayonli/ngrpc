@@ -21,6 +21,7 @@ import (
 	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/goext/stringx"
 	"github.com/ayonli/ngrpc/config"
+	"github.com/ayonli/ngrpc/host/socket"
 	"github.com/ayonli/ngrpc/util"
 	"github.com/rodaine/table"
 	"github.com/struCoder/pidusage"
@@ -105,7 +106,7 @@ func NewHost(conf config.Config, standalone bool) *Host {
 
 func (self *Host) Start(wait bool) error {
 	sockFile, sockPath := GetSocketPath()
-	listener, err := net.Listen("unix", sockPath)
+	listener, err := socket.Listen(sockPath)
 
 	if err != nil {
 		return err

@@ -25,9 +25,9 @@ export function absPath(filename: string, withPipe = false): string {
 
     if (withPipe &&
         typeof process === "object" && process.platform === "win32" &&
-        !/\\\\[.?]\\pipe\\/.test(filename)
+        !/^\\\\[.?]\\pipe\\/.test(filename)
     ) {
-        filename = "\\\\?\\pipe\\" + filename;
+        filename = "\\\\.\\pipe\\" + filename;
     }
 
     return filename;

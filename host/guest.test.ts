@@ -88,7 +88,7 @@ test("getSocketPath", () => {
     assert.strictEqual(sockFile, path.join(cwd, "ngrpc.sock"));
 
     if (process.platform === "win32") {
-        assert.strictEqual(sockPath, "\\\\?\\pipe" + path.join(cwd, "ngrpc.sock"));
+        assert.strictEqual(sockPath, "\\\\.\\pipe\\" + path.join(cwd, "ngrpc.sock"));
     } else {
         assert.strictEqual(sockPath, path.join(cwd, "ngrpc.sock"));
     }

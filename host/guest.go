@@ -14,6 +14,7 @@ import (
 	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/goext/stringx"
 	"github.com/ayonli/ngrpc/config"
+	"github.com/ayonli/ngrpc/host/socket"
 	"github.com/ayonli/ngrpc/util"
 )
 
@@ -124,7 +125,7 @@ func (self *Guest) connect() error {
 		return errors.New("host server is not running")
 	}
 
-	conn, err := net.DialTimeout("unix", sockPath, time.Second)
+	conn, err := socket.DialTimeout(sockPath, time.Second)
 
 	if err != nil {
 		// The socket file is left because a previous unclean shutdown, remove it so the filename

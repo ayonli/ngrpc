@@ -84,7 +84,7 @@ func TestGetSocketPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(cwd, "ngrpc.sock"), sockFile)
 
 	if runtime.GOOS == "windows" {
-		assert.Equal(t, "\\\\?\\pipe\\"+filepath.Join(cwd, "ngrpc.sock"), sockPath)
+		assert.Equal(t, "\\.\\pipe\\"+filepath.Join(cwd, "ngrpc.sock"), sockPath)
 	} else {
 		assert.Equal(t, filepath.Join(cwd, "ngrpc.sock"), sockPath)
 	}

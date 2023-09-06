@@ -24,7 +24,7 @@ test("absPath", async () => {
         assert.strictEqual(file3, filename);
 
         const file4 = absPath(filename, true);
-        assert.strictEqual(file4, "\\\\?\\pipe\\" + filename);
+        assert.strictEqual(file4, "\\\\.\\pipe\\" + filename);
     }
 });
 

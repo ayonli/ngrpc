@@ -33,7 +33,7 @@ func TestAbsPath(t *testing.T) {
 		assert.Equal(t, filename, file3)
 
 		file4 := AbsPath(filename, true)
-		assert.Equal(t, "\\\\?\\pipe\\"+filename, file4)
+		assert.Equal(t, "\\\\.\\pipe\\"+filename, file4)
 	}
 }
 
