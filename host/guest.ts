@@ -2,24 +2,18 @@ import * as path from "path";
 import * as net from "net";
 import * as fs from "fs/promises";
 import type { App } from "../app";
-import { CpuUsage, absPath, exists, getCpuUsage, timed } from "../util";
-
-export interface AppStat {
-    app: string;
-    uri: string;
-    pid: number;
-    uptime: number;
-    memory: number;
-    cpu: number;
-}
+import { absPath, exists, timed } from "../util";
 
 export interface ControlMessage {
-    cmd: string;
+    cmd: "handshake" | "goodbye" | "reply" | "stop" | "reload";
     app?: string;
     msgId?: string;
     text?: string;
-    stat?: AppStat;
-    stats?: AppStat[];
+    guests?: {
+        app: string;
+        pid: number;
+        startTime: number;
+    }[];
     error?: string;
 
     // `pid` shall be provided when `cmd` is `handshake`.
@@ -87,7 +81,6 @@ export class Guest {
     private reconnector: NodeJS.Timeout | null = null;
     private handleStopCommand: (msgId: string | undefined) => void;
     private handleReloadCommand: (msgId: string | undefined) => void;
-    private cpuUsage: CpuUsage | null = null;
 
     constructor(app: App, options: {
         onStopCommand: (msgId: string | undefined) => void;
@@ -224,20 +217,6 @@ export class Guest {
             this.handleStopCommand(msg.msgId);
         } else if (msg.cmd === "reload") {
             this.handleReloadCommand(msg.msgId);
-        } else if (msg.cmd === "stat") {
-            this.send({
-                cmd: "reply",
-                app: this.appName,
-                msgId: msg.msgId,
-                stat: {
-                    app: this.appName,
-                    uri: this.appUri,
-                    pid: process.pid,
-                    uptime: Math.floor(process.uptime()),
-                    memory: process.memoryUsage().rss,
-                    cpu: (this.cpuUsage = getCpuUsage(this.cpuUsage)).percent,
-                },
-            });
         }
     }
 }

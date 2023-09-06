@@ -9,35 +9,21 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/goext/stringx"
 	"github.com/ayonli/ngrpc/config"
 	"github.com/ayonli/ngrpc/util"
-	"github.com/struCoder/pidusage"
 )
 
-var startTime = time.Now()
-
-type AppStat struct {
-	App    string  `json:"app"`
-	Uri    string  `json:"uri"`
-	Pid    int     `json:"pid"`
-	Uptime int     `json:"uptime"`
-	Memory float64 `json:"memory"`
-	Cpu    float64 `json:"cpu"`
-}
-
 type ControlMessage struct {
-	Cmd   string    `json:"cmd"`
-	App   string    `json:"app"`
-	MsgId string    `json:"msgId"`
-	Text  string    `json:"text"`
-	Stat  AppStat   `json:"stat"`
-	Stats []AppStat `json:"stats"`
-	Error string    `json:"error"`
+	Cmd    string         `json:"cmd"`
+	App    string         `json:"app"`
+	MsgId  string         `json:"msgId"`
+	Text   string         `json:"text"`
+	Guests []clientRecord `json:"guests"`
+	Error  string         `json:"error"`
 
 	// `Pid` shall be provided when `Cmd` is `handshake`.
 	Pid int `json:"pid"`
@@ -268,7 +254,6 @@ func (self *Guest) handleMessage(handshake chan bool, msg ControlMessage) {
 		handshake <- true
 		close(handshake)
 	} else if msg.Cmd == "goodbye" {
-		// self.state = 0
 		self.conn.Close()
 
 		if self.replyChan != nil {
@@ -281,32 +266,6 @@ func (self *Guest) handleMessage(handshake chan bool, msg ControlMessage) {
 			Cmd:   "reply",
 			MsgId: msg.MsgId,
 			Text:  fmt.Sprintf("app [%v] does not support hot-reloading", self.AppName),
-		})
-	} else if msg.Cmd == "stat" {
-		var mem runtime.MemStats
-		runtime.ReadMemStats(&mem)
-
-		var cpuPercent float64
-		sysInfo, err := pidusage.GetStat(os.Getpid())
-
-		if err != nil {
-			cpuPercent = -1
-		} else {
-			cpuPercent = sysInfo.CPU
-		}
-
-		self.Send(ControlMessage{
-			Cmd:   "reply",
-			App:   self.AppName,
-			MsgId: msg.MsgId,
-			Stat: AppStat{
-				App:    self.AppName,
-				Uri:    self.AppUri,
-				Pid:    os.Getpid(),
-				Uptime: int(time.Since(startTime).Round(time.Second).Seconds()),
-				Memory: float64(mem.Sys + mem.NextGC),
-				Cpu:    cpuPercent,
-			},
 		})
 	} else if msg.Cmd == "reply" || msg.Cmd == "online" {
 		if self.replyChan != nil {

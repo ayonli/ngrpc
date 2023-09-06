@@ -20,12 +20,12 @@ import (
 )
 
 func TestEncodeMessage(t *testing.T) {
-	msg := EncodeMessage(ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"})
+	msg := EncodeMessage(ControlMessage{Cmd: "stop", App: "example-server", MsgId: "abc"})
 	assert.Equal(t, uint8(10), msg[len(msg)-1])
 }
 
 func TestDecodeMessage(t *testing.T) {
-	msg := ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"}
+	msg := ControlMessage{Cmd: "stop", App: "example-server", MsgId: "abc"}
 	data := EncodeMessage(msg)
 	packet := []byte{}
 	buf := make([]byte, 256)
@@ -39,7 +39,7 @@ func TestDecodeMessage(t *testing.T) {
 }
 
 func TestDecodeMessageOverflow(t *testing.T) {
-	msg := ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"}
+	msg := ControlMessage{Cmd: "stop", App: "example-server", MsgId: "abc"}
 	data := EncodeMessage(msg)
 	packet := []byte{}
 	buf := make([]byte, 64)
@@ -64,7 +64,7 @@ func TestDecodeMessageOverflow(t *testing.T) {
 }
 
 func TestDecodeMessageEof(t *testing.T) {
-	msg := ControlMessage{Cmd: "stat", App: "example-server", MsgId: "abc"}
+	msg := ControlMessage{Cmd: "stop", App: "example-server", MsgId: "abc"}
 	data := slicex.Slice(EncodeMessage(msg), 0, -1)
 	packet := []byte{}
 	buf := make([]byte, 256)
@@ -289,7 +289,7 @@ func TestSendCommand_stopAll(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 10)
 	assert.Equal(t, 1, len(host.clients))
-	assert.Equal(t, ":cli", host.clients[0].app)
+	assert.Equal(t, ":cli", host.clients[0].App)
 }
 
 func TestSendCommand_list(t *testing.T) {
@@ -380,7 +380,7 @@ func TestSendCommand_stopHost(t *testing.T) {
 	assert.Equal(t, 0, guest.state)
 	assert.Equal(t, 0, host.state)
 	assert.Equal(t, 1, len(host.clients))
-	assert.Equal(t, ":cli", host.clients[0].app)
+	assert.Equal(t, ":cli", host.clients[0].App)
 }
 
 func TestCommand_listWhenNoHost(t *testing.T) {

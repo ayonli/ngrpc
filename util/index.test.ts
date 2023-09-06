@@ -1,7 +1,7 @@
 import { test } from "mocha";
 import * as assert from "assert";
 import * as path from "path";
-import { absPath, exists, getCpuUsage, service, timed } from ".";
+import { absPath, exists, service, timed } from ".";
 
 test("exists", async () => {
     const ok1 = await exists("ngrpc.json");
@@ -28,10 +28,10 @@ test("absPath", async () => {
     }
 });
 
-test("getCpuUsage", () => {
-    const usage = getCpuUsage();
-    assert.ok(usage.percent > 0);
-});
+// test("getCpuUsage", () => {
+//     const usage = getCpuUsage();
+//     assert.ok(usage.percent > 0);
+// });
 
 test("timed", () => {
     const str = timed`everything is fine`;

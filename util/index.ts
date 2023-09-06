@@ -5,12 +5,6 @@ import * as path from "path";
 export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
 export const sServiceName = Symbol.for("serviceName");
 
-export type CpuUsage = NodeJS.CpuUsage & {
-    uptime: number;
-    percent: number;
-    readonly _start?: { cpuUsage: NodeJS.CpuUsage; time: number; };
-};
-
 export async function exists(filename: string) {
     try {
         await fs.promises.stat(filename);
@@ -37,35 +31,6 @@ export function absPath(filename: string, withPipe = false): string {
     }
 
     return filename;
-}
-
-export function getCpuUsage(oldUsage: CpuUsage | null = null) {
-    let usage: CpuUsage;
-
-    if (oldUsage?._start) {
-        usage = {
-            ...process.cpuUsage(oldUsage._start.cpuUsage),
-            uptime: Date.now() - oldUsage._start.time,
-            percent: 0,
-        };
-    } else {
-        usage = {
-            ...process.cpuUsage(),
-            uptime: process.uptime() * 1000,
-            percent: 0
-        };
-    }
-
-    usage.percent = (usage.system + usage.user) / (usage.uptime * 10);
-
-    Object.defineProperty(usage, "_start", {
-        value: {
-            cpuUsage: process.cpuUsage(),
-            time: Date.now(),
-        }
-    });
-
-    return usage as CpuUsage;
 }
 
 export function timed(callSite: TemplateStringsArray, ...bindings: any[]) {

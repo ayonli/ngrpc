@@ -5,7 +5,7 @@ import * as fs from "fs";
 import _try from "dotry";
 import { App } from "../app";
 import { exists } from "../util";
-import { Guest, AppStat, ControlMessage, encodeMessage, decodeMessage, getSocketPath } from "./guest";
+import { Guest, ControlMessage, encodeMessage, decodeMessage, getSocketPath } from "./guest";
 
 function newMsg(msg: ControlMessage): ControlMessage {
     msg.app ??= "";
@@ -13,29 +13,19 @@ function newMsg(msg: ControlMessage): ControlMessage {
     msg.fin ??= false;
     msg.msgId ??= "";
     msg.pid ??= 0;
-
-    // @ts-ignore
-    const stat = (msg.stat ??= {}) as AppStat;
-    stat.app ??= "";
-    stat.cpu ??= 0;
-    stat.memory ??= 0;
-    stat.pid ??= 0;
-    stat.uptime ??= 0;
-    stat.uri ??= "";
-
-    msg.stats ??= [];
+    msg.guests ??= [];
     msg.text ??= "";
 
     return { ...msg };
 }
 
 test("encodeMessage", () => {
-    const msg = encodeMessage(newMsg({ cmd: "stat", app: "example-server", msgId: "abc" }));
+    const msg = encodeMessage(newMsg({ cmd: "stop", app: "example-server", msgId: "abc" }));
     assert.strictEqual(msg[msg.length - 1], "\n");
 });
 
 test("decodeMessage", () => {
-    const msg: ControlMessage = newMsg({ cmd: "stat", app: "example-server", msgId: "abc" });
+    const msg: ControlMessage = newMsg({ cmd: "stop", app: "example-server", msgId: "abc" });
     const data = encodeMessage(msg);
     let packet = "";
     let buf = data.slice(0, 256);
@@ -49,7 +39,7 @@ test("decodeMessage", () => {
 });
 
 test("decodeMessage overflow", () => {
-    const msg: ControlMessage = newMsg({ cmd: "stat", app: "example-server", msgId: "abc" });
+    const msg: ControlMessage = newMsg({ cmd: "stop", app: "example-server", msgId: "abc" });
     const data = encodeMessage(msg);
     let packet = "";
     let buf = data.slice(0, 64);
@@ -77,7 +67,7 @@ test("decodeMessage overflow", () => {
 });
 
 test("decodeMessage EOF", () => {
-    const msg: ControlMessage = newMsg({ cmd: "stat", app: "example-server", msgId: "abc" });
+    const msg: ControlMessage = newMsg({ cmd: "stop", app: "example-server", msgId: "abc" });
     const data = encodeMessage(msg).slice(0, -1);
     let packet = "";
     let buf = data.slice(0, 256);

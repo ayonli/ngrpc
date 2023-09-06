@@ -23,6 +23,7 @@ import (
 	"github.com/ayonli/ngrpc/config"
 	"github.com/ayonli/ngrpc/util"
 	"github.com/rodaine/table"
+	"github.com/struCoder/pidusage"
 )
 
 func init() {
@@ -34,9 +35,20 @@ func init() {
 var openForAppend = os.O_CREATE | os.O_APPEND | os.O_WRONLY
 var defaultTsOutDir = "node_modules/.ngrpc"
 
+type appStat struct {
+	app    string
+	uri    string
+	pid    int
+	uptime int
+	memory float64
+	cpu    float64
+}
+
 type clientRecord struct {
-	conn net.Conn
-	app  string
+	conn      net.Conn
+	App       string `json:"app"`
+	Pid       int    `json:"pid"`
+	StartTime int    `json:"startTime"`
 }
 
 type clientReading struct {
@@ -250,13 +262,13 @@ func (self *Host) handleGuestDisconnection(conn net.Conn) {
 		)
 	}
 
-	if client.app != "" && client.app != ":cli" && self.state == 1 && !self.standalone {
+	if client.App != "" && client.App != ":cli" && self.state == 1 && !self.standalone {
 		// When the guest app is closed expectedly, it sends a `goodbye` command to the
 		// host server and the server removes it normally. Otherwise, the connection is
 		// closed due to program failure on the guest app, we can try to revive it.
 
 		app, exists := slicex.Find(self.apps, func(item config.App, idx int) bool {
-			return item.Name == client.app
+			return item.Name == client.App
 		})
 
 		if exists {
@@ -269,7 +281,7 @@ func (self *Host) handleGuestDisconnection(conn net.Conn) {
 
 				if err == nil {
 					logger := log.New(file, "", log.LstdFlags)
-					logger.Printf("app [%v] exited accidentally, reviving...", client.app)
+					logger.Printf("app [%v] exited accidentally, reviving...", client.App)
 				}
 
 				file.Close()
@@ -304,7 +316,7 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 
 		if msg.App != "" {
 			client, exists := self.findClient(func(item clientRecord) bool {
-				return item.app == msg.App && item.app != ":cli"
+				return item.App == msg.App && item.App != ":cli"
 			})
 
 			if exists {
@@ -324,7 +336,7 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 			}
 		} else {
 			clients := self.filterClients(func(item clientRecord) bool {
-				return item.app != ":cli"
+				return item.App != ":cli"
 			})
 
 			if len(clients) > 0 {
@@ -352,42 +364,14 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 			}
 		}
 	} else if msg.Cmd == "list" {
-		// When the host server receives a `list` command, we list all the clients with names and
-		// collect some information about them.
 		clients := self.filterClients(func(item clientRecord) bool {
-			return item.app != "" && item.app != ":cli"
+			return item.App != "" && item.App != ":cli"
 		})
-
-		if len(clients) > 0 {
-			stats := []AppStat{}
-			lock := sync.Mutex{}
-
-			slicex.ForEach(clients, func(client clientRecord, _ int) {
-				msgId := util.RandomString()
-
-				client.conn.Write(EncodeMessage(ControlMessage{Cmd: "stat", MsgId: msgId}))
-				self.callbacks.Set(msgId, func(reply ControlMessage) {
-					lock.Lock()
-					stats = append(stats, reply.Stat)
-
-					if len(stats) == len(clients) {
-						conn.Write(EncodeMessage(ControlMessage{
-							Cmd:   "reply",
-							Stats: stats,
-							Fin:   true,
-						}))
-					}
-
-					lock.Unlock()
-				})
-			})
-		} else {
-			conn.Write(EncodeMessage(ControlMessage{
-				Cmd:   "reply",
-				Stats: []AppStat{},
-				Fin:   true,
-			}))
-		}
+		conn.Write(EncodeMessage(ControlMessage{
+			Cmd:    "reply",
+			Guests: clients,
+			Fin:    true,
+		}))
 	} else if msg.Cmd == "stop-host" {
 		self.Stop()
 	} else {
@@ -404,16 +388,25 @@ func (self *Host) handleHandshake(conn net.Conn, msg ControlMessage) {
 	// signing-in, we then store the client in the `hostClients` property for broadcast purposes.
 
 	if msg.App != "" {
-		self.addClient(clientRecord{conn: conn, app: msg.App})
+		self.addClient(clientRecord{
+			conn:      conn,
+			App:       msg.App,
+			Pid:       msg.Pid,
+			StartTime: int(time.Now().Unix()),
+		})
 	} else {
-		self.addClient(clientRecord{conn: conn})
+		self.addClient(clientRecord{
+			conn:      conn,
+			Pid:       msg.Pid,
+			StartTime: int(time.Now().Unix()),
+		})
 	}
 
 	conn.Write(EncodeMessage(ControlMessage{Cmd: "handshake"}))
 
 	if msg.App != "" && msg.App != ":cli" {
 		cli, ok := self.findClient(func(client clientRecord) bool {
-			return client.app == ":cli"
+			return client.App == ":cli"
 		})
 
 		if ok {
@@ -545,24 +538,43 @@ func (self *Host) startApp(appName string, guest *Guest) {
 }
 
 // NOTE: this function runs in the CLI instead of the host server.
-func (self *Host) listApps(stats []AppStat) {
-	var list []AppStat
+func (self *Host) listApps(records []clientRecord) {
+	var list []appStat
 
 	for _, app := range self.apps {
-		item, exists := slicex.Find(stats, func(item AppStat, idx int) bool {
+		item, exists := slicex.Find(records, func(item clientRecord, idx int) bool {
 			return item.App == app.Name
 		})
 
 		if exists {
-			list = append(list, item)
+			var memory float64
+			var cpu float64
+			sysInfo, err := pidusage.GetStat(item.Pid)
+
+			if err != nil {
+				memory = -1
+				cpu = -1
+			} else {
+				memory = sysInfo.Memory
+				cpu = sysInfo.CPU
+			}
+
+			list = append(list, appStat{
+				app:    app.Name,
+				uri:    app.Uri,
+				pid:    item.Pid,
+				uptime: int(time.Now().Unix()) - item.StartTime,
+				memory: memory,
+				cpu:    cpu,
+			})
 		} else if app.Serve {
-			list = append(list, AppStat{
-				App:    app.Name,
-				Uri:    app.Uri,
-				Pid:    -1,
-				Uptime: -1,
-				Memory: -1,
-				Cpu:    -1,
+			list = append(list, appStat{
+				app:    app.Name,
+				uri:    app.Uri,
+				pid:    -1,
+				uptime: -1,
+				memory: -1,
+				cpu:    -1,
 			})
 		}
 	}
@@ -570,30 +582,30 @@ func (self *Host) listApps(stats []AppStat) {
 	tb := table.New("App", "URI", "Status", "Pid", "Uptime", "Memory", "CPU")
 
 	for _, item := range list {
-		parts := []any{item.App, item.Uri}
+		parts := []any{item.app, item.uri}
 
-		if item.Pid == -1 {
+		if item.pid == -1 {
 			parts = append(parts, "stopped", "N/A")
 		} else {
-			parts = append(parts, "running", fmt.Sprint(item.Pid))
+			parts = append(parts, "running", fmt.Sprint(item.pid))
 		}
 
-		if item.Uptime == -1 {
+		if item.uptime == -1 {
 			parts = append(parts, "N/A")
 		} else {
-			parts = append(parts, time.Duration(int(time.Second)*item.Uptime).String())
+			parts = append(parts, time.Duration(int(time.Second)*item.uptime).String())
 		}
 
-		if item.Memory == -1 {
+		if item.memory == -1 {
 			parts = append(parts, "N/A")
 		} else {
-			parts = append(parts, fmt.Sprintf("%.2f Mb", item.Memory/1024/1024))
+			parts = append(parts, fmt.Sprintf("%.2f Mb", item.memory/1024/1024))
 		}
 
-		if item.Cpu == -1 {
+		if item.cpu == -1 {
 			parts = append(parts, "N/A")
 		} else {
-			parts = append(parts, fmt.Sprintf("%.2f %%", item.Cpu))
+			parts = append(parts, fmt.Sprintf("%.2f %%", item.cpu))
 		}
 
 		tb.AddRow(parts...)
@@ -613,7 +625,7 @@ func (self *Host) sendCommand(cmd string, appName string) {
 
 	if err != nil {
 		if cmd == "list" {
-			self.listApps([]AppStat{})
+			self.listApps([]clientRecord{})
 		}
 
 		guest.Leave("", "")
@@ -678,8 +690,8 @@ func (self *Host) sendAndWait(msg ControlMessage, guest *Guest, fin bool) {
 				log.Println(msg.Error)
 			} else if msg.Text != "" {
 				log.Println(msg.Text)
-			} else if msg.Stats != nil {
-				self.listApps(msg.Stats)
+			} else if msg.Guests != nil {
+				self.listApps(msg.Guests)
 			}
 
 			if msg.Fin {
