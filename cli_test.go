@@ -84,12 +84,11 @@ func TestStartAndStopCommand_allApps(t *testing.T) {
 	assert.Contains(t, string(output), "app [post-server] stopped")
 	assert.Contains(t, string(output), "host server shut down")
 
+	time.Sleep(time.Millisecond * 10) // for system to release resources
 	exam := goext.Ok(exec.Command("ps", "aux").Output())
 	assert.NotContains(t, string(exam), "example-server")
 	assert.NotContains(t, string(exam), "user-server")
 	assert.NotContains(t, string(exam), "post-server")
-
-	time.Sleep(time.Millisecond * 10)
 }
 
 func TestListCommand(t *testing.T) {
