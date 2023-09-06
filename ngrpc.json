@@ -9,7 +9,7 @@
     "apps": [
         {
             "name": "example-server",
-            "uri": "grpc://localhost:4000",
+            "url": "grpc://localhost:4000",
             "serve": true,
             "services": [
                 "services.ExampleService"
@@ -19,7 +19,7 @@
         },
         {
             "name": "user-server",
-            "uri": "grpcs://localhost:4001",
+            "url": "grpcs://localhost:4001",
             "serve": true,
             "services": [
                 "services.UserService"
@@ -32,7 +32,7 @@
         },
         {
             "name": "post-server",
-            "uri": "grpcs://localhost:4002",
+            "url": "grpcs://localhost:4002",
             "serve": true,
             "services": [
                 "services.PostService"

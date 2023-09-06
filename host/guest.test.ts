@@ -97,7 +97,7 @@ test("getSocketPath", () => {
 test("new Guest", () => {
     const app: App = {
         name: "example-server",
-        uri: "grpc://localhost:4000",
+        url: "grpc://localhost:4000",
         services: [],
     };
     const handleStop = () => void 0;
@@ -105,7 +105,7 @@ test("new Guest", () => {
     const guest = new Guest(app, { onStopCommand: handleStop, onReloadCommand: handleReload });
 
     assert.strictEqual(guest.appName, app.name);
-    assert.strictEqual(guest.appUri, app.uri);
+    assert.strictEqual(guest.appUrl, app.url);
     assert.strictEqual(guest["handleStopCommand"], handleStop);
     assert.strictEqual(guest["handleReloadCommand"], handleReload);
 });
@@ -118,7 +118,7 @@ test("Guest join redundant socket file", async () => {
 
     const guest = new Guest({
         name: "example-server",
-        uri: "grpc://localhost:4000",
+        url: "grpc://localhost:4000",
         services: [],
     }, {
         onStopCommand: () => void 0,

@@ -31,7 +31,7 @@ var serviceStore = collections.NewMap[string, any]()
 
 type remoteInstance struct {
 	app      string
-	uri      string
+	url      string
 	conn     *grpc.ClientConn
 	instance any
 }
@@ -209,7 +209,7 @@ func GetServiceClient[T any](service ConnectableService[T], route string) (T, er
 						instances: []remoteInstance{
 							{
 								app:      entry.app.Name,
-								uri:      entry.app.Uri,
+								url:      entry.app.Url,
 								conn:     conn,
 								instance: instance,
 							},
@@ -238,7 +238,7 @@ func GetServiceClient[T any](service ConnectableService[T], route string) (T, er
 			// First, try to match the route directly against the services' uris, if match any,
 			// return it respectively.
 			for _, item := range instances {
-				if item.app == route || item.uri == route {
+				if item.app == route || item.url == route {
 					ins = item.instance.(T)
 					matched = true
 					break
@@ -286,7 +286,7 @@ type RpcApp struct {
 
 func (self *RpcApp) initServer() error {
 	_, err := goext.Try(func() int {
-		urlObj := goext.Ok(url.Parse(self.Uri))
+		urlObj := goext.Ok(url.Parse(self.Url))
 
 		if urlObj.Scheme == "xds" {
 			panic(fmt.Errorf("app [%s] cannot be served since it uses 'xds:' protocol", self.Name))
@@ -366,12 +366,12 @@ func (self *RpcApp) initClient(apps []config.App) error {
 		self.locks = collections.NewMap[string, *sync.Mutex]()
 
 		slicex.ForEach(apps, func(app config.App, idx int) {
-			urlObj := goext.Ok(url.Parse(app.Uri))
+			urlObj := goext.Ok(url.Parse(app.Url))
 
 			var addr string
 
 			if urlObj.Scheme == "xds" {
-				addr = app.Uri // If `xds:` protocol is used, connect to it directly.
+				addr = app.Url // If `xds:` protocol is used, connect to it directly.
 			} else {
 				addr = config.GetAddress(urlObj)
 			}

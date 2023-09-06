@@ -220,7 +220,7 @@ func TestSendCommand_stop(t *testing.T) {
 	c := make(chan string)
 	guest := NewGuest(config.App{
 		Name: "example-server",
-		Uri:  "grpc://localhost:4000",
+		Url:  "grpc://localhost:4000",
 	}, func(msgId string) {
 		c <- msgId
 	})
@@ -270,11 +270,11 @@ func TestSendCommand_stopAll(t *testing.T) {
 
 	guest1 := NewGuest(config.App{
 		Name: "example-server",
-		Uri:  "grpc://localhost:4000",
+		Url:  "grpc://localhost:4000",
 	}, push)
 	guest2 := NewGuest(config.App{
 		Name: "user-server",
-		Uri:  "grpc://localhost:4001",
+		Url:  "grpc://localhost:4001",
 	}, push)
 	guest1.Join()
 	guest2.Join()
@@ -332,14 +332,14 @@ func TestSendCommand_list(t *testing.T) {
 	time.Sleep(time.Millisecond * 10)
 	guest1 := NewGuest(config.App{
 		Name: "example-server",
-		Uri:  "grpc://localhost:4000",
+		Url:  "grpc://localhost:4000",
 	}, push)
 	guest1.Join()
 
 	time.Sleep(time.Millisecond * 10)
 	guest2 := NewGuest(config.App{
 		Name: "user-server",
-		Uri:  "grpc://localhost:4001",
+		Url:  "grpc://localhost:4001",
 	}, push)
 	guest2.Join()
 
@@ -364,7 +364,7 @@ func TestSendCommand_stopHost(t *testing.T) {
 
 	guest := NewGuest(config.App{
 		Name: "example-server",
-		Uri:  "grpc://localhost:4000",
+		Url:  "grpc://localhost:4000",
 	}, func(msgId string) {})
 	guest.Join()
 
@@ -394,7 +394,7 @@ func TestCommand_listWhenNoHost(t *testing.T) {
 	lines := strings.Split(out, "\n")
 
 	assert.Equal(t,
-		[]string{"App", "URI", "Status", "Pid", "Uptime", "Memory", "CPU"},
+		[]string{"App", "URL", "Status", "Pid", "Uptime", "Memory", "CPU"},
 		strings.Fields(lines[0]))
 	assert.Equal(t,
 		[]string{"example-server", "grpc://localhost:4000", "stopped", "N/A", "N/A", "N/A", "N/A"},

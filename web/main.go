@@ -23,7 +23,7 @@ func main() {
 	var httpServer *http.Server
 	var httpsServer *http.Server
 	route := gin.Default()
-	urlObj := goext.Ok(url.Parse(app.Uri))
+	urlObj := goext.Ok(url.Parse(app.Url))
 
 	if urlObj.Scheme == "https" {
 		port := urlObj.Port()

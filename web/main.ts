@@ -27,7 +27,7 @@ type ApiResponse<T> = {
     const route = express();
 
     const startWebServer = async () => {
-        const { protocol, port } = new URL(app.uri);
+        const { protocol, port } = new URL(app.url);
 
         if (protocol === "https:") {
             httpsServer = https.createServer({

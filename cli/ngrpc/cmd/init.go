@@ -48,7 +48,7 @@ var confTpl = `{
     "apps": [
         {
             "name": "example-server",
-            "uri": "grpc://localhost:4000",
+            "url": "grpc://localhost:4000",
             "serve": true,
             "services": [
                 "services.ExampleService"

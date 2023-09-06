@@ -19,9 +19,9 @@ import (
 type App struct {
 	// The name of the app.
 	Name string `json:"name"`
-	// The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or
+	// The URL of the gRPC server, supported protocols are `grpc:`, `grpcs:`, `http:`, `https:` or
 	// `xds:`.
-	Uri string `json:"uri"`
+	Url string `json:"url"`
 	// If this app can be served by as the gRPC server.
 	Serve bool `json:"serve"`
 	// The services served by this app.

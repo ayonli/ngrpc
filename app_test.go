@@ -63,7 +63,7 @@ func TestStartWithConfigWithXdsProtocol(t *testing.T) {
 		Apps: []config.App{
 			{
 				Name:  "example-server",
-				Uri:   "xds://localhost:5001",
+				Url:   "xds://localhost:5001",
 				Serve: true,
 				Services: []string{
 					"services.ExampleService",
@@ -86,12 +86,12 @@ func TestStartInvalidApp(t *testing.T) {
 	assert.Equal(t, "app [test-server] is not configured", err.Error())
 }
 
-func TestStartInvalidUri(t *testing.T) {
+func TestStartInvalidUrl(t *testing.T) {
 	cfg := config.Config{
 		Apps: []config.App{
 			{
 				Name:  "example-server",
-				Uri:   "grpc://localhost:abc",
+				Url:   "grpc://localhost:abc",
 				Serve: true,
 				Services: []string{
 					"services.ExampleService",

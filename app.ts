@@ -43,10 +43,10 @@ export interface App {
     /** The name of the app. */
     name: string;
     /**
-     * The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or
+     * The URL of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or
      * `xds:`.
      */
-    uri: string;
+    url: string;
     /** If this app can be served by as the gRPC server. */
     serve?: boolean;
     /** The services served by this app. */
@@ -74,7 +74,7 @@ export interface App {
 
 const defaultApp: App = {
     name: "",
-    uri: "",
+    url: "",
     serve: false,
     services: [],
     cert: undefined,
@@ -135,7 +135,7 @@ export interface LifecycleSupportInterface {
  * the program will automatically route the traffic to a certain server evaluated by the `route` key,
  * which can be set in the following forms:
  * 
- * - a URI that matches the ones that set in the config file;
+ * - a URL that matches the ones that set in the config file;
  * - an app's name that matches the ones that set in the config file;
  * - if none of the above matches, use the hash algorithm on the `route` value;
  * - if `route` value is not set, then the default round-robin algorithm is used for routing.
@@ -146,7 +146,7 @@ export interface RoutableMessageStruct {
 
 export class RpcApp implements App {
     name = "";
-    uri = "";
+    url = "";
     serve = false;
     services: string[] = [];
     cert?: string | undefined;
@@ -169,7 +169,7 @@ export class RpcApp implements App {
     private remoteServices = new Map<string, {
         instances: {
             app: string;
-            uri: string;
+            url: string;
             client: ServiceClient<object>;
         }[];
         counter: number;
@@ -438,7 +438,7 @@ export class RpcApp implements App {
         if (route) {
             // First, try to match the route directly against the services' uris, if match any,
             // return it respectively.
-            const item = instances.find(item => item.app === route || item.uri === route);
+            const item = instances.find(item => item.app === route || item.url === route);
 
             if (item) {
                 client = item.client;
@@ -562,7 +562,7 @@ export class RpcApp implements App {
     }
 
     protected async initServer(oldApp: App | null = null) {
-        const url = new URL(this.uri);
+        const url = new URL(this.url);
 
         if (url.protocol === "xds:") {
             throw new Error(`app [${this.name}] cannot be served since it uses 'xds:' protocol`);
@@ -610,7 +610,7 @@ export class RpcApp implements App {
                 newServer = true;
             }
 
-            if (oldApp.uri !== this.uri || !isEqual(oldApp.options, this.options)) {
+            if (oldApp.url !== this.url || !isEqual(oldApp.options, this.options)) {
                 // server configurations changed
                 newServer = true;
             }
@@ -685,7 +685,7 @@ export class RpcApp implements App {
     }
 
     protected async initClients(apps: App[]) {
-        const xdsApp = apps.find(item => item.uri.startsWith("xds:"));
+        const xdsApp = apps.find(item => item.url.startsWith("xds:"));
 
         if (!xdsEnabled && xdsApp) {
             try {
@@ -758,10 +758,10 @@ export class RpcApp implements App {
         }, new Map<string, (App & { protoCtor: ServiceClientConstructor; })[]>());
 
         const getAddress = (app: App) => {
-            const url = new URL(app.uri);
+            const url = new URL(app.url);
 
             if (url.protocol === "xds:") {
-                return app.uri;
+                return app.url;
             } else {
                 const { address } = RpcApp.getAddress(app, url);
                 return address;
@@ -800,10 +800,10 @@ export class RpcApp implements App {
                 const remoteService = this.remoteServices.get(serviceName);
 
                 if (remoteService) {
-                    remoteService.instances.push({ app: app.name, uri: app.uri, client });
+                    remoteService.instances.push({ app: app.name, url: app.url, client });
                 } else {
                     this.remoteServices.set(serviceName, {
-                        instances: [{ app: app.name, uri: app.uri, client }],
+                        instances: [{ app: app.name, url: app.url, client }],
                         counter: 0,
                     });
                 }

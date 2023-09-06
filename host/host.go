@@ -37,7 +37,7 @@ var defaultTsOutDir = "node_modules/.ngrpc"
 
 type appStat struct {
 	app    string
-	uri    string
+	url    string
 	pid    int
 	uptime int
 	memory float64
@@ -561,7 +561,7 @@ func (self *Host) listApps(records []clientRecord) {
 
 			list = append(list, appStat{
 				app:    app.Name,
-				uri:    app.Uri,
+				url:    app.Url,
 				pid:    item.Pid,
 				uptime: int(time.Now().Unix()) - item.StartTime,
 				memory: memory,
@@ -570,7 +570,7 @@ func (self *Host) listApps(records []clientRecord) {
 		} else if app.Serve {
 			list = append(list, appStat{
 				app:    app.Name,
-				uri:    app.Uri,
+				url:    app.Url,
 				pid:    -1,
 				uptime: -1,
 				memory: -1,
@@ -579,10 +579,10 @@ func (self *Host) listApps(records []clientRecord) {
 		}
 	}
 
-	tb := table.New("App", "URI", "Status", "Pid", "Uptime", "Memory", "CPU")
+	tb := table.New("App", "URL", "Status", "Pid", "Uptime", "Memory", "CPU")
 
 	for _, item := range list {
-		parts := []any{item.app, item.uri}
+		parts := []any{item.app, item.url}
 
 		if item.pid == -1 {
 			parts = append(parts, "stopped", "N/A")
@@ -618,7 +618,7 @@ func (self *Host) listApps(records []clientRecord) {
 func (self *Host) sendCommand(cmd string, appName string) {
 	guest := NewGuest(config.App{
 		Name: ":cli",
-		Uri:  "",
+		Url:  "",
 	}, func(msgId string) {})
 	guest.replyChan = make(chan ControlMessage)
 	err := guest.connect()

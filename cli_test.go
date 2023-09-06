@@ -102,7 +102,7 @@ func TestListCommand(t *testing.T) {
 
 		if i == 0 {
 			assert.Equal(t, "App", columns[0])
-			assert.Equal(t, "URI", columns[1])
+			assert.Equal(t, "URL", columns[1])
 			assert.Equal(t, "Status", columns[2])
 			assert.Equal(t, "Pid", columns[3])
 			assert.Equal(t, "Uptime", columns[4])
@@ -140,7 +140,7 @@ func TestListCommand(t *testing.T) {
 
 		if i == 0 {
 			assert.Equal(t, "App", columns[0])
-			assert.Equal(t, "URI", columns[1])
+			assert.Equal(t, "URL", columns[1])
 			assert.Equal(t, "Status", columns[2])
 			assert.Equal(t, "Pid", columns[3])
 			assert.Equal(t, "Uptime", columns[4])

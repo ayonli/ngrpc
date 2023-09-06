@@ -91,7 +91,7 @@ func GetSocketPath() (sockFile string, sockPath string) {
 
 type Guest struct {
 	AppName           string
-	AppUri            string
+	AppUrl            string
 	conn              net.Conn
 	state             int
 	handleStopCommand func(msgId string)
@@ -102,7 +102,7 @@ type Guest struct {
 func NewGuest(app config.App, onStopCommand func(msgId string)) *Guest {
 	guest := &Guest{
 		AppName:           app.Name,
-		AppUri:            app.Uri,
+		AppUrl:            app.Url,
 		handleStopCommand: onStopCommand,
 	}
 

@@ -45,7 +45,7 @@ First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
     "apps": [
         {
             "name": "example-server",
-            "uri": "grpc://localhost:4000",
+            "url": "grpc://localhost:4000",
             "serve": true,
             "services": [
                 "services.ExampleService"
@@ -55,7 +55,7 @@ First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
         },
         {
             "name": "user-server",
-            "uri": "grpcs://localhost:4001",
+            "url": "grpcs://localhost:4001",
             "serve": true,
             "services": [
                 "services.UserService"
@@ -68,7 +68,7 @@ First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
         },
         {
             "name": "post-server",
-            "uri": "grpcs://localhost:4002",
+            "url": "grpcs://localhost:4002",
             "serve": true,
             "services": [
                 "services.PostService"
@@ -133,7 +133,7 @@ func main() {
     settings in order for the **vscode-proto3** plugin to work properly.
 - `apps` This property configures the apps that this project serves and connects.
     - `name` The name of the app.
-    - `uri` The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:`
+    - `url` The URL of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:`
         or `xds:` (in Node.js, make sure package
         [@grpc/grpc-js-xds](https://www.npmjs.com/package/@grpc/grpc-js-xds) is installed).
     - `serve` If this app is served by the NgRPC app server. If this property is `false`, that
@@ -484,7 +484,7 @@ for us.
 There are three algorithms used based on the `route`:
 
 1. When `route` is not empty:
-    - If it matches one of the name or URI of the apps, the traffic is routed to that app directly.
+    - If it matches one of the name or URL of the apps, the traffic is routed to that app directly.
     - Otherwise the program hashes the route string against the apps and match one by the mod value
         of `hash % active_nodes`.
 2. When `route` is empty, the program uses *round-robin* algorithm against the active nodes.
@@ -586,7 +586,7 @@ For example:
     "apps": [
         {
             "name": "web-server",
-            "uri": "http://localhost:3000",
+            "url": "http://localhost:3000",
             "serve": true,
             "services": [], // leave this blank
             // ...

@@ -75,7 +75,7 @@ export function getSocketPath() {
 
 export class Guest {
     appName: string;
-    appUri: string;
+    appUrl: string;
     private state = 0;
     private conn: net.Socket | undefined;
     private reconnector: NodeJS.Timeout | null = null;
@@ -87,7 +87,7 @@ export class Guest {
         onReloadCommand: (msgId: string | undefined) => void;
     }) {
         this.appName = app.name;
-        this.appUri = app.uri;
+        this.appUrl = app.url;
         this.handleStopCommand = options?.onStopCommand;
         this.handleReloadCommand = options?.onReloadCommand;
     }

@@ -133,7 +133,7 @@ test("ngrpc.startWithConfig with xds protocol", async () => {
     }
 
     cfgApp.entry = "entry/main.ts";
-    cfgApp.uri = "xds://localhost:4000";
+    cfgApp.url = "xds://localhost:4000";
 
     const [err, app] = await _try(ngrpc.startWithConfig("example-server", cfg));
 
@@ -149,7 +149,7 @@ test("ngrpc.start invalid app", async () => {
     assert.strictEqual(err.message, "app [test-server] is not configured");
 });
 
-test("ngrpc.startWithConfig with invalid URI", async () => {
+test("ngrpc.startWithConfig with invalid URl", async () => {
     const cfg = await ngrpc.loadConfig();
     const cfgApp = cfg.apps.find(item => item.name === "example-server");
 
@@ -158,7 +158,7 @@ test("ngrpc.startWithConfig with invalid URI", async () => {
     }
 
     cfgApp.entry = "entry/main.ts";
-    cfgApp.uri = "grpc://localhost:abc";
+    cfgApp.url = "grpc://localhost:abc";
 
     const [err, app] = await _try(ngrpc.startWithConfig("example-server", cfg));
 
