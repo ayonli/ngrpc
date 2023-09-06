@@ -28,7 +28,7 @@ import {
 import { existsSync, readFileSync } from "fs";
 import { findDependencies } from "require-chain";
 import { applyMagic } from "js-magic";
-import { Guest } from "./host/guest";
+import { Guest } from "./pm/guest";
 
 export type { ServiceClient };
 

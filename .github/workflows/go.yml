@@ -36,11 +36,11 @@ jobs:
     - run: npm i
     - run: npx tsc
 
+    - name: Test util
+      run: go test -v --timeout 60s ./util
     - name: Test config
       run: go test -v --timeout 60s ./config
     - name: Test host
-      run: go test -v --timeout 60s ./host
-    - name: Test util
-      run: go test -v --timeout 60s ./util
+      run: go test -v --timeout 60s ./pm
     - name: Test main
       run: go test --timeout 60s -v .

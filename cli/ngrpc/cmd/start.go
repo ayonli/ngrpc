@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/ayonli/ngrpc/host"
+	"github.com/ayonli/ngrpc/pm"
 	"github.com/spf13/cobra"
 )
 
@@ -11,7 +11,7 @@ var startCmd = &cobra.Command{
 	Use:   "start [app]",
 	Short: "start an app or all apps (exclude non-served ones)",
 	Run: func(cmd *cobra.Command, args []string) {
-		if !host.IsHostOnline() {
+		if !pm.IsHostOnline() {
 			err := startHost(false)
 
 			if err != nil {
@@ -21,9 +21,9 @@ var startCmd = &cobra.Command{
 		}
 
 		if len(args) > 0 {
-			host.SendCommand("start", args[0])
+			pm.SendCommand("start", args[0])
 		} else {
-			host.SendCommand("start", "")
+			pm.SendCommand("start", "")
 		}
 	},
 }

@@ -1,4 +1,4 @@
-package host
+package pm
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ import (
 	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/goext/stringx"
 	"github.com/ayonli/ngrpc/config"
-	"github.com/ayonli/ngrpc/host/socket"
+	"github.com/ayonli/ngrpc/pm/socket"
 	"github.com/ayonli/ngrpc/util"
 )
 

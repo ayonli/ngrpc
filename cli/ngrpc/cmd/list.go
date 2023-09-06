@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/ayonli/ngrpc/host"
+	"github.com/ayonli/ngrpc/pm"
 	"github.com/spf13/cobra"
 )
 
@@ -10,7 +10,7 @@ var listCmd = &cobra.Command{
 	Aliases: []string{"ls"},
 	Short:   "list all apps (exclude non-served ones)",
 	Run: func(cmd *cobra.Command, args []string) {
-		host.SendCommand("list", "")
+		pm.SendCommand("list", "")
 	},
 }
 

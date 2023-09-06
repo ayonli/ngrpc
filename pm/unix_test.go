@@ -1,7 +1,7 @@
 //go:build !windows
 // +build !windows
 
-package host
+package pm
 
 import (
 	"fmt"

@@ -8,7 +8,7 @@ import (
 
 	"github.com/ayonli/goext"
 	"github.com/ayonli/ngrpc/config"
-	"github.com/ayonli/ngrpc/host"
+	"github.com/ayonli/ngrpc/pm"
 	"github.com/spf13/cobra"
 )
 
@@ -31,8 +31,8 @@ var runCmd = &cobra.Command{
 		} else if ext == ".ts" {
 			cfg := goext.Ok(config.LoadConfig())
 			tsCfg := goext.Ok(config.LoadTsConfig(cfg.Tsconfig))
-			outDir, outFile := host.ResolveTsEntry(filename, tsCfg)
-			goext.Ok(0, host.CompileTs(tsCfg, outDir))
+			outDir, outFile := pm.ResolveTsEntry(filename, tsCfg)
+			goext.Ok(0, pm.CompileTs(tsCfg, outDir))
 			script = exec.Command("node", outFile)
 			env["IMPORT_ROOT"] = outDir
 		} else if ext == ".js" {

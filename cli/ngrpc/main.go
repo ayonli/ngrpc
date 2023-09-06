@@ -6,7 +6,7 @@ import (
 
 	"github.com/ayonli/ngrpc/cli/ngrpc/cmd"
 	"github.com/ayonli/ngrpc/config"
-	"github.com/ayonli/ngrpc/host"
+	"github.com/ayonli/ngrpc/pm"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 		}
 
 		standalone := len(args) > 2 && args[2] == "--standalone"
-		host := host.NewHost(config, standalone)
+		host := pm.NewHost(config, standalone)
 		err = host.Start(true)
 
 		if err != nil {

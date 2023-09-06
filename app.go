@@ -18,7 +18,7 @@ import (
 	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/goext/structx"
 	"github.com/ayonli/ngrpc/config"
-	"github.com/ayonli/ngrpc/host"
+	"github.com/ayonli/ngrpc/pm"
 	"github.com/ayonli/ngrpc/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -127,7 +127,7 @@ func StartWithConfig(appName string, cfg config.Config) (*RpcApp, error) {
 			log.Printf("app [%s] started (pid: %d)", app.Name, os.Getpid())
 
 			// TODO: could an anonymous app join the group?
-			app.guest = host.NewGuest(app.App, func(msgId string) {
+			app.guest = pm.NewGuest(app.App, func(msgId string) {
 				app.stop(msgId, true)
 			})
 			app.guest.Join()
@@ -276,7 +276,7 @@ type RpcApp struct {
 	remoteServices *collections.Map[string, *remoteService]
 	serviceDialers *collections.Map[string, []dialer]
 	locks          *collections.Map[string, *sync.Mutex]
-	guest          *host.Guest
+	guest          *pm.Guest
 
 	// Whether this app will keep the process alive, will be set true once `WaitForExit()` is called.
 	isProcessKeeper bool
