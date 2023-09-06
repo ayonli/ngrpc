@@ -1,11 +1,9 @@
 # NgRPC
 
-Make it easy to create clear, expressive and elegant gRPC based microservices.
+Make it easy to create clean and elegant gRPC based microservices.
 
-This package is written in and for both Node.js and Golang, and allowing them to work with each
-other seamlessly.
-
-*Windows OS is not yet supported but on the way to go.*
+This package is written in and for both Node.js and Golang, and allowing them to work seamlessly
+with each other.
 
 ## Install
 
@@ -277,6 +275,8 @@ the app should be re-spawned by the external process management like PM2.
 Moreover, that the CLI tool only works for the app instance, if the process contains other logics
 that prevent the process to exit, the `stop` command will not be able to terminate the process, in
 such case, a force kill is required.
+
+*PS: memory and CPU stats are currently not available on Windows.*
 
 ## Implement a Service
 
@@ -672,8 +672,8 @@ module.exports = ngrpc.loadConfigForPM2();
 
 ## Good Practices
 
-In order to code a clear, expressive and elegant gRPC based application, apart from the features
-that NgRPC provides, we can order our project by performing the following steps.
+In order to code a clean and elegant gRPC based application, apart from the features that NgRPC
+provides, we can order our project by performing the following steps.
 
 1. Uses the `proto` folder to store all the `.proto` files in one place (by default).
 
