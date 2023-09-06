@@ -169,9 +169,8 @@ func TestSendCommand_stopAll(t *testing.T) {
 	guest1.Leave("app [example-server] stopped", msgIds[0])
 	guest2.Leave("app [user-server] stopped", msgIds[1])
 
-	time.Sleep(time.Millisecond * 10)
-	assert.Equal(t, 1, len(host.clients))
-	assert.Equal(t, ":cli", host.clients[0].App)
+	time.Sleep(time.Second) // after a second, all clients shall be closed, including the :cli
+	assert.Equal(t, 0, len(host.clients))
 }
 
 func TestSendCommand_list(t *testing.T) {
