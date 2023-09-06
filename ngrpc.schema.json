@@ -9,9 +9,9 @@
             "type": "string",
             "description": "The namespace of the services files, default `services`."
         },
-        "entry": {
+        "tsconfig": {
             "type": "string",
-            "description": "The entry file that is used to spawn apps."
+            "description": "Custom tsconfig.json file for compiling TypeScript files."
         },
         "importRoot": {
             "type": "string",
@@ -94,10 +94,10 @@
                         "type": "string",
                         "description": "The name of the app."
                     },
-                    "uri": {
+                    "url": {
                         "type": "string",
-                        "description": "The URI of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or `xds:`.",
-                        "pattern": "^(grpc|grpcs|xds)://*"
+                        "description": "The URL of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or `xds:`.",
+                        "pattern": "^(http|https|grpc|grpcs|xds)://*"
                     },
                     "serve": {
                         "type": "boolean",
@@ -111,10 +111,6 @@
                             "type": "string"
                         }
                     },
-                    "ca": {
-                        "type": "string",
-                        "description": "The CA filename when using TLS/SSL."
-                    },
                     "cert": {
                         "type": "string",
                         "description": "The certificate filename when using TLS/SSL."
@@ -122,6 +118,10 @@
                     "key": {
                         "type": "string",
                         "description": "The private key filename when using TLS/SSL."
+                    },
+                    "ca": {
+                        "type": "string",
+                        "description": "The CA filename used to verify the other peer's certificates, when omitted, the system's root CAs will be used."
                     },
                     "connectTimeout": {
                         "type": "integer",
@@ -141,16 +141,16 @@
                     },
                     "entry": {
                         "type": "string",
-                        "description": "The entry file that is used to spawn this app."
+                        "description": "The entry file used to spawn this app."
                     },
                     "env": {
                         "type": "object",
-                        "description": "The environment variables passed to the `entry` file."
+                        "description": "Additional environment variables passed to the `entry` file."
                     }
                 },
                 "required": [
                     "name",
-                    "uri",
+                    "url",
                     "services"
                 ],
                 "dependencies": {

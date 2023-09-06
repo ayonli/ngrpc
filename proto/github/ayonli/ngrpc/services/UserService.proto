@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+option go_package = "github/ayonli/ngrpc/services_proto";
+
+package github.ayonli.ngrpc.services;
+
+import "github/ayonli/ngrpc/services/struct.proto";
+import "github/ayonli/ngrpc/services/PostService.proto";
+
+message UserQuery {
+    optional string id = 1;
+    optional string email = 2;
+}
+
+message UsersQuery {
+    optional Gender gender = 1;
+    optional int32 minAge = 2;
+    optional int32 maxAge = 3;
+}
+
+message UserQueryResult {
+    repeated User users = 1;
+}
+
+service UserService {
+    rpc GetUser(UserQuery) returns (User) {}
+    rpc GetUsers(UsersQuery) returns (UserQueryResult) {}
+    rpc GetMyPosts(UserQuery) returns (PostSearchResult) {}
+}

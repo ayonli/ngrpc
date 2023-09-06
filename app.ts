@@ -15,23 +15,20 @@ import {
 import { serve, unserve, connect, ServiceClient } from "@ayonli/grpc-async";
 import get = require("lodash/get");
 import set = require("lodash/set");
+import pick = require("lodash/pick");
 import isEqual = require("lodash/isEqual");
 import hash = require("string-hash");
-import * as net from "net";
-import isSocketResetError = require("is-socket-reset-error");
 import {
-    CpuUsage,
     absPath,
-    ensureDir,
     exists,
-    getCpuUsage,
     isTsNode,
     sServiceName,
-    spawnProcess
+    timed
 } from "./util";
+import { existsSync, readFileSync } from "fs";
 import { findDependencies } from "require-chain";
-import humanizeDuration = require("humanize-duration");
-import { createChainingProxy } from "./nsp";
+import { applyMagic } from "js-magic";
+import { Guest } from "./host/guest";
 
 export type { ServiceClient };
 
@@ -42,32 +39,81 @@ export type ServiceClass = (new () => any) & {
     [sServiceName]: string;
 };
 
-/** These type represents the structures and properties set in the config file. */
-export type Config = {
+export interface App {
+    /** The name of the app. */
+    name: string;
+    /**
+     * The URL of the gRPC server, supported schemes are `grpc:`, `grpcs:`, `http:`, `https:` or
+     * `xds:`.
+     */
+    url: string;
+    /** If this app can be served by as the gRPC server. */
+    serve?: boolean;
+    /** The services served by this app. */
+    services: string[];
+    /** The certificate filename when using TLS/SSL. */
+    cert?: string;
+    /** The private key filename when using TLS/SSL. */
+    key?: string;
+    /**
+     * The CA filename used to verify the other peer's certificates, when omitted, the system's root
+     * CAs will be used.
+     *
+     * It's recommended that the gRPC application uses a self-signed certificate with a non-public
+     * CA, so the client and the server can establish a private connection that no outsiders can
+     * join.
+     */
+    ca?: string;
+    stdout?: string;
+    stderr?: string;
+    entry?: string;
+    env?: { [name: string]: string; };
+    connectTimeout?: number;
+    options?: ChannelOptions;
+}
+
+const defaultApp: App = {
+    name: "",
+    url: "",
+    serve: false,
+    services: [],
+    cert: undefined,
+    key: undefined,
+    ca: undefined,
+    stdout: undefined,
+    stderr: undefined,
+    entry: undefined,
+    env: undefined,
+    connectTimeout: undefined,
+    options: undefined,
+};
+Object.seal(defaultApp);
+
+export interface PM2App {
+    name: string;
+    script: string;
+    args: string;
+    interpreter?: string;
+    interpreter_args?: string;
+    env?: { [name: string]: string; };
+    log_file?: string;
+    out_file?: string;
+    err_file?: string;
+}
+
+export interface Config {
     $schema?: string;
     namespace?: string;
-    entry?: string;
     importRoot?: string;
+    protoPaths: string[];
     /** @deprecated use `protoPaths` instead. */
     protoDirs?: string[];
-    protoPaths: string[];
     protoOptions?: ProtoOptions,
-    apps: {
-        name: string;
-        uri: string;
-        serve?: boolean;
-        services: string[];
-        ca?: string;
-        cert?: string;
-        key?: string;
-        connectTimeout?: number;
-        options?: ChannelOptions;
-        stdout?: string;
-        stderr?: string;
-        entry?: string;
-        env?: { [name: string]: string; };
-    }[];
-};
+    tsconfig?: string;
+    /** @deprecated use `App.entry` instead. */
+    entry: string;
+    apps: App[];
+}
 
 /**
  * This type represents an interface that supports lifecycle events on the gRPC app. If a service
@@ -89,7 +135,7 @@ export interface LifecycleSupportInterface {
  * the program will automatically route the traffic to a certain server evaluated by the `route` key,
  * which can be set in the following forms:
  * 
- * - a URI that matches the ones that set in the config file;
+ * - a URL that matches the ones that set in the config file;
  * - an app's name that matches the ones that set in the config file;
  * - if none of the above matches, use the hash algorithm on the `route` value;
  * - if `route` value is not set, then the default round-robin algorithm is used for routing.
@@ -98,67 +144,53 @@ export interface RoutableMessageStruct {
     route: string;
 }
 
-export class RpcApp {
-    protected name: string;
-    protected config: Config | null = null;
-    protected oldConfig: Config | null = null;
-    protected pkgDef: GrpcObject | null = null;
-    protected server: Server | null = null;
-    protected ctorsMap = new Map<string, {
+export class RpcApp implements App {
+    name = "";
+    url = "";
+    serve = false;
+    services: string[] = [];
+    cert?: string | undefined;
+    key?: string | undefined;
+    ca?: string | undefined;
+    stdout?: string | undefined;
+    stderr?: string | undefined;
+    entry?: string | undefined;
+    env?: { [name: string]: string; } | undefined;
+    connectTimeout?: number | undefined;
+    options?: ChannelOptions | undefined;
+    private pkgDef: GrpcObject | null = null;
+    private server: Server | null = null;
+    private ctorsMap = new Map<string, {
         classCtor: ServiceClass;
         protoCtor: ServiceClientConstructor;
     }>();
-    protected instanceMap = new Map<string, any>();
-    protected sslOptions: { ca: Buffer, cert: Buffer, key: Buffer; } | null = null;
-    protected serverOptions: ChannelOptions | null = null;
-    protected remoteServices = new Map<string, {
+    private instanceMap = new Map<string, any>();
+    private sslOptions: { cert: Buffer; key: Buffer; ca?: Buffer; } | null = null;
+    private remoteServices = new Map<string, {
         instances: {
             app: string;
-            uri: string;
+            url: string;
             client: ServiceClient<object>;
         }[];
         counter: number;
     }>;
 
-    // The Host-Guest model is a mechanism used to hold communication between all apps running on
-    // the same machine.
-    //
-    // When a app starts, regarding serves as a server or just pure clients, it joins the group and
-    // tries to gain the hostship. If succeeds, it becomes the host app and others become guests.
-    // The host app starts a guest client that connects to itself as well. Through the host app,
-    // guests can talk to each other.
-    //
-    // This mechanism is primarily used for the CLI tool sending control commands to the apps. When
-    // the CLI tool starts, it becomes one of the member of the group (it starts a pure clients app),
-    // and use this communication channel to send commands like `reload` and `stop` to other apps.
-    protected host: net.Server | null = null;
-    protected hostClients: { socket: net.Socket, stopped: boolean; app?: string; }[] = [];
-    protected hostCallbacks = new Map<string, (result: any) => void>();
-    protected hostName: string | undefined = void 0;
-    protected hostStopped = false;
-    protected guest: net.Socket | null = null;
-    protected canTryHost = false;
+    private guest: Guest | null = null;
+    private isProcessKeeper = false;
 
-    protected isStopped = false;
-    protected _onReload: (() => void) | null = null;
-    protected _onStop: (() => void) | null = null;
+    private _onReload: (() => void | Promise<void>) | null = null;
+    private _onStop: (() => void | Promise<void>) | null = null;
 
-    private cpuUsage: CpuUsage | null = null;
+    private static theApp: RpcApp | null = null;
 
-    static async loadConfig() {
-        const defaultFile = absPath("ngrpc.json");
-        const localFile = absPath("ngrpc.local.json");
-        let fileContent: string | undefined;
+    private static parseConfig(content: string) {
+        const conf: Config = JSON.parse(content as string);
 
-        if (await exists(localFile)) {
-            fileContent = await fs.readFile(localFile, "utf8");
-        } else if (await exists(defaultFile)) {
-            fileContent = await fs.readFile(defaultFile, "utf8");
-        } else {
-            throw new Error(`unable to load config file: ${defaultFile}`);
+        if (conf.entry && conf.apps?.length) {
+            conf.apps.forEach(app => {
+                app.entry ||= conf.entry;
+            });
         }
-
-        const conf: Config = JSON.parse(fileContent as string);
 
         if (conf.protoDirs && !conf.protoPaths) {
             conf.protoPaths = conf.protoDirs;
@@ -188,57 +220,241 @@ export class RpcApp {
         return conf;
     }
 
-    static async loadConfigForPM2() {
-        const conf = await this.loadConfig();
-        const resolveEntry = (entry = "") => {
-            entry ||= path.join(__dirname, "cli");
-            const ext = path.extname(entry);
+    /** Loads the configurations. */
+    static async loadConfig() {
+        const defaultFile = absPath("ngrpc.json");
+        const localFile = absPath("ngrpc.local.json");
+        let fileContent: string | undefined;
 
-            if (ext === ".ts") {
-                entry += entry.slice(0, -ext.length) + ".js";
-            } else if (!ext) {
-                entry += ".js";
-            } else if (ext !== ".js") {
-                throw new Error(`entry file '${entry}' is not a JavaScript file`);
+        if (await exists(localFile)) {
+            fileContent = await fs.readFile(localFile, "utf8");
+        } else if (await exists(defaultFile)) {
+            fileContent = await fs.readFile(defaultFile, "utf8");
+        } else {
+            throw new Error(`unable to load config file: ${defaultFile}`);
+        }
+
+        return this.parseConfig(fileContent);
+    }
+
+    /**
+     * Loads the configurations and reorganizes them so that the same configurations can be used in
+     * PM2's configuration file.
+     */
+    static loadConfigForPM2(): { [x: string]: any; apps: PM2App[]; } {
+        const defaultFile = absPath("ngrpc.json");
+        const localFile = absPath("ngrpc.local.json");
+        let fileContent: string | undefined;
+
+        if (existsSync(localFile)) {
+            fileContent = readFileSync(localFile, "utf8");
+        } else if (existsSync(defaultFile)) {
+            fileContent = readFileSync(defaultFile, "utf8");
+        } else {
+            throw new Error(`unable to load config file: ${defaultFile}`);
+        }
+
+        const cfg = this.parseConfig(fileContent);
+        const apps: PM2App[] = [];
+
+        for (const app of cfg.apps) {
+            if (!app.serve || !app.entry)
+                continue;
+
+            const ext = path.extname(app.entry);
+            const _app: PM2App = {
+                name: app.name,
+                script: "",
+                args: app.name.includes(" ") ? `"${app.name}"` : app.name,
+                env: app.env || {},
+            };
+
+            if (ext === ".js") {
+                _app.script = app.entry;
+                _app.interpreter_args = "-r source-map-support/register";
+            } else if (ext === ".ts") {
+                _app.script = app.entry;
+                _app.interpreter_args = "-r ts-node/register";
+            } else if (ext === ".go") {
+                _app.script = app.entry;
+                _app.interpreter = "go";
+                _app.interpreter_args = "run";
+            } else if (ext === ".exe" || !ext) {
+                _app.script = app.entry;
+                _app.interpreter = "none";
+            } else {
+                throw new Error(`entry file '${app.entry}' of app [${app.name}] is recognized`);
             }
 
-            return entry;
-        };
-        const defaultEntry = resolveEntry(conf.entry);
-
-        return {
-            apps: conf.apps.filter(app => app.serve).map(app => {
-                const _app: {
-                    name: string;
-                    script: string;
-                    args: string,
-                    env?: { [name: string]: string; };
-                    log_file?: string;
-                    out_file?: string;
-                    err_file?: string;
-                } = {
-                    name: app.name,
-                    script: app.entry ? resolveEntry(app.entry) : defaultEntry,
-                    args: [app.name]
-                        .map(arg => arg.includes(" ") ? `"${arg}"` : arg)
-                        .join(" "),
-                    env: app.env || {},
-                };
-
-                if (app.stdout && app.stderr) {
-                    if (app.stdout === app.stderr) {
-                        _app["log_file"] = app.stdout;
-                    } else {
-                        _app["out_file"] = app.stdout;
-                        _app["err_file"] = app.stderr;
-                    }
-                } else if (app.stdout) {
+            if (app.stdout && app.stderr) {
+                if (app.stdout === app.stderr) {
                     _app["log_file"] = app.stdout;
+                } else {
+                    _app["out_file"] = app.stdout;
+                    _app["err_file"] = app.stderr;
                 }
+            } else if (app.stdout) {
+                _app["log_file"] = app.stdout;
+            }
 
-                return _app;
-            })
-        };
+            apps.push(_app);
+        }
+
+        return { apps };
+    }
+
+    /** Retrieves the app name from the `process.argv`. */
+    static getAppName(): string {
+        if (process.argv.length >= 3) {
+            return process.argv[2] as string;
+        } else {
+            throw new Error("app name is not provided");
+        }
+    }
+
+    /**
+     * Initiates an app by the given name and loads the config file, it initiates the server
+     * (if served) and client connections, prepares the services ready for use.
+     *
+     *  NOTE: There can only be one named app running in the same process.
+     * 
+     * @param appName The app's name that should be started as a server. If not provided, the app
+     *  only connects to other servers but not serves as one.
+     */
+    static async start(appName: string | null = "",) {
+        const config = await this.loadConfig();
+        return await this.startWithConfig(appName, config);
+    }
+
+    /**
+     * Like `start()` except it takes a config argument instead of loading the config file.
+     */
+    static async startWithConfig(appName: string | null, config: Config) {
+        return await this._start(appName, config);
+    }
+
+    private static async _start(appName: string | null, config: Config, once = false) {
+        if (this.theApp) {
+            throw new Error("an app is already running");
+        }
+
+        const app = new RpcApp();
+        let cfgApp: App | undefined;
+
+        if (appName) {
+            cfgApp = config.apps.find(item => item.name === appName);
+
+            if (!cfgApp) {
+                throw new Error(`app [${appName}] is not configured`);
+            }
+
+            Object.assign(app, cfgApp);
+        }
+
+        // Set global namespace.
+        const nsp = config.namespace || "services";
+        set(global, nsp, createChainingProxy(nsp));
+
+        await app.loadProtoFiles(config.protoPaths, config.protoOptions);
+        await app.loadClassFiles(config.apps, process.env["IMPORT_ROOT"] || config.importRoot);
+
+        if (cfgApp?.serve && cfgApp?.services?.length) {
+            await app.initServer();
+        }
+
+        await app.initClients(config.apps);
+        this.theApp = app;
+
+        if (app.name) {
+            console.info(timed`app [${app.name}] started (pid: ${process.pid})`);
+        }
+
+        if (!once) {
+            app.guest = new Guest(cfgApp || defaultApp, {
+                onStopCommand: (msgId) => {
+                    app._stop(msgId, true);
+                },
+                onReloadCommand: (msgId) => {
+                    app._reload(msgId);
+                },
+            });
+            await app.guest.join();
+        }
+
+        return app;
+    }
+
+    /**
+     * Runs a snippet inside the apps context.
+     * 
+     * This function is for temporary scripting usage, it starts a runs pure-clients app so we
+     * can use the services as we normally do in our program, and after the main `fn` function runs,
+     * the app is automatically stopped.
+     * 
+     * @param fn The function to be run.
+     */
+    static async runSnippet(fn: () => void | Promise<void>) {
+        let app: RpcApp | undefined;
+
+        try {
+            const config = await this.loadConfig();
+            app = await this._start(null, config, true);
+
+            await fn();
+            app.stop();
+        } catch (err) {
+            app?.stop();
+            throw err;
+        }
+    }
+
+    /**
+     * Returns the service client by the given service name.
+     * @param route is used to route traffic by the client-side load balancer.
+     */
+    static getServiceClient<T extends object>(serviceName: string, route: string = ""): ServiceClient<T> {
+        if (!this.theApp) {
+            throw new Error("no app is running");
+        }
+
+        const remoteService = this.theApp.remoteServices.get(serviceName);
+
+        if (!remoteService) {
+            throw new Error(`service ${serviceName} is not registered`);
+        }
+
+        const instances = remoteService.instances.filter(item => {
+            const state = item.client.getChannel().getConnectivityState(false);
+            return state != connectivityState.SHUTDOWN;
+        });
+
+        if (!instances.length) {
+            throw new Error(`service ${serviceName} is not available`);
+            // return null as unknown as ServiceClient<object>;
+        }
+
+        let client: ServiceClient<object>;
+
+        if (route) {
+            // First, try to match the route directly against the services' uris, if match any,
+            // return it respectively.
+            const item = instances.find(item => item.app === route || item.url === route);
+
+            if (item) {
+                client = item.client;
+            } else {
+                // Then, try to use the hash algorithm to retrieve a remote instance.
+                const id = hash(route);
+                const idx = id % instances.length;
+                client = instances[idx]!.client;
+            }
+        } else {
+            // Use round-robin algorithm by default.
+            const idx = remoteService.counter % instances.length;
+            client = instances[idx]!.client;
+        }
+
+        return client as ServiceClient<T>;
     }
 
     protected async loadProtoFiles(dirs: string[], options?: ProtoOptions) {
@@ -274,7 +490,7 @@ export class RpcApp {
         this.pkgDef = loadPackageDefinition(source);
     }
 
-    protected async loadClassFiles(apps: Config["apps"], importRoot = "") {
+    protected async loadClassFiles(apps: App[], importRoot = "") {
         for (const app of apps) {
             if (!app.services?.length) {
                 continue;
@@ -303,7 +519,7 @@ export class RpcApp {
                 }
 
                 const protoServiceName = classCtor[sServiceName];
-                const protoCtor: ServiceClientConstructor = get(this.pkgDef, protoServiceName);
+                const protoCtor: ServiceClientConstructor = get(this.pkgDef, protoServiceName) as any;
 
                 if (!protoCtor) {
                     throw new Error(`service '${serviceName}' is not correctly declared`);
@@ -319,15 +535,13 @@ export class RpcApp {
         }
     }
 
-    protected getAddress(app: Config["apps"][0], url: URL): { address: string, useSSL: boolean; } {
+    private static getAddress(app: App, url: URL): { address: string, useSSL: boolean; } {
         const { protocol, hostname, port } = url;
         let address = hostname;
-        let useSSL = !!(app.ca && app.cert && app.key);
+        let useSSL = !!(app.cert && app.key);
 
         if (protocol === "grpcs:" || protocol === "https:") {
-            if (!app.ca) {
-                throw new Error(`missing 'ca' config for app [${app.name}]`);
-            } else if (!app.cert) {
+            if (!app.cert) {
                 throw new Error(`missing 'cert' config for app [${app.name}]`);
             } else if (!app.key) {
                 throw new Error(`missing 'key' config for app [${app.name}]`);
@@ -347,67 +561,76 @@ export class RpcApp {
         return { address, useSSL };
     }
 
-    protected async initServer(app: Config["apps"][0], reload = false) {
-        const url = new URL(app.uri);
+    protected async initServer(oldApp: App | null = null) {
+        const url = new URL(this.url);
 
         if (url.protocol === "xds:") {
-            throw new Error(`app [${app.name}] cannot be served since it uses 'xds:' protocol`);
+            throw new Error(`app [${this.name}] cannot be served since it uses 'xds:' protocol`);
         }
 
-        const { address, useSSL } = this.getAddress(app, url);
+        const { address, useSSL } = RpcApp.getAddress(this, url);
         let newServer = !this.server;
-        let ca: Buffer;
         let cert: Buffer;
         let key: Buffer;
+        let ca: Buffer | undefined;
 
-        if (reload) {
+        if (oldApp) {
             if (this.sslOptions) {
                 if (!useSSL) { // SSL to non-SSL
                     this.sslOptions = null;
                     newServer = true;
                 } else {
-                    ca = await fs.readFile(app.ca as string);
-                    cert = await fs.readFile(app.cert as string);
-                    key = await fs.readFile(app.key as string);
+                    cert = await fs.readFile(this.cert as string);
+                    key = await fs.readFile(this.key as string);
 
-                    if (Buffer.compare(ca, this.sslOptions.ca) ||
-                        Buffer.compare(cert, this.sslOptions.cert) ||
-                        Buffer.compare(key, this.sslOptions.key)
+                    if (this.ca) {
+                        ca = await fs.readFile(this.ca as string);
+                    }
+
+                    if (Buffer.compare(cert, this.sslOptions.cert) ||
+                        Buffer.compare(key, this.sslOptions.key) ||
+                        (ca && this.sslOptions.ca && Buffer.compare(ca, this.sslOptions.ca)) ||
+                        (!ca && this.sslOptions.ca) ||
+                        (ca && !this.sslOptions.ca)
                     ) {
                         // SSL credentials changed
-                        this.sslOptions = { ca, cert, key };
+                        this.sslOptions = { cert, key, ca };
                         newServer = true;
                     }
                 }
             } else if (useSSL) { // non-SSL to SSL
-                ca = await fs.readFile(app.ca as string);
-                cert = await fs.readFile(app.cert as string);
-                key = await fs.readFile(app.key as string);
-                this.sslOptions = { ca, cert, key };
+                cert = await fs.readFile(this.cert as string);
+                key = await fs.readFile(this.key as string);
+
+                if (this.ca) {
+                    ca = await fs.readFile(this.ca as string);
+                }
+
+                this.sslOptions = { cert, key, ca };
                 newServer = true;
             }
 
-            if (this.oldConfig) {
-                const oldApp = this.oldConfig.apps.find(_app => _app.name === app.name);
-
-                if (!oldApp || oldApp.uri !== app.uri || !isEqual(oldApp.options, app.options)) {
-                    // server configurations changed
-                    newServer = true;
-                }
+            if (oldApp.url !== this.url || !isEqual(oldApp.options, this.options)) {
+                // server configurations changed
+                newServer = true;
             }
         } else if (useSSL) {
-            ca = await fs.readFile(app.ca as string);
-            cert = await fs.readFile(app.cert as string);
-            key = await fs.readFile(app.key as string);
-            this.sslOptions = { ca, cert, key };
+            cert = await fs.readFile(this.cert as string);
+            key = await fs.readFile(this.key as string);
+
+            if (this.ca) {
+                ca = await fs.readFile(this.ca as string);
+            }
+
+            this.sslOptions = { cert, key, ca };
         }
 
         if (newServer) {
             this.server?.forceShutdown();
-            this.server = new Server(app.options);
+            this.server = new Server(this.options);
         }
 
-        for (const serviceName of app.services) {
+        for (const serviceName of this.services) {
             let ins: any;
 
             const ctors = this.ctorsMap.get(serviceName);
@@ -440,8 +663,8 @@ export class RpcApp {
 
                 // Create different knd of server credentials according to whether the certificates
                 // are set.
-                if (ca && cert && key) {
-                    cred = ServerCredentials.createSsl(ca, [{
+                if (cert && key) {
+                    cred = ServerCredentials.createSsl(ca ?? null, [{
                         private_key: key,
                         cert_chain: cert,
                     }], true);
@@ -454,7 +677,6 @@ export class RpcApp {
                         reject(err);
                     } else {
                         (this.server as Server).start();
-                        console.info(`app [${app.name}] started at '${app.uri}'`);
                         resolve();
                     }
                 });
@@ -462,21 +684,29 @@ export class RpcApp {
         }
     }
 
-    protected async initClients() {
-        const conf = this.config as Config;
-        const cas = new Map<string, Buffer>();
+    protected async initClients(apps: App[]) {
+        const xdsApp = apps.find(item => item.url.startsWith("xds:"));
+
+        if (!xdsEnabled && xdsApp) {
+            try {
+                const _module = require("@grpc/grpc-js-xds");
+                _module.register();
+                xdsEnabled = true;
+            } catch (err: any) {
+                if (err["code"] === "MODULE_NOT_FOUND") {
+                    throw new Error(`app [${xdsApp.name}] uses 'xds:' protocol `
+                        + `but package '@grpc/grpc-js-xds' is not installed`);
+                }
+            }
+        }
+
         const certs = new Map<string, Buffer>();
         const keys = new Map<string, Buffer>();
+        const cas = new Map<string, Buffer>();
 
         // Preload `cert`s and `key`s so in the "connection" phase, there would be no latency for
         // loading resources asynchronously.
-        for (const app of conf.apps) {
-            if (app.ca) {
-                const filename = absPath(app.ca);
-                const ca = await fs.readFile(filename);
-                cas.set(filename, ca);
-            }
-
+        for (const app of apps) {
             if (app.cert) {
                 const filename = absPath(app.cert);
                 const cert = await fs.readFile(filename);
@@ -487,6 +717,12 @@ export class RpcApp {
                 const filename = absPath(app.key);
                 const key = await fs.readFile(filename);
                 keys.set(filename, key);
+            }
+
+            if (app.ca) {
+                const filename = absPath(app.ca);
+                const ca = await fs.readFile(filename);
+                cas.set(filename, ca);
             }
         }
 
@@ -500,14 +736,10 @@ export class RpcApp {
         });
         this.remoteServices = new Map();
 
-        // Set global namespace.
-        const nsp = conf.namespace || "services";
-        set(global, nsp, createChainingProxy(nsp, this));
-
         // Reorganize client-side configuration based on the service name since the gRPC clients are
         // created based on the service.
-        const serviceApps = conf.apps.reduce((registry, app) => {
-            for (const serviceName of app.services) {
+        const serviceApps = apps.reduce((registry, app) => {
+            for (const serviceName of (app.services as string[])) {
                 const ctors = this.ctorsMap.get(serviceName);
 
                 if (ctors) {
@@ -523,26 +755,31 @@ export class RpcApp {
             }
 
             return registry;
-        }, new Map<string, (Config["apps"][0] & { protoCtor: ServiceClientConstructor; })[]>());
+        }, new Map<string, (App & { protoCtor: ServiceClientConstructor; })[]>());
 
-        const getAddress = (app: Config["apps"][0]) => {
-            const url = new URL(app.uri);
+        const getAddress = (app: App) => {
+            const url = new URL(app.url);
 
             if (url.protocol === "xds:") {
-                return app.uri;
+                return app.url;
             } else {
-                const { address } = this.getAddress(app, url);
+                const { address } = RpcApp.getAddress(app, url);
                 return address;
             }
         };
-        const getConnectConfig = (app: Config["apps"][0]) => {
+        const getConnectConfig = (app: App) => {
             const address = getAddress(app);
             let cred: ChannelCredentials;
 
-            if (app.ca && app.cert && app.key) {
-                const ca = cas.get(absPath(app.ca));
+            if (app.cert && app.key) {
                 const cert = certs.get(absPath(app.cert));
                 const key = keys.get(absPath(app.key));
+                let ca: Buffer | undefined;
+
+                if (app.ca) {
+                    ca = cas.get(absPath(app.ca));
+                }
+
                 cred = credentials.createSsl(ca, key, cert);
             } else {
                 cred = credentials.createInsecure();
@@ -563,10 +800,10 @@ export class RpcApp {
                 const remoteService = this.remoteServices.get(serviceName);
 
                 if (remoteService) {
-                    remoteService.instances.push({ app: app.name, uri: app.uri, client });
+                    remoteService.instances.push({ app: app.name, url: app.url, client });
                 } else {
                     this.remoteServices.set(serviceName, {
-                        instances: [{ app: app.name, uri: app.uri, client }],
+                        instances: [{ app: app.name, url: app.url, client }],
                         counter: 0,
                     });
                 }
@@ -574,118 +811,15 @@ export class RpcApp {
         }
     }
 
-    getServiceClient(serviceName: string, route: string = ""): ServiceClient<object> {
-        const remoteService = this.remoteServices.get(serviceName);
-
-        if (!remoteService) {
-            throw new Error(`service ${serviceName} is not registered`);
-        }
-
-        const instances = remoteService.instances.filter(item => {
-            const state = item.client.getChannel().getConnectivityState(false);
-            return state != connectivityState.SHUTDOWN;
-        });
-
-        if (!instances.length) {
-            throw new Error(`service ${serviceName} is not available`);
-            // return null as unknown as ServiceClient<object>;
-        }
-
-        let client: ServiceClient<object>;
-
-        if (route) {
-            // First, try to match the route directly against the services' uris, if match any,
-            // return it respectively.
-            const item = instances.find(item => item.app === route || item.uri === route);
-
-            if (item) {
-                client = item.client;
-            } else {
-                // Then, try to use the hash algorithm to retrieve a remote instance.
-                const id = hash(route);
-                const idx = id % instances.length;
-                client = instances[idx].client;
-            }
-        } else {
-            // Use round-robin algorithm by default.
-            const idx = remoteService.counter % instances.length;
-            client = instances[idx].client;
-        }
-
-        return client;
-    }
-
-    protected async _start(name: string | null = "", tryHost = false) {
-        const config = this.config as Config;
-        let xdsApp: Config["apps"][0] | undefined;
-        let app: Config["apps"][0] | undefined;
-
-        if (!xdsEnabled &&
-            (xdsApp = config.apps?.find(item => !!item.serve && item.uri?.startsWith("xds:")))
-        ) {
-            try {
-                const _module = require("@grpc/grpc-js-xds");
-                _module.register();
-                xdsEnabled = true;
-            } catch (err) {
-                if (err["code"] === "MODULE_NOT_FOUND") {
-                    throw new Error(`'xds:' protocol is used in app [${xdsApp.name}]`
-                        + `, but package '@grpc/grpc-js-xds' is not installed`);
-                }
-            }
-        }
-
-        if (name) {
-            this.name = name;
-            app = (this.config as Config).apps.find(app => app.name === name);
-
-            if (!app) {
-                throw new Error(`app [${name}] is not configured`);
-            }
-        }
-
-        await this.loadProtoFiles(config.protoPaths, config.protoOptions);
-        await this.loadClassFiles(config.apps, config.importRoot);
-
-        if (app?.serve && app?.services?.length) {
-            await this.initServer(app);
-        }
-
-        await this.initClients();
-
-        if (tryHost) {
-            this.canTryHost = true;
-            await this.tryHosting();
-        } else {
-            await this.tryJoining();
-        }
-    }
-
-    /**
-     * Initiates and starts an app.
-     * 
-     * @param name The app's name that should be started as a server. If not provided, the app only
-     *  connects to other servers but not serves as one.
+    /** 
+     * Closes client connections and stops the server (if served), and runs any `destroy()` method in
+     * the bound services.
      */
-    static async boot(name: string | null = "",) {
-        const ins = new RpcApp();
-
-        ins.config = await this.loadConfig();
-
-        // When starting, if no `app` is provided and no `require.main` is presented, that means the
-        // the is running in the Node.js REPL and we're trying only to connect to services, in this
-        // case, we don't need to try gaining the hostship.
-        await ins._start(name, !!(name || require.main));
-
-        return ins;
-    }
-
-    /** Stops the app programmatically. */
     async stop() {
-        return await this._stop();
+        return await this._stop("", true);
     }
 
-    protected async _stop(msgId = "") {
+    protected async _stop(msgId = "", graceful = false) {
         for (const [_, ins] of this.instanceMap) {
             if (typeof ins.destroy === "function") {
                 await (ins as LifecycleSupportInterface).destroy();
@@ -699,58 +833,28 @@ export class RpcApp {
         });
 
         this.server?.forceShutdown();
-        this.isStopped = true;
+        await this._onStop?.();
+        RpcApp.theApp = null;
 
-        const closeGuestSocket = () => {
-            if (msgId) {
-                // If `msgId` is provided, that means the stop event is issued by a guest app, for
-                // example, the CLI tool, in this case, we need to send feedback to acknowledge the
-                // sender that the process has finished.
-                let result: string;
+        let msg: string;
 
-                if (this.name) {
-                    result = `app [${this.name}] stopped`;
-                    console.info(result);
-                } else {
-                    result = "app (clients) stopped";
-                }
-
-                this.guest?.end(JSON.stringify({
-                    cmd: "reply",
-                    msgId: msgId,
-                    result
-                }));
-            } else {
-                this.guest?.end();
-            }
-        };
-
-        if (this.host) {
-            this.hostClients.forEach(client => {
-                client.socket.write(JSON.stringify({
-                    cmd: "goodbye",
-                    app: this.name,
-                }));
-            });
-
-            closeGuestSocket();
-            await new Promise<void>((resolve, reject) => {
-                this.host?.close((err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        this._onStop?.();
-                        resolve();
-                    }
-                });
-            });
+        if (this.name) {
+            msg = `app [${this.name}] stopped`;
+            console.info(timed`${msg}`);
         } else {
-            this.guest?.write(JSON.stringify({
-                cmd: "goodbye",
-                app: this.name,
-            }) + "\n");
-            closeGuestSocket();
-            this._onStop?.();
+            msg = "app (anonymous) stopped";
+        }
+
+        if (this.guest && graceful) {
+            this.guest.leave(msg, msgId);
+
+            if (this.name) {
+                console.info(timed`app [${this.name}] has left the group`);
+            }
+        }
+
+        if (this.isProcessKeeper) {
+            process.exit(0);
         }
     }
 
@@ -760,12 +864,10 @@ export class RpcApp {
     }
 
     protected async _reload(msgId = "") {
-        this.oldConfig = this.config;
-        this.config = await RpcApp.loadConfig();
+        const config = await RpcApp.loadConfig();
+        const app = config.apps.find(app => app.name === this.name);
 
-        await this.loadProtoFiles(this.config.protoPaths, this.config.protoOptions);
-
-        const app = this.config.apps.find(app => app.name === this.name);
+        await this.loadProtoFiles(config.protoPaths, config.protoOptions);
 
         if (this.server) {
             // Unserve old service instance and possibly call the `destroy()` lifecycle method.
@@ -775,7 +877,7 @@ export class RpcApp {
                 }
             }
 
-            const importRoot = this.config.importRoot || "";
+            const importRoot = process.env["IMPORT_ROOT"] || config.importRoot || "";
 
             // Remove cached files and their dependencies so, when reloading, they could be
             // reimported and use any changes inside them.
@@ -800,534 +902,119 @@ export class RpcApp {
             this.instanceMap = new Map();
 
             // reload class files
-            await this.loadClassFiles(this.config.apps, importRoot);
+            await this.loadClassFiles(config.apps, importRoot);
         }
 
+        const oldApp = pick(this, Object.keys(defaultApp)) as App;
+        Object.assign(this, app ?? defaultApp);
+
         if (app && app.serve && app.services?.length) {
-            await this.initServer(app, true);
+            await this.initServer(oldApp);
         } else if (this.server) { // The app has been removed from the config or no longer serve.
             this.server.forceShutdown();
             this.server = null;
         }
 
-        await this.initClients();
+        await this.initClients(config.apps);
 
         if (msgId) {
             // If `msgId` is provided, that means the stop event is issued by a guest app, for
             // example, the CLI tool, in this case, we need to send feedback to acknowledge the
             // sender that the process has finished.
-            let result: string;
+            let msg: string;
 
             if (this.name) {
-                result = `app [${this.name}] reloaded`;
-                console.info(result);
+                msg = `app [${this.name}] hot-reloaded`;
+                console.info(timed`${msg}`);
             } else {
-                result = `app (clients) reloaded`;
+                msg = "app (anonymous) hot-reloaded";
             }
 
-            this.guest?.write(JSON.stringify({ cmd: "reply", msgId: msgId, result }) + "\n");
+            this.guest?.send({ cmd: "reply", msgId: msgId, text: msg });
         }
 
-        this._onReload?.();
+        await this._onReload?.();
     }
 
     /** Registers a callback to run after the app is reloaded. */
-    onReload(callback: () => void) {
+    onReload(callback: () => void | Promise<void>) {
         this._onReload = callback;
     }
 
     /** Registers a callback to run after the app is stopped. */
-    onStop(callback: () => void) {
+    onStop(callback: () => void | Promise<void>) {
         this._onStop = callback;
     }
 
     /**
-     * Try to make the current app as the host app for communications.
-     */
-    protected async tryHosting() {
-        const { success, filename, sockPath } = await this.tryJoining();
-
-        if (success) {
-            return;
-        } else {
-            await ensureDir(path.dirname(filename));
-        }
-
-        await new Promise<void>((resolve, reject) => {
-            const host = net.createServer(client => {
-                const conf = this.config as Config;
-
-                client.on("data", (buf) => {
-                    RpcApp.processSocketMessage(buf, (err, msg: {
-                        cmd: "handshake" | "goodbye" | "reload" | "stop" | "list" | "reply",
-                        app?: string,
-                        msgId?: string;
-                    }) => {
-                        if (err) {
-                            client.destroy(err);
-                            return;
-                        }
-
-                        if (msg.cmd === "handshake") {
-                            // After a guest establish the socket connection, it sends a `handshake`
-                            // command indicates a signing-in, we then store the client in the
-                            // `hostClients` property for broadcast purposes.
-
-                            if (msg.app) {
-                                if (!conf.apps.some(app => app.name === msg.app)) {
-                                    client.destroy(new Error(`invalid app name '${msg.app}'`));
-                                } else if (this.hostClients.some(item => item.app === msg.app)) {
-                                    client.destroy(new Error(`app [${msg}] is already running`));
-                                } else {
-                                    this.hostClients.push({
-                                        socket: client,
-                                        stopped: false,
-                                        app: msg.app,
-                                    });
-                                }
-                            } else {
-                                this.hostClients.push({ socket: client, stopped: false });
-                            }
-
-                            client.write(JSON.stringify({
-                                cmd: "handshake",
-                                app: this.name,
-                            }) + "\n");
-                        } else if (msg.cmd === "goodbye") {
-                            this.hostClients.forEach(_client => {
-                                if (_client.socket === client) {
-                                    _client.stopped = true;
-                                }
-                            });
-                        } else if (msg.cmd === "reload" || msg.cmd == "stop") {
-                            // When the host app receives a control command, it distribute the
-                            // command to the target app or all apps if the app is not specified.
-
-                            if (msg.app) {
-                                const _client = this.hostClients.find(item => item.app === msg.app);
-
-                                if (_client) {
-                                    const msgId = Math.random().toString(16).slice(2);
-
-                                    _client.socket.write(JSON.stringify({
-                                        cmd: msg.cmd,
-                                        msgId,
-                                    }) + "\n");
-                                    this.hostCallbacks.set(msgId, (reply) => {
-                                        client.end(JSON.stringify(reply));
-                                    });
-                                } else {
-                                    client.destroy(new Error(`app [${msg.app}] is not running`));
-                                }
-                            } else {
-                                const clients = [...this.hostClients];
-                                let count = 0;
-
-                                clients.forEach(_client => {
-                                    const msgId = Math.random().toString(16).slice(2);
-
-                                    if (_client.stopped) {
-                                        count++;
-                                    } else {
-                                        _client.socket.write(JSON.stringify({
-                                            cmd: msg.cmd,
-                                            msgId,
-                                        }) + "\n");
-                                        this.hostCallbacks.set(msgId, (reply) => {
-                                            client.write(JSON.stringify(reply) + "\n");
-
-                                            if (++count === clients.length) {
-                                                client.end();
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                        } else if (msg.cmd === "list") {
-                            // When the host app receives a `list` command, we list all the clients
-                            // with names and collect some information about them.
-                            const clients = this.hostClients.filter(item => {
-                                return !!item.app && !item.stopped;
-                            });
-                            type Stat = {
-                                pid: number;
-                                uptime: number;
-                                memory: number;
-                                cpu: number;
-                            };
-                            const stats = new Map<string, Stat>();
-
-                            clients.forEach(_client => {
-                                const msgId = Math.random().toString(16).slice(2);
-
-                                _client.socket.write(JSON.stringify({
-                                    cmd: "stat",
-                                    msgId,
-                                }) + "\n");
-                                this.hostCallbacks.set(msgId, (reply: {
-                                    result: Stat;
-                                }) => {
-                                    stats.set(_client.app as string, reply.result);
-
-                                    if (stats.size === clients.length) {
-                                        const list = clients.map(item => {
-                                            const appName = item.app as string;
-                                            const app = conf.apps
-                                                .find(item => item.name === appName);
-                                            const stat = stats.get(appName);
-
-                                            return {
-                                                app: appName,
-                                                uri: app?.uri,
-                                                ...stat
-                                            };
-                                        });
-
-                                        client.end(JSON.stringify({ result: list }));
-                                    }
-                                });
-                            });
-                        } else if (msg.cmd === "reply") {
-                            // When a guest app finishes a control command, it send feedback via the
-                            // `reply` command, we use the `msgId` to retrieve the callback, run it
-                            // and remove it.
-
-                            if (msg.msgId) {
-                                const callback = this.hostCallbacks.get(msg.msgId);
-
-                                if (callback) {
-                                    callback(msg);
-                                    this.hostCallbacks.delete(msg.msgId);
-                                }
-                            }
-                        } else {
-                            client.destroy(new Error(`invalid message: ${JSON.stringify(msg)}`));
-                        }
-                    });
-                }).on("close", () => {
-                    const _client = this.hostClients.find(item => item.socket === client);
-
-                    if (_client) {
-                        // Remove the client from the list if it has been stopped.
-                        this.hostClients = this.hostClients.filter(item => item !== _client);
-
-                        // When the client is closed expectedly, it sends a `goodbye` command to the
-                        // host server and the later marked it as `stopped` normally. Otherwise, the
-                        // connection is closed due to program failure on the client-side, we can
-                        // try to revive the client app.
-                        if (_client.app &&
-                            _client.app !== this.name &&
-                            !_client.stopped &&
-                            !this.hostStopped
-                        ) {
-                            const app = conf.apps.find(app => app.name === _client.app);
-
-                            if (app) {
-                                spawnProcess(app, conf.entry).catch(console.error);
-                            }
-                        }
-                    }
-                });
-            }).once("error", err => {
-                if (err["code"] === "EEXIST") { // gaining hostship failed
-                    this.doTryJoining(sockPath, resolve, reject);
-                } else {
-                    reject(err);
-                }
-            });
-
-            host.listen(sockPath, () => {
-                this.host = host;
-
-                // Connect to self so that we can use the same control logic.
-                this.doTryJoining(sockPath, resolve, reject);
-
-                if (this.name) {
-                    console.info(`app [${this.name}] has become the host server`);
-                } else {
-                    console.info("this app has become the host server");
-                }
-            });
-        });
-    }
-
-    protected async tryJoining(): Promise<{
-        success: boolean;
-        filename: string;
-        sockPath: string;
-    }> {
-        const config = absPath("ngrpc.json");
-        const ext = path.extname(config);
-        const filename = config.slice(0, -ext.length) + ".sock";
-        const sockPath = absPath(filename, true);
-
-        if (await exists(filename)) {
-            // If the socket file already exists, there either be the host app already exists or the
-            // socket file is left there because an unclean shutdown of the previous host app. We
-            // need to first try to connect to it, if not succeeded, delete it and try to gain the
-            // hostship.
-            try {
-                await new Promise<void>((resolve, reject) => {
-                    this.doTryJoining(sockPath, resolve, reject);
-                });
-                return { success: true, filename, sockPath };
-            } catch {
-                await fs.unlink(filename);
-            }
-        }
-
-        return { success: false, filename, sockPath };
-    }
-
-    /**
-     * Try to connect to the host server of app control.
+     * Listens for system signals to exit the program.
      * 
-     * @param sockPath 
-     * @param resolve 
-     * @param reject 
+     * This method calls the `stop()` method internally, if we don't use this method, we need to
+     * call the `stop()` method explicitly when the program is going to terminate.
      */
-    protected doTryJoining(sockPath: string, resolve: () => void, reject: (err: Error) => void) {
-        const client = net.createConnection(sockPath, () => {
-            client.write(JSON.stringify({ cmd: "handshake", app: this.name }) + "\n");
-            this.guest = client;
-
-            if (!this.canTryHost) {
-                resolve();
-            }
-        });
-        const retryHost = () => {
-            const lastHostName = this.hostName;
-            const hostStopped = this.hostStopped;
-
-            // If the connection is closed and the client is not marked closed, the client now is
-            // able to retry gaining the hostship.
-            this.tryHosting().then(() => {
-                // When the host server is closed by the expectedly, it sends a `goodbye`
-                // command to the clients to acknowledge a clear shutdown, and the client
-                // mark `hostStopped`, otherwise, the connection is closed unexpectedly due
-                // to program failure, after the current app has gain the hostship, we can
-                // try to revive the formal host app.
-                if (lastHostName && !hostStopped) {
-                    const conf = this.config as Config;
-                    const app = conf.apps.find(app => app.name === lastHostName);
-
-                    if (app) {
-                        return spawnProcess(app, conf.entry);
-                    }
-                }
-            }).catch(console.error);
+    waitForExit() {
+        this.isProcessKeeper = true;
+        const close = () => {
+            this._stop("", true);
         };
 
-        client.on("data", (buf) => {
-            RpcApp.processSocketMessage(buf, (err, msg: {
-                cmd: "handshake" | "goodbye" | "reload" | "stop" | "stat";
-                app?: string;
-                msgId: string;
-            }) => {
-                if (err) {
-                    return; // ignore invalid messages
-                }
-
-                if (msg.cmd === "handshake") {
-                    this.hostName = msg.app;
-                    this.hostStopped = false;
-
-                    if (this.canTryHost) {
-                        resolve();
-                    }
-                } else if (msg.cmd === "goodbye") {
-                    this.hostStopped = true;
-
-                    if (!this.host) {
-                        client.end();
-                    }
-                } else if (msg.cmd === "reload") {
-                    this._reload(msg.msgId).catch(console.error);
-                } else if (msg.cmd === "stop") {
-                    this._stop(msg.msgId).catch(console.error);
-                } else if (msg.cmd === "stat") {
-                    client.write(JSON.stringify({
-                        cmd: "reply",
-                        msgId: msg.msgId,
-                        result: {
-                            pid: process.pid,
-                            uptime: process.uptime(),
-                            memory: process.memoryUsage().rss,
-                            cpu: (this.cpuUsage = getCpuUsage(this.cpuUsage)).percent,
-                        }
-                    }) + "\n");
-                } else {
-                    // ignore other messages
+        process.on("SIGINT", close).on("SIGTERM", close)
+            .on("message", (msg) => {
+                if (msg === "shutdown") { // for PM2 in Windows
+                    close();
                 }
             });
-        }).on("end", () => {
-            if (!this.host && !this.isStopped && this.canTryHost) {
-                retryHost();
-            }
-        }).on("error", err => {
-            if (isSocketResetError(err) && !this.host && !this.isStopped) {
-                if (this.canTryHost) {
-                    retryHost();
-                }
-            } else {
-                reject(err);
-            }
-        });
-    }
-
-    private static processSocketMessage(buf: Buffer, handle: (err: Error | null, msg: any) => void) {
-        const str = buf.toString();
-
-        try {
-            const chunks = str.split("\n");
-
-            for (const chunk of chunks) {
-                if (!chunk)
-                    continue;
-
-                try {
-                    const msg = JSON.parse(chunk);
-                    handle(null, msg);
-                } catch {
-                    handle(new Error("invalid message: " + str), null);
-                }
-            }
-        } catch {
-            handle(new Error("invalid message: " + str), null);
-        }
-    }
-
-    /**
-     * Sends control command to the apps. This function is mainly used in the CLI tool.
-     * 
-     * @param cmd 
-     * @param app The app's name that should received the command. If not provided, the command is
-     *  sent to all apps.
-     */
-    static async sendCommand(cmd: "reload" | "stop" | "list", app: string | null = "") {
-        const config = absPath("ngrpc.json");
-        const ext = path.extname(config);
-        const sockFile = absPath(config.slice(0, -ext.length) + ".sock", true);
-        type Stat = {
-            app: string;
-            uri: string;
-            pid: number;
-            uptime: number;
-            memory: number;
-            cpu: number;
-        };
-
-        const listApps = async (stats: Stat[]) => {
-            const { apps } = await this.loadConfig();
-            // const result = reply.result as Stat[];
-            const list = apps.map(app => {
-                const item = stats.find(item => item.app === app.name);
-
-                if (item) {
-                    return item;
-                } else if (app.serve) {
-                    return {
-                        app: app.name,
-                        uri: app.uri,
-                        pid: -1,
-                        uptime: -1,
-                        memory: -1,
-                        cpu: -1,
-                    } satisfies Stat;
-                } else {
-                    return null as unknown as Stat;
-                }
-            }).filter(item => !!item);
-
-            stats.forEach(item => {
-                const _item = list.find(_item => _item.app === item.app);
-
-                if (!_item) {
-                    list.push(item);
-                }
-            });
-
-            console.table(list.map(item => {
-                return {
-                    app: item.app,
-                    uri: item.uri,
-                    status: item.pid !== -1 ? "running" : "stopped",
-                    pid: item.pid === -1 ? "N/A" : item.pid,
-                    uptime: item.uptime === -1
-                        ? "N/A"
-                        : humanizeDuration(item.uptime * 1000, {
-                            largest: 1,
-                            round: true,
-                        }),
-                    memory: item.memory === -1
-                        ? "N/A"
-                        : `${Math.round(item.memory / 1024 / 1024 * 100) / 100} MB`,
-                    cpu: item.cpu === -1 ? "N/A" : `${Math.round(item.cpu)}%`,
-                };
-            }));
-        };
-
-        await new Promise<void>((resolve, reject) => {
-            const client = net.createConnection(sockFile, () => {
-                client.write(JSON.stringify({ cmd, app }) + "\n");
-            });
-
-            client.on("data", (buf) => {
-                this.processSocketMessage(buf, (err, reply: { result?: any; error?: string; }) => {
-                    if (err) {
-                        console.error(err);
-                        return;
-                    }
-
-                    if (reply.error) {
-                        console.error(reply.error);
-                    } else if (cmd === "list") {
-                        listApps(reply.result).catch(console.error);
-                    } else {
-                        console.info(reply.result ?? null);
-                    }
-                });
-            }).on("end", resolve).once("error", (err) => {
-                if (err["code"] === "ENOENT" || err["code"] === "ECONNREFUSED") {
-                    if (cmd === "list") {
-                        listApps([]).catch(console.error);
-                    } else if (app) {
-                        console.info(`app [${app}] is not running`);
-                    } else {
-                        console.info("no app is running");
-                    }
-
-                    resolve();
-                } else {
-                    reject(err);
-                }
-            });
-        });
-    }
-
-    /**
-     * Runs a snippet inside the apps context.
-     * 
-     * This function is for temporary scripting usage, it starts a temporary pure-clients app so we
-     * can use the services as we normally do in our program, and after the main `fn` function runs,
-     * the app is automatically stopped.
-     * 
-     * @param fn The function to be run.
-     */
-    static async runSnippet(fn: () => void | Promise<void>) {
-        try {
-            const app = new RpcApp();
-
-            app.config = await this.loadConfig();
-
-            await app._start();
-            await fn();
-            await app.stop();
-        } catch (err) {
-            console.error(err);
-        }
     }
 }
 
 const ngrpc = RpcApp;
 export default ngrpc;
+
+@applyMagic
+class ChainingProxy {
+    [x: string]: any;
+    protected __target: string;
+    // protected __app: RpcApp;
+    protected __children: { [prop: string]: ChainingProxy; } = {};
+
+    constructor(target: string) {
+        this.__target = target;
+        // this.__app = app;
+    }
+
+    protected __get(prop: string) {
+        if (prop in this) {
+            return this[prop];
+        } else if (prop in this.__children) {
+            return this.__children[String(prop)];
+        } else if (typeof prop !== "symbol") {
+            return (this.__children[prop] = createChainingProxy(
+                (this.__target ? this.__target + "." : "") + String(prop)
+            ));
+        }
+    }
+
+    protected __has(prop: string | symbol) {
+        return (prop in this) || (prop in this.__children);
+    }
+}
+
+export function createChainingProxy(target: string) {
+    const chain: ChainingProxy = function (data: any = null) {
+        const index = target.lastIndexOf(".");
+        const serviceName = target.slice(0, index);
+        const method = target.slice(index + 1);
+        const ins = RpcApp.getServiceClient(serviceName, data) as any;
+
+        if (typeof ins[method] === "function") {
+            return ins[method](data);
+        } else {
+            throw new TypeError(`${target} is not a function`);
+        }
+    } as any;
+
+    Object.setPrototypeOf(chain, ChainingProxy.prototype);
+    Object.assign(chain, { __target: target, __children: {} });
+
+    return applyMagic(chain as any, true);
+}

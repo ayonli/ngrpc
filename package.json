@@ -1,15 +1,13 @@
 {
   "name": "@ayonli/ngrpc",
-  "version": "0.1.3",
-  "description": "Make it easy to create clear, expressive and elegant gRPC based applications.",
-  "main": "index",
+  "version": "0.2.0",
+  "description": "Make it easy to create clear, expressive and elegant gRPC based microservices.",
+  "main": "dist/index.js",
+  "types": "index.ts",
   "scripts": {
     "prepublishOnly": "tsc",
     "postpublish": "node postpublish.js",
-    "pretest": "tsc",
-    "posttest": "node postpublish.js",
-    "test": "mocha -r source-map-support/register test.js",
-    "test:ts": "mocha -r ts-node/register test.ts"
+    "test": "mocha"
   },
   "bin": {
     "ngrpc": "cli.js"
@@ -34,23 +32,35 @@
     "@ayonli/grpc-async": "^0.1.0",
     "@grpc/grpc-js": "^1.9.0",
     "@grpc/proto-loader": "^0.7.8",
-    "commander": "^11.0.0",
-    "humanize-duration": "^3.29.0",
-    "is-socket-reset-error": "^0.1.1",
     "js-magic": "^1.3.0",
     "lodash": "^4.17.21",
     "require-chain": "^2.1.0",
+    "source-map-support": "^0.5.21",
     "string-hash": "^1.1.3"
   },
   "devDependencies": {
+    "@ayonli/ngrpc": "file:../ngrpc",
+    "@hyurl/utils": "^0.2.26",
+    "@types/express": "^4.17.17",
     "@types/humanize-duration": "^3.27.1",
+    "@types/lodash": "^4.14.197",
     "@types/mocha": "^10.0.1",
-    "@types/source-map-support": "^0.5.6",
+    "@types/node": "^20.5.9",
+    "@types/source-map-support": "^0.5.7",
     "@types/string-hash": "^1.1.1",
     "dotry": "^1.4.0",
+    "express": "^4.18.2",
     "mocha": "^10.2.0",
-    "source-map-support": "^0.5.21",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
+  },
+  "mocha": {
+    "require": [
+      "ts-node/register"
+    ],
+    "spec": [
+      "*.test.ts",
+      "**/*.test.ts"
+    ]
   }
 }

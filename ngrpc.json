@@ -1,45 +1,47 @@
 {
     "$schema": "./ngrpc.schema.json",
     "protoPaths": [
-        "./proto"
+        "proto"
     ],
     "protoOptions": {
-        "longs": "String",
-        "defaults": true,
-        "oneofs": true
+        "defaults": true
     },
     "apps": [
         {
             "name": "example-server",
-            "uri": "grpc://localhost:4000",
+            "url": "grpc://localhost:4000",
             "serve": true,
             "services": [
                 "services.ExampleService"
             ],
-            "stdout": "./out.log"
+            "entry": "entry/main.ts",
+            "stdout": "out.log"
         },
         {
             "name": "user-server",
-            "uri": "grpcs://localhost:4001",
-            "serve": false,
+            "url": "grpcs://localhost:4001",
+            "serve": true,
             "services": [
                 "services.UserService"
             ],
-            "ca": "./certs/ca.pem",
-            "cert": "./certs/cert.pem",
-            "key": "./certs/cert.key"
+            "entry": "entry/main.go",
+            "stdout": "out.log",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key",
+            "ca": "certs/ca.pem"
         },
         {
             "name": "post-server",
-            "uri": "grpcs://localhost:4002",
+            "url": "grpcs://localhost:4002",
             "serve": true,
             "services": [
                 "services.PostService"
             ],
-            "stdout": "./out.log",
-            "ca": "./certs/ca.pem",
-            "cert": "./certs/cert.pem",
-            "key": "./certs/cert.key"
+            "entry": "entry/main.ts",
+            "stdout": "out.log",
+            "cert": "certs/cert.pem",
+            "key": "certs/cert.key",
+            "ca": "certs/ca.pem"
         }
     ]
 }

@@ -2,24 +2,24 @@
     "compilerOptions": {
         "module": "commonjs",
         "target": "es2018",
+        "outDir": "./dist",
         "newLine": "LF",
+        "incremental": true,
         "importHelpers": true,
-        "strictNullChecks": true,
+        "sourceMap": true,
+        "strict": true,
         "noUnusedParameters": true,
         "noUnusedLocals": true,
+        "noImplicitAny": true,
         "noImplicitThis": true,
-        "sourceMap": true,
-        "declaration": true,
-        "resolveJsonModule": true,
-        "esModuleInterop": true,
-        "paths": {
-            "@ayonli/ngrpc": [
-                "./index"
-            ]
-        }
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "noUncheckedIndexedAccess": true
     },
     "include": [
         "*.ts",
-        "services/*.ts"
+        "*/**.ts"
     ]
 }
