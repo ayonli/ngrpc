@@ -238,7 +238,7 @@ func TestSendCommand_stop(t *testing.T) {
 	guest.Leave("app [example-server] stopped", msgId)
 
 	assert.NotEqual(t, "", msgId)
-	assert.Equal(t, 0, guest.state)
+	assert.Equal(t, 2, guest.state)
 
 	time.Sleep(time.Millisecond * 10)
 	assert.Equal(t, 0, len(host.clients))

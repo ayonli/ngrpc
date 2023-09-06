@@ -91,9 +91,10 @@ func GetSocketPath() (sockFile string, sockPath string) {
 }
 
 type Guest struct {
-	AppName           string
-	AppUrl            string
-	conn              net.Conn
+	AppName string
+	AppUrl  string
+	conn    net.Conn
+	// 0: disconnected; 1: connected; 2: closed
 	state             int
 	handleStopCommand func(msgId string)
 	replyChan         chan ControlMessage
@@ -181,7 +182,7 @@ func (self *Guest) connect() error {
 	return nil
 }
 
-func (self *Guest) Leave(reason string, replyId string) {
+func (self *Guest) Leave(reason string, replyId string) bool {
 	if self.conn != nil {
 		if replyId != "" {
 			// If `replyId` is provided, that means the stop event is issued by a guest app, for
@@ -202,7 +203,9 @@ func (self *Guest) Leave(reason string, replyId string) {
 		self.cancelSignal <- true
 	}
 
-	self.state = 0
+	ok := self.state == 1
+	self.state = 2
+	return ok
 }
 
 func (self *Guest) Send(msg ControlMessage) error {
@@ -216,10 +219,14 @@ loop:
 	for self.state == 0 {
 		select {
 		case <-time.After(time.Second):
-			err := self.connect()
-
-			if err == nil {
+			if self.state == 2 {
 				break loop
+			} else {
+				err := self.connect()
+
+				if err == nil {
+					break loop
+				}
 			}
 		case <-self.cancelSignal:
 			close(self.cancelSignal)
@@ -231,11 +238,10 @@ loop:
 func (self *Guest) handleHostDisconnection() {
 	if self.state == 0 {
 		return
-	} else {
+	} else if self.state != 2 {
 		self.state = 0
+		self.reconnect()
 	}
-
-	self.reconnect()
 }
 
 func (self *Guest) processHostMessage(

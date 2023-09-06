@@ -471,9 +471,9 @@ func (self *RpcApp) stop(msgId string, graceful bool) {
 	}
 
 	if self.guest != nil && graceful {
-		self.guest.Leave(msg, msgId)
+		ok := self.guest.Leave(msg, msgId)
 
-		if self.Name != "" {
+		if self.Name != "" && ok {
 			log.Printf("app [%s] has left the group", self.Name)
 		}
 	}

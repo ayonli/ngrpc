@@ -846,9 +846,9 @@ export class RpcApp implements App {
         }
 
         if (this.guest && graceful) {
-            this.guest.leave(msg, msgId);
+            const ok = await this.guest.leave(msg, msgId);
 
-            if (this.name) {
+            if (this.name && ok) {
                 console.info(timed`app [${this.name}] has left the group`);
             }
         }

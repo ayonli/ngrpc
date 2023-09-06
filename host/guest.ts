@@ -76,6 +76,7 @@ export function getSocketPath() {
 export class Guest {
     appName: string;
     appUrl: string;
+    /** 0: disconnected; 1: connected; 2: closed */
     private state = 0;
     private conn: net.Socket | undefined;
     private reconnector: NodeJS.Timeout | null = null;
@@ -145,7 +146,7 @@ export class Guest {
         }
     }
 
-    async leave(reason: string, replyId = "") {
+    async leave(reason: string, replyId = ""): Promise<boolean> {
         if (this.state !== 0) {
             if (replyId) {
                 // If `replyId` is provided, that means the stop event is issued by a guest app, for
@@ -167,7 +168,9 @@ export class Guest {
             this.reconnector = null;
         }
 
-        this.state = 0;
+        const ok = this.state == 1;
+        this.state = 2;
+        return ok;
     }
 
     async send(msg: ControlMessage) {
@@ -176,25 +179,29 @@ export class Guest {
 
     private async reconnect() {
         this.reconnector = setInterval(async () => {
-            try {
-                await this.connect();
+            if (this.state === 2) {
+                this.reconnector && clearInterval(this.reconnector);
+                this.reconnector = null;
+            } else {
+                try {
+                    await this.connect();
 
-                if (this.state !== 0 && this.reconnector) {
-                    clearInterval(this.reconnector);
-                    this.reconnector = null;
-                }
-            } catch { }
+                    if (this.state !== 0) {
+                        this.reconnector && clearInterval(this.reconnector);
+                        this.reconnector = null;
+                    }
+                } catch { }
+            }
         }, 1_000);
     }
 
     private handleHostDisconnection() {
         if (this.state === 0) {
             return;
-        } else {
+        } else if (this.state !== 2) {
             this.state = 0;
+            this.reconnect();
         }
-
-        this.reconnect();
     }
 
     private processHostMessage(handshake: () => void, packet: string, buf: string) {
