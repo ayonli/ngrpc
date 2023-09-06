@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/ayonli/goext"
 	"github.com/ayonli/ngrpc/host"
 	"github.com/spf13/cobra"
 )
@@ -48,6 +49,8 @@ func startHost(standalone bool) error {
 		cmd.Args = append(cmd.Args, "--standalone")
 	}
 
+	cmd.Stdout = goext.Ok(os.OpenFile("host.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644))
+	cmd.Stderr = goext.Ok(os.OpenFile("host.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644))
 	err := cmd.Start()
 
 	if err != nil {

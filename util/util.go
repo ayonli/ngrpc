@@ -2,15 +2,12 @@ package util
 
 import (
 	"errors"
-	"fmt"
 	"hash/fnv"
 	"io"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/ayonli/goext/stringx"
 )
@@ -26,32 +23,28 @@ func Exists(filename string) bool {
 }
 
 func AbsPath(filename string, pipePrefix bool) string {
-	if filepath.Separator == '/' {
-		filename = strings.ReplaceAll(filename, "\\", "/")
-	} else if filepath.Separator == '\\' {
-		filename = strings.ReplaceAll(filename, "/", "\\")
-	}
+	isAbs := false
 
-	if filepath.IsAbs(filename) {
-		return filename
-	} else {
+	if stringx.Search(filename, `^/|^[a-zA-Z]:[\\/]`) == -1 {
 		cwd, _ := os.Getwd()
 		filename = filepath.Join(cwd, filename)
+	} else {
+		isAbs = true
 	}
 
-	if pipePrefix && runtime.GOOS == "windows" && stringx.Search(filename, `^\\\\[.?]\\pipe\\`) == -1 {
+	if !isAbs {
+		if filepath.Separator == '/' {
+			filename = strings.ReplaceAll(filename, "\\", "/")
+		} else if filepath.Separator == '\\' {
+			filename = strings.ReplaceAll(filename, "/", "\\")
+		}
+	}
+
+	if pipePrefix && runtime.GOOS == "windows" && stringx.Search(filename, "^\\\\[.?]\\pipe\\") == -1 {
 		return "\\\\.\\pipe\\" + filename
 	} else {
 		return filename
 	}
-}
-
-func RandomString() string {
-	length := 8
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	b := make([]byte, length+2)
-	r.Read(b)
-	return fmt.Sprintf("%x", b)[2 : length+2]
 }
 
 func Hash(str string) int {
@@ -86,5 +79,11 @@ func CopyFile(src string, dst string) error {
 	}
 
 	_, err = io.Copy(out, in)
+
+	if err == nil { // must close the files for Windows
+		in.Close()
+		out.Close()
+	}
+
 	return err
 }

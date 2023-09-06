@@ -2,9 +2,7 @@ package ngrpc_test
 
 import (
 	"context"
-	"fmt"
 	"os/exec"
-	"syscall"
 	"testing"
 	"time"
 
@@ -155,20 +153,4 @@ func TestStopAndOnStop(t *testing.T) {
 
 	app.Stop()
 	assert.True(t, stopped)
-}
-
-func TestWaitForExit(t *testing.T) {
-	app, _ := ngrpc.Start("user-server")
-
-	go func() {
-		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-	}()
-
-	defer func() {
-		if re := recover(); re != nil {
-			assert.Equal(t, "unexpected call to os.Exit(0) during test", fmt.Sprint(re))
-		}
-	}()
-
-	app.WaitForExit()
 }

@@ -104,13 +104,15 @@ export class Guest {
     private async connect(): Promise<void> {
         const { sockFile, sockPath } = getSocketPath();
 
-        if (!(await exists(sockFile))) {
+        if (process.platform !== "win32" && !(await exists(sockFile))) {
             throw new Error("host server is not running");
         }
 
         await new Promise<void>(async (handshake, reject) => {
             const connectFailureHandler = async (err: Error) => {
-                await fs.unlink(sockFile);
+                try {
+                    await fs.unlink(sockFile);
+                } catch {}
                 reject(err);
             };
 
@@ -152,8 +154,12 @@ export class Guest {
                 // If `replyId` is provided, that means the stop event is issued by a guest app, for
                 // example, the CLI tool, in this case, we need to send feedback to acknowledge the
                 // sender that the process has finished.
-                this.send({ cmd: "goodbye", app: this.appName });
-                this.send({
+                //
+                // Apparently there is some compatibility issues in the Golang's go-winio package,
+                // if we sent the messages one by one continuously, go-winio cannot receive them
+                // well. So we send them in one packet, allowing the host server to separate them
+                // when received as a whole.
+                this.send({ cmd: "goodbye", app: this.appName }, {
                     cmd: "reply",
                     app: this.appName,
                     msgId: replyId,
@@ -173,8 +179,8 @@ export class Guest {
         return ok;
     }
 
-    async send(msg: ControlMessage) {
-        this.conn?.write(encodeMessage(msg));
+    async send(...msg: ControlMessage[]) {
+        this.conn?.write(msg.map(m => encodeMessage(m)).join(""));
     }
 
     private async reconnect() {

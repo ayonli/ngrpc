@@ -15,11 +15,15 @@ export async function exists(filename: string) {
 }
 
 export function absPath(filename: string, withPipe = false): string {
-    if (!/^\/|^[a-zA-Z]:[\\\/]/.test(filename) && typeof process === "object") {
-        filename = path.resolve(process.cwd(), filename);
-    }
+    let isAbs = false
 
-    if (path?.sep) {
+    if (!/^\/|^[a-zA-Z]:[\\\/]/.test(filename)) {
+        filename = path.resolve(process.cwd(), filename);
+    } else {
+        isAbs = true
+    }
+    
+    if (!isAbs && path.sep) {
         filename = filename.replace(/\\|\//g, path.sep);
     }
 

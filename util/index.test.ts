@@ -28,11 +28,6 @@ test("absPath", async () => {
     }
 });
 
-// test("getCpuUsage", () => {
-//     const usage = getCpuUsage();
-//     assert.ok(usage.percent > 0);
-// });
-
 test("timed", () => {
     const str = timed`everything is fine`;
     assert.ok(str.match(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} /));

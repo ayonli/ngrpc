@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ayonli/goext/slicex"
@@ -122,7 +123,7 @@ func (self *Guest) Join() {
 func (self *Guest) connect() error {
 	sockFile, sockPath := GetSocketPath()
 
-	if !util.Exists(sockFile) {
+	if !IsLive() {
 		return errors.New("host server is not running")
 	}
 
@@ -161,7 +162,8 @@ func (self *Guest) connect() error {
 					self.processHostMessage(handshake, &packet, buf[:n], true)
 					self.handleHostDisconnection()
 					break
-				} else if errors.Is(err, net.ErrClosed) {
+				} else if errors.Is(err, net.ErrClosed) ||
+					strings.Contains(err.Error(), "closed") { // go-winio error
 					self.handleHostDisconnection()
 					break
 				} else {
@@ -188,8 +190,12 @@ func (self *Guest) Leave(reason string, replyId string) bool {
 			// If `replyId` is provided, that means the stop event is issued by a guest app, for
 			// example, the CLI tool, in this case, we need to send feedback to acknowledge the
 			// sender that the process has finished.
-			self.Send(ControlMessage{Cmd: "goodbye", App: self.AppName})
-			self.Send(ControlMessage{
+			//
+			// Apparently there is some compatibility issues in the Golang's go-winio package,
+			// if we sent the messages one by one continuously, go-winio cannot receive them
+			// well. So we send them in one packet, allowing the host server to separate them
+			// when received as a whole.
+			self.Send(ControlMessage{Cmd: "goodbye", App: self.AppName}, ControlMessage{
 				Cmd:   "reply",
 				App:   self.AppName,
 				MsgId: replyId,
@@ -208,8 +214,11 @@ func (self *Guest) Leave(reason string, replyId string) bool {
 	return ok
 }
 
-func (self *Guest) Send(msg ControlMessage) error {
-	_, err := self.conn.Write(EncodeMessage(msg))
+func (self *Guest) Send(msg ...ControlMessage) error {
+	packet := slicex.Flat(slicex.Map(msg, func(chunk ControlMessage, _ int) []byte {
+		return EncodeMessage(chunk)
+	}))
+	_, err := self.conn.Write(packet)
 	return err
 }
 

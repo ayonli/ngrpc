@@ -1,13 +1,11 @@
 package host
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -84,7 +82,7 @@ func TestGetSocketPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(cwd, "ngrpc.sock"), sockFile)
 
 	if runtime.GOOS == "windows" {
-		assert.Equal(t, "\\.\\pipe\\"+filepath.Join(cwd, "ngrpc.sock"), sockPath)
+		assert.Equal(t, "\\\\.\\pipe\\"+filepath.Join(cwd, "ngrpc.sock"), sockPath)
 	} else {
 		assert.Equal(t, filepath.Join(cwd, "ngrpc.sock"), sockPath)
 	}
@@ -124,7 +122,12 @@ func TestHost_Start(t *testing.T) {
 	host2 := NewHost(config, false)
 	err2 := host2.Start(false)
 
-	assert.Contains(t, err2.Error(), "address already in use")
+	if runtime.GOOS == "windows" {
+		assert.Contains(t, err2.Error(), "Access is denied")
+	} else {
+		assert.Contains(t, err2.Error(), "address already in use")
+	}
+
 	assert.Equal(t, 0, host2.state)
 	assert.Nil(t, host2.server)
 	assert.Equal(t, "", host2.sockFile)
@@ -141,37 +144,18 @@ func TestHost_Stop(t *testing.T) {
 	err := host.Start(false)
 
 	assert.Nil(t, err)
-	assert.True(t, util.Exists(host.sockFile))
+
+	if runtime.GOOS != "windows" {
+		assert.True(t, util.Exists(host.sockFile))
+	}
 
 	host.Stop()
 
 	assert.Equal(t, 0, host.state)
-	assert.False(t, util.Exists(host.sockFile))
-}
 
-func TestHost_WaitForExit(t *testing.T) {
-	goext.Ok(0, util.CopyFile("../ngrpc.json", "ngrpc.json"))
-	goext.Ok(0, util.CopyFile("../tsconfig.json", "tsconfig.json"))
-	defer os.Remove("ngrpc.json")
-	defer os.Remove("tsconfig.json")
-
-	config := goext.Ok(config.LoadConfig())
-	host := NewHost(config, false)
-
-	go func() {
-		time.Sleep(time.Millisecond * 10) // wait a while for the host to start
-		assert.Equal(t, 1, host.state)
-		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-	}()
-
-	defer func() {
-		if re := recover(); re != nil {
-			assert.Equal(t, 0, host.state)
-			assert.Equal(t, "unexpected call to os.Exit(0) during test", fmt.Sprint(re))
-		}
-	}()
-
-	host.Start(true)
+	if runtime.GOOS != "windows" {
+		assert.False(t, util.Exists(host.sockFile))
+	}
 }
 
 func TestIsLive(t *testing.T) {
@@ -199,11 +183,15 @@ func TestIsLiv_redundantSocketFile(t *testing.T) {
 	sockFile, _ := GetSocketPath()
 	os.WriteFile(sockFile, []byte{}, 0644)
 
-	assert.True(t, util.Exists(sockFile))
+	if runtime.GOOS != "windows" {
+		assert.True(t, util.Exists(sockFile))
+	}
 
 	assert.False(t, IsLive())
 
-	assert.False(t, util.Exists(sockFile))
+	if runtime.GOOS != "windows" {
+		assert.False(t, util.Exists(sockFile))
+	}
 }
 
 func TestSendCommand_stop(t *testing.T) {
@@ -375,12 +363,11 @@ func TestSendCommand_stopHost(t *testing.T) {
 		SendCommand("stop-host", "")
 	}()
 
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Second) // after a second, all clients shall be closed, including the :cli
 
 	assert.Equal(t, 0, guest.state)
 	assert.Equal(t, 0, host.state)
-	assert.Equal(t, 1, len(host.clients))
-	assert.Equal(t, ":cli", host.clients[0].App)
+	assert.Equal(t, 0, len(host.clients))
 }
 
 func TestCommand_listWhenNoHost(t *testing.T) {

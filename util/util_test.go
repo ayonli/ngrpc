@@ -37,12 +37,6 @@ func TestAbsPath(t *testing.T) {
 	}
 }
 
-func TestRandomString(t *testing.T) {
-	str := RandomString()
-
-	assert.Equal(t, 8, len(str))
-}
-
 func TestHash(t *testing.T) {
 	hash := Hash("hello, world!")
 

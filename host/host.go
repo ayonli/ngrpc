@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -23,6 +24,7 @@ import (
 	"github.com/ayonli/ngrpc/config"
 	"github.com/ayonli/ngrpc/host/socket"
 	"github.com/ayonli/ngrpc/util"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/rodaine/table"
 	"github.com/struCoder/pidusage"
 )
@@ -237,7 +239,8 @@ func (self *Host) handleGuestConnection(conn net.Conn) {
 				self.processGuestMessage(conn, &packet, buf[:n], true)
 				self.handleGuestDisconnection(conn)
 				break
-			} else if errors.Is(err, net.ErrClosed) {
+			} else if errors.Is(err, net.ErrClosed) ||
+				strings.Contains(err.Error(), "closed") { // go-winio error
 				self.handleGuestDisconnection(conn)
 				break
 			}
@@ -321,7 +324,7 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 			})
 
 			if exists {
-				msgId := util.RandomString()
+				msgId, _ := gonanoid.New()
 
 				client.conn.Write(EncodeMessage(ControlMessage{Cmd: msg.Cmd, MsgId: msgId}))
 				self.setCallback(msgId, func(reply ControlMessage) {
@@ -345,7 +348,7 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 				lock := sync.Mutex{}
 
 				slicex.ForEach(clients, func(client clientRecord, _ int) {
-					msgId := util.RandomString()
+					msgId, _ := gonanoid.New()
 
 					client.conn.Write(EncodeMessage(ControlMessage{Cmd: msg.Cmd, MsgId: msgId}))
 					self.callbacks.Set(msgId, func(reply ControlMessage) {
@@ -720,11 +723,11 @@ func (self *Host) sendAndWait(msg ControlMessage, guest *Guest, fin bool) {
 func IsLive() bool {
 	sockFile, sockPath := GetSocketPath()
 
-	if !util.Exists(sockFile) {
+	if runtime.GOOS != "windows" && !util.Exists(sockFile) {
 		return false
 	}
 
-	conn, err := net.DialTimeout("unix", sockPath, time.Second)
+	conn, err := socket.DialTimeout(sockPath, time.Second)
 
 	if err != nil {
 		os.Remove(sockFile) // The socket file is left by a unclean shutdown, remove it.

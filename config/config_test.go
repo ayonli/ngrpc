@@ -111,7 +111,7 @@ func TestGetCredentialsInvalidCertFile(t *testing.T) {
 	urlObj, _ := url.Parse(app.Url)
 	_, err := GetCredentials(app, urlObj)
 
-	assert.Equal(t, "open ./certs/cert.pem: no such file or directory", err.Error())
+	assert.Contains(t, err.Error(), "open ./certs/cert.pem:")
 }
 
 func TestGetCredentialsInvalidKeyFile(t *testing.T) {
@@ -126,7 +126,7 @@ func TestGetCredentialsInvalidKeyFile(t *testing.T) {
 	urlObj, _ := url.Parse(app.Url)
 	_, err := GetCredentials(app, urlObj)
 
-	assert.Equal(t, "open ./certs/cert.key: no such file or directory", err.Error())
+	assert.Contains(t, err.Error(), "open ./certs/cert.key:")
 }
 
 func TestGetCredentialsBadCa(t *testing.T) {

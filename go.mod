@@ -6,6 +6,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/ayonli/goext v0.3.4
 	github.com/gin-gonic/gin v1.9.1
+	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/rodaine/table v1.1.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
