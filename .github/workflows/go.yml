@@ -16,11 +16,21 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: '1.21'
+
+    - run: go mod tidy
     - run: go install github.com/ayonli/ngrpc/cli/ngrpc
+    - run: npm i
+    - run: npx tsc
 
     - name: Test config
       run: go test -v --timeout 60s ./config
@@ -30,4 +40,3 @@ jobs:
       run: go test -v --timeout 60s ./util
     - name: Test main
       run: go test --timeout 60s -v .
-

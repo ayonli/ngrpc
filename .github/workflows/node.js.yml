@@ -21,15 +21,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+    
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: '1.21'
+
+    - run: go mod tidy
     - run: go install github.com/ayonli/ngrpc/cli/ngrpc
     - run: npm i
-    - run: npm test
+    - run: npx tsc
+
+    - name: Test
+      run: npm test

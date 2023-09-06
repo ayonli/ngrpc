@@ -6,7 +6,6 @@
   "types": "index.ts",
   "scripts": {
     "prepublishOnly": "tsc",
-    "postpublish": "node postpublish.js",
     "test": "mocha"
   },
   "bin": {
