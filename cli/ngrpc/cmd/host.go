@@ -19,13 +19,13 @@ var hostCmd = &cobra.Command{
 		flag := cmd.Flag("stop")
 
 		if flag != nil && flag.Value.String() == "true" {
-			if !host.IsLive() {
+			if !host.IsHostOnline() {
 				fmt.Println("host server is not running")
 			} else {
 				host.SendCommand("stop-host", "")
 				log.Println("host server shut down")
 			}
-		} else if host.IsLive() {
+		} else if host.IsHostOnline() {
 			fmt.Println("host server is already running")
 		} else {
 			err := startHost(true)

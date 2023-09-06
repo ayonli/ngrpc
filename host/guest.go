@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -91,6 +92,24 @@ func GetSocketPath() (sockFile string, sockPath string) {
 	return sockFile, sockPath
 }
 
+func IsHostOnline() bool {
+	sockFile, sockPath := GetSocketPath()
+
+	if runtime.GOOS != "windows" && !util.Exists(sockFile) {
+		return false
+	}
+
+	conn, err := socket.DialTimeout(sockPath, time.Second)
+
+	if err != nil {
+		os.Remove(sockFile) // The socket file is left by a unclean shutdown, remove it.
+		return false
+	} else {
+		conn.Close()
+		return true
+	}
+}
+
 type Guest struct {
 	AppName string
 	AppUrl  string
@@ -123,7 +142,7 @@ func (self *Guest) Join() {
 func (self *Guest) connect() error {
 	sockFile, sockPath := GetSocketPath()
 
-	if !IsLive() {
+	if !IsHostOnline() {
 		return errors.New("host server is not running")
 	}
 

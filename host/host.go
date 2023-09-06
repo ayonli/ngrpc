@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -717,24 +716,6 @@ func (self *Host) sendAndWait(msg ControlMessage, guest *Guest, fin bool) {
 		} else {
 			guest.Leave("", "")
 		}
-	}
-}
-
-func IsLive() bool {
-	sockFile, sockPath := GetSocketPath()
-
-	if runtime.GOOS != "windows" && !util.Exists(sockFile) {
-		return false
-	}
-
-	conn, err := socket.DialTimeout(sockPath, time.Second)
-
-	if err != nil {
-		os.Remove(sockFile) // The socket file is left by a unclean shutdown, remove it.
-		return false
-	} else {
-		conn.Close()
-		return true
 	}
 }
 

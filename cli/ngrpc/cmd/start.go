@@ -11,7 +11,7 @@ var startCmd = &cobra.Command{
 	Use:   "start [app]",
 	Short: "start an app or all apps (exclude non-served ones)",
 	Run: func(cmd *cobra.Command, args []string) {
-		if !host.IsLive() {
+		if !host.IsHostOnline() {
 			err := startHost(false)
 
 			if err != nil {
