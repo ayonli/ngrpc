@@ -2,8 +2,10 @@
 
 Make it easy to create clean and elegant gRPC based microservices.
 
-This package is written in and for both Node.js and Golang, and allowing them to work seamlessly
-with each other.
+This package is written in and for both Node.js and Golang, enabling them to work seamlessly with
+each other in one codebase.
+
+*NOTE: this repo itself is an example of using NgRPC in practice.*
 
 ## Install
 
