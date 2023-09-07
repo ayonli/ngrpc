@@ -23,11 +23,15 @@ go get github.com/ayonli/ngrpc
 
 ### Install the CLI tool
 
-The CLI tool is written in Golang, so we have to install it via `go install` command:
+If we are coding in Golang (or have Golang installed), we can install the CLI tool via `go install`
+command:
 
 ```sh
 go build github.com/ayonli/ngrpc/cli/ngrpc
 ```
+
+Or we can go to the [releases page](https://github.com/ayonli/ngrpc/releases) and download prebuilt
+binaries that fit our computers.
 
 ## A Simple Example
 
