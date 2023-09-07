@@ -27,7 +27,7 @@ If we are coding in Golang (or have Golang installed), we can install the CLI to
 command:
 
 ```sh
-go build github.com/ayonli/ngrpc/cli/ngrpc
+go install github.com/ayonli/ngrpc/cli/ngrpc
 ```
 
 Or we can go to the [releases page](https://github.com/ayonli/ngrpc/releases) and download prebuilt

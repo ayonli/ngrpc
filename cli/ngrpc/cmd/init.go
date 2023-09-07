@@ -359,7 +359,7 @@ var initCmd = &cobra.Command{
 
 			depCmd = exec.Command("go", "mod", "tidy")
 		} else if template == "node" {
-			depCmd = exec.Command("npm", "i", "typescript", "tslib", "source-map-support")
+			depCmd = exec.Command("npm", "i", "-D", "typescript", "tslib", "source-map-support")
 		}
 
 		if depCmd != nil {
