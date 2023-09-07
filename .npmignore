@@ -15,6 +15,7 @@ postpublish.js
 pm2.config.js
 cert-ext.conf
 certs/
+cli/
 entry/
 proto/
 services/

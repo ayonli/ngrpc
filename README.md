@@ -7,31 +7,21 @@ each other in one codebase.
 
 *NOTE: this repo itself is an example of using NgRPC in practice.*
 
-## Install
+## Getting Started
 
-**In Node.js**
-
-```sh
-npm i @ayonli/ngrpc
-```
-
-**In Golang**
+First, install the CLI tool via one of the following commands:
 
 ```sh
-go get -u github.com/ayonli/ngrpc
+npm i -g @ayonli/ngrpc                              # for Node.js user
+go install github.com/ayonli/ngrpc/cli/ngrpc@latest # for Golang user
 ```
 
-### Install the CLI tool
-
-If we are coding in Golang (or have Golang installed), we can install the CLI tool via `go install`
-command:
+Then use one of the following commands to initiate the project:
 
 ```sh
-go install github.com/ayonli/ngrpc/cli/ngrpc@latest
+ngrpc init -t node # for Node.js project
+ngrpc init -t go   # for Golang project
 ```
-
-Or we can go to the [releases page](https://github.com/ayonli/ngrpc/releases) and download prebuilt
-binaries that fit our computers.
 
 ## A Simple Example
 
