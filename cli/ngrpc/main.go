@@ -7,6 +7,7 @@ import (
 	"github.com/ayonli/ngrpc/cli/ngrpc/cmd"
 	"github.com/ayonli/ngrpc/config"
 	"github.com/ayonli/ngrpc/pm"
+	_ "github.com/spf13/cobra"
 )
 
 func main() {
