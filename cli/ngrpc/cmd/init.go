@@ -187,19 +187,18 @@ func main() {
 	defer done()
 
 	ctx := context.Background()
-	exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
+	expSrv := goext.Ok((&services.ExampleService{}).GetClient(""))
 
-	result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
-	fmt.Println(result.Message)
+	reply := goext.Ok(expSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
+	fmt.Println(reply.Message)
 }
 `
 
-var scriptTsTpl = `/// <reference path="../services/ExampleService.ts" />
-import ngrpc from "@ayonli/ngrpc";
+var scriptTsTpl = `import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.runSnippet(async () => {
-    const result = await services.ExampleService.sayHello({ name: "World" });
-    console.log(result.message);
+    const reply = await services.ExampleService.sayHello({ name: "World" });
+    console.log(reply.message);
 });
 `
 

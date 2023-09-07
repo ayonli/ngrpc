@@ -17,7 +17,7 @@ func main() {
 
 	ctx := context.Background()
 	userId := "ayon.li"
-	userSrv := goext.Ok(ngrpc.GetServiceClient(&services.UserService{}, ""))
+	userSrv := goext.Ok((&services.UserService{}).GetClient(userId))
 
 	user := goext.Ok(userSrv.GetUser(ctx, &services_proto.UserQuery{Id: &userId}))
 	fmt.Println(user)
@@ -25,7 +25,7 @@ func main() {
 	posts := goext.Ok(userSrv.GetMyPosts(ctx, &services_proto.UserQuery{Id: &userId}))
 	fmt.Println(posts)
 
-	exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
-	reply := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
+	expSrv := goext.Ok((&services.ExampleService{}).GetClient(""))
+	reply := goext.Ok(expSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
 	fmt.Println(reply.Message)
 }

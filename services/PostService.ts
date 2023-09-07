@@ -1,5 +1,3 @@
-/// <reference path="./ExampleService.ts" />
-/// <reference path="./UserService.ts" />
 import _try from "dotry";
 import { ServiceClient, LifecycleSupportInterface, service } from "@ayonli/ngrpc";
 import { Post, User } from "./struct";
@@ -55,7 +53,7 @@ export default class PostService implements LifecycleSupportInterface {
         const post = this.postStore?.find(item => item.id === query.id);
 
         if (post) {
-            const author = await this.userSrv.getUser({ id: post.author, });
+            const author = await this.userSrv.getUser({ id: post.author });
             return { ...post, author };
         } else {
             throw new Error(`Post ${query.id} not found`);

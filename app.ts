@@ -119,10 +119,10 @@ export interface Config {
  * This type represents an interface that supports lifecycle events on the gRPC app. If a service
  * implements this interface, when the app starts and the service is loaded (or reloaded), the
  * `init()` method will be automatically called, we can add some async logic inside it, for example,
- * establishing database connection, which is normally not possible in the default `constructor()`
+ * establishing database connection, which is normally impossible in the default `constructor()`
  * method since it doesn't support asynchronous codes. And when the app is about to stop, or the
  * service is about to be reloaded, the `destroy()` method will be called, which gives the ability
- * to clean up and release resource.
+ * to clean up and release resources.
  */
 export interface LifecycleSupportInterface {
     init(): Promise<void>;

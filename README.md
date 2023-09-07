@@ -50,7 +50,7 @@ First, take a look at this configuration ([ngrpc.json](./ngrpc.json)):
             "services": [
                 "services.ExampleService"
             ],
-            "entry": "entry/main.ts", // alternatively we can use `entry/main.go` instead.
+            "entry": "entry/main.ts", // alternatively, we can use `entry/main.go` instead.
             "stdout": "out.log"
         },
         {
@@ -178,8 +178,8 @@ func main() {
         `compilerOptions.outDir` to `dist` in `tsconfig.json`), then this option should be set to
         `dist` as well.
     
-    This options is also used for generating Golang code from the `.proto` files. If we set a `src`
-    directory, the code will be generated into this directory as well.
+    This option is also used for generating Golang code from the `.proto` files. If we set a `src`
+    directory, the code will be generated into that directory as well.
 - `protoOptions` These options are used when loading the `.proto` files in Node.js. Check
     [ngrpc.schema.json](./ngrpc.schema.json) for more details.
 
@@ -200,7 +200,7 @@ connect to the services, all is properly handled behind the scene.
 ## CLI Commands
 
 - `ngrpc init [flags]` initiate a new NgRPC project
-    - `-t --template <string>` available values are "go" or "node"
+    - `-t --template <string>` available values are `go` or `node`
 
     TIP: we can run this command twice with different template for the setup for both languages,
     existing files will be untouched.
@@ -228,20 +228,20 @@ connect to the services, all is properly handled behind the scene.
     NOTE: this command is not used if our project only contains Node.js programs.
 
 - `ngrpc cert <out> [flags]` generate a pair of self-signed certificate.
-    - `--ca string` use a ca.pem for signing, if doesn't exist, it will be auto-generated
-        (default "certs/ca.pem")
-    - `--caKey string` use a ca.key for signing, if doesn't exist, it will be auto-generated
-        (default "certs/ca.key")
+    - `--ca string` use a **ca.pem** for signing, if doesn't exist, it will be auto-generated
+        (default `certs/ca.pem`)
+    - `--caKey string` use a **ca.key** for signing, if doesn't exist, it will be auto-generated
+        (default `certs/ca.key`)
 
 - `ngrpc host [flags]` start the host server in standalone mode
     - `--stop` stop the host server
 
     NOTE: when `start` command is issued, the host server will be automatically started. The `host`
     command is used when our program isn't started by the `start` command and we need the
-    functionalities that **ngrpc** provides. For examples, we start our program via **PM2** and we
+    functionalities that **NgRPC** provides. For examples, we start our program via **PM2** and we
     still need the `reload` command to function once we deployed new updates.
 
-### Hot-Reloading (only Node.js)
+### Hot-Reloading (Node.js only)
 
 After we've modified our source code (or recompiled), the `.proto` files, or the config file, we can
 use the `reload` command to hot-reload our apps without restarting the process.
@@ -249,7 +249,7 @@ use the `reload` command to hot-reload our apps without restarting the process.
 When the command is issued, the application will scan the imported service files and their
 dependencies (exclude the ones in `node_modules`), and reload them all at once. Since this procedure
 doesn't restart the process, all context stores in the global scope are still available.
-Hot-reloading is much faster than restarting the whole program, the clients will experience
+Hot-reloading is much faster than restarting the whole program, the client will experience
 0-downtime of our services.
 
 It's important to point out, though, that the hot-reloading model this package uses only supports
@@ -271,17 +271,17 @@ the app, the CLI tool also starts a host server to hold communication between ap
 responsible to accept commands sent by the CLI tool and distribute them to the app.
 
 When an app crashes, the host server is also responsible for re-spawning it, this feature guarantees
-that our app is always online. Except when the host server is running in standalone mode, at which
+that our app is always online. Except when the host server is running in standalone mode, in which
 the app should be re-spawned by the external process management like PM2.
 
-Moreover, that the CLI tool only works for the app instance, if the process contains other logics
+Moreover, the CLI tool only works for the app instance, if the process contains other logics
 that prevent the process to exit, the `stop` command will not be able to terminate the process, in
 such case, a force kill is required.
 
 ## Implement a Service
 
 To allow NgRPC to handle the serving and connecting process of our services, we need to
-implement our service in a well-designed fashion.
+implement our services in a well-designed fashion.
 
 For example, a typical service should be designed like this:
 
@@ -338,7 +338,7 @@ type ExampleService {}
 
 #### func init
 
-In each service file, we need to define a `init` function to use the service:
+In each service file, we need to define an `init` function to use the service:
 
 ```go
 func init() {
@@ -354,7 +354,7 @@ For a service in order to be served, a `Serve()` method is required in the servi
 func (self *ExampleService) Serve(s grpc.ServiceRegistrar) {
     proto.RegisterExampleServiceServer(s, self)
 
-    // other initiations, like establishing database connections
+    // other initiations, e.g. establishing database connections
 }
 ```
 
@@ -394,13 +394,13 @@ export default class ExampleService implements LifecycleSupportInterface {
     async init(): Promise<void> {
         // When the service is loaded (or reloaded), the `init()` method will be automatically
         // called, we can add some async logic inside it, for example, establishing database
-        // connection, which is normally not possible in the default `constructor()` method
+        // connection, which is normally impossible in the default `constructor()` method
         // since it doesn't support asynchronous codes.
     }
 
     async destroy(): Promise<void> {
         // When the app is about to stop, or the service is about to be reloaded, the `destroy()`
-        // method will be called, which gives the ability to clean up and release resource.
+        // method will be called, which gives the ability to clean up and release resources.
     }
 }
 ```
@@ -413,7 +413,7 @@ We use the `Serve()` method for additional setup, and the `Stop()` method for te
 func (self *ExampleService) Serve(s grpc.ServiceRegistrar) {
     proto.RegisterExampleServiceServer(s, self)
 
-    // other initiations, like establishing database connections
+    // other initiations, e.g. establishing database connections
 }
 
 func (self *ExampleService) Stop() {
@@ -438,7 +438,7 @@ export default class PostService {
 
         if (post) {
             // ---- highlight ----
-            const author = await this.userSrv.getUser({ id: post.author, });
+            const author = await this.userSrv.getUser({ id: post.author });
             // ---- highlight ----
 
             return { ...post, author };
@@ -466,9 +466,8 @@ func (self *UserService) GetMyPosts(ctx context.Context, query *proto.UserQuery)
 
         // ---- highlight ----
         ins := goext.Ok(self.PostSrv.GetClient(user.Id))
-        // ---- highlight ----
-
         res := goext.Ok(ins.SearchPosts(ctx, &services_proto.PostsQuery{Author: &user.Id}))
+        // ---- highlight ----
 
         return (*services_proto.PostQueryResult)(res)
     })
@@ -477,9 +476,8 @@ func (self *UserService) GetMyPosts(ctx context.Context, query *proto.UserQuery)
 
 ## Load Balancing and Routing
 
-If a service is served in multiple apps, NgRPC uses a client-side load balancer to connect to it,
-the load balancer is configured with a custom routing resolver which automatically redirect traffic
-for us.
+NgRPC comes with a client-side load balancer, we can set the same service in multiple apps and the
+internal routing resolver which automatically redirect traffic for us.
 
 There are three algorithms used based on the `route`:
 
@@ -612,12 +610,11 @@ and call their methods, for whatever the reason is, NgRPC makes this very easy f
 **In Node.js**
 
 ```ts
-/// <reference path="./services/ExampleService.ts" />
 import ngrpc from "@ayonli/ngrpc";
 
 ngrpc.runSnippet(async () => {
-    const result = await services.ExampleService.sayHello({ name: "World" });
-    console.log(result.message);
+    const reply = await services.ExampleService.sayHello({ name: "World" });
+    console.log(reply.message);
 });
 ```
 
@@ -642,10 +639,10 @@ func main() {
     defer done()
 
     ctx := context.Background()
-    exampleSrv := goext.Ok(ngrpc.GetServiceClient(&services.ExampleService{}, ""))
+    expSrv := goext.Ok((&services.ExampleService{}).GetClient(""))
 
-    result := goext.Ok(exampleSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
-    fmt.Println(result.Message)
+    reply := goext.Ok(expSrv.SayHello(ctx, &proto.HelloRequest{Name: "World"}))
+    fmt.Println(reply.Message)
 }
 ```
 
