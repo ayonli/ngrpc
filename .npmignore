@@ -2,6 +2,9 @@
 *.sh
 *.tgz
 *.log
+*.test.ts
+*.test.js
+*.test.js.map
 *.go
 go.*
 tsconfig.tsbuildinfo
@@ -16,7 +19,10 @@ entry/
 proto/
 services/
 scripts/
+web/
 dist/entry/
 dist/services/
 dist/scripts/
+dist/web/
 prebuild/
+api-node.md
