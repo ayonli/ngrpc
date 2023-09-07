@@ -24,19 +24,12 @@ func init() {
 	rootCmd.AddCommand(protocCmd)
 }
 
-func modExists(modName string) bool {
-	cmd := exec.Command("go", "list", modName)
-	_, err := cmd.Output()
-
-	return err == nil
-}
-
 func ensureDeps() {
 	dep1 := "google.golang.org/protobuf/cmd/protoc-gen-go"
 	dep2 := "google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3"
 
-	if !modExists(dep1) {
-		goext.Ok(0, exec.Command("go", "install", dep1+"").Run())
+	if !goModuleExists(dep1) {
+		goext.Ok(0, exec.Command("go", "install", dep1).Run())
 		goext.Ok(0, exec.Command("go", "install", dep2).Run())
 	}
 }

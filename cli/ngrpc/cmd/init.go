@@ -354,6 +354,25 @@ var initCmd = &cobra.Command{
 		// install dependencies
 		var depCmd *exec.Cmd
 
+		if template == "go" && !goModuleExists("github.com/ayonli/ngrpc") {
+			depCmd = exec.Command("go", "get", "-u", "github.com/ayonli/ngrpc")
+		} else if template == "node" && !nodeModuleExists("@ayonli/ngrpc") {
+			depCmd = exec.Command("npm", "i", "@ayonli/ngrpc")
+		}
+
+		if depCmd != nil {
+			depCmd.Stdout = os.Stdout
+			depCmd.Stderr = os.Stderr
+			err := depCmd.Run()
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			} else {
+				cmd = nil
+			}
+		}
+
 		if template == "go" {
 			protoc() // generate code from proto files
 
@@ -370,6 +389,8 @@ var initCmd = &cobra.Command{
 			if err != nil {
 				fmt.Println(err)
 				return
+			} else {
+				cmd = nil
 			}
 		}
 
@@ -412,4 +433,18 @@ func getGoModuleName() string {
 	}
 
 	return ""
+}
+
+func goModuleExists(modName string) bool {
+	cmd := exec.Command("go", "list", modName)
+	_, err := cmd.Output()
+
+	return err == nil
+}
+
+func nodeModuleExists(modName string) bool {
+	cmd := exec.Command("npm", "ls", modName)
+	_, err := cmd.Output()
+
+	return err == nil
 }
