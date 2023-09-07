@@ -6,6 +6,8 @@ This decorator function is used to link the service class to a gRPC service.
 
 - `name` The service name defined in the `.proto` file.
 
+----
+
 **`ngrpc.start(appName?: string): Promise<RpcApp>`**
 
 Initiates an app by the given name and loads the config file, it initiates the server (if served)
