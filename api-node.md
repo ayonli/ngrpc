@@ -1,6 +1,6 @@
 ## Programmatic API for Node.js
 
-**service(name: string): ClassDecorator**
+**`service(name: string): ClassDecorator`**
 
 This decorator function is used to link the service class to a gRPC service.
 
@@ -72,7 +72,7 @@ This function is rarely used explicitly, prefer the CLI `reload` command instead
 
 ----
 
-**`app.waitForExit(): void**
+**`app.waitForExit(): void`**
 
 Listens for system signals to exit the program.
 
