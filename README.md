@@ -278,8 +278,6 @@ Moreover, that the CLI tool only works for the app instance, if the process cont
 that prevent the process to exit, the `stop` command will not be able to terminate the process, in
 such case, a force kill is required.
 
-*PS: memory and CPU stats are currently not available on Windows.*
-
 ## Implement a Service
 
 To allow NgRPC to handle the serving and connecting process of our services, we need to

@@ -2,14 +2,20 @@ package util
 
 import (
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
+	"github.com/ayonli/goext"
+	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/goext/stringx"
+	"github.com/struCoder/pidusage"
 )
 
 func Exists(filename string) bool {
@@ -86,4 +92,33 @@ func CopyFile(src string, dst string) error {
 	}
 
 	return err
+}
+
+func GetPidStat(pid int) (*pidusage.SysInfo, error) {
+	return goext.Try(func() *pidusage.SysInfo {
+		if runtime.GOOS == "windows" {
+			cmd := exec.Command("powershell", "-nologo", "-noprofile")
+			stdin := goext.Ok(cmd.StdinPipe())
+
+			go func() {
+				defer stdin.Close()
+				fmt.Fprint(stdin, "Get-Process -Id "+strconv.Itoa(pid))
+			}()
+
+			out := goext.Ok(cmd.CombinedOutput())
+			lines := slicex.Map(strings.Split(string(out), "\n"), func(line string, _ int) string {
+				return strings.Trim(line, "\r\n\t ")
+			})
+			columns := strings.Fields(lines[3])
+			memory := goext.Ok(strconv.Atoi(columns[3]))
+			cpu := goext.Ok(strconv.ParseFloat(columns[4], 64))
+
+			return &pidusage.SysInfo{
+				Memory: float64(memory) * 1024,
+				CPU:    cpu,
+			}
+		} else {
+			return goext.Ok(pidusage.GetStat(pid))
+		}
+	})
 }

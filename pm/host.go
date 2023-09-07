@@ -25,7 +25,6 @@ import (
 	"github.com/ayonli/ngrpc/util"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/rodaine/table"
-	"github.com/struCoder/pidusage"
 )
 
 func init() {
@@ -552,14 +551,14 @@ func (self *Host) listApps(records []clientRecord) {
 		if exists {
 			var memory float64
 			var cpu float64
-			sysInfo, err := pidusage.GetStat(item.Pid)
+			stat, err := util.GetPidStat(item.Pid)
 
 			if err != nil {
 				memory = -1
 				cpu = -1
 			} else {
-				memory = sysInfo.Memory
-				cpu = sysInfo.CPU
+				memory = stat.Memory
+				cpu = stat.CPU
 			}
 
 			list = append(list, appStat{

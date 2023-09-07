@@ -64,3 +64,9 @@ func TestCopyFile(t *testing.T) {
 
 	assert.Equal(t, srcContents, dstContents)
 }
+
+func TestGetPidStat(t *testing.T) {
+	stat := goext.Ok(GetPidStat(os.Getpid()))
+	assert.True(t, stat.Memory > 0)
+	assert.True(t, stat.CPU >= 0.00)
+}
