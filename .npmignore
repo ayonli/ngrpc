@@ -11,9 +11,8 @@ tsconfig.tsbuildinfo
 tsconfig.json
 ngrpc.json
 ngrpc.schema.json
-postpublish.js
 pm2.config.js
-cert-ext.conf
+pack.js
 certs/
 cli/
 entry/
@@ -21,6 +20,7 @@ proto/
 services/
 scripts/
 web/
+dist/cli/ngrpc
 dist/entry/
 dist/services/
 dist/scripts/

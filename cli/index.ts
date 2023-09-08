@@ -28,7 +28,7 @@ function reportImportFailure(err?: Error) {
             reportImportFailure();
         }
 
-        const pkg = isTsNode ? await import("../package.json") : require("../../package.json");
+        const pkg = isTsNode ? require("../package.json") : require("../../package.json");
         const url = `https://github.com/ayonli/ngrpc/releases/download/v${pkg.version}/${zipName}`;
         const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
             https.get(url, res => {
