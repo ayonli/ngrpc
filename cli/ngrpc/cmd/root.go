@@ -6,10 +6,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version string
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "ngrpc",
-	Short: "Easily manage NgRPC apps",
+	Use:     "ngrpc",
+	Version: version,
+	Short:   "Easily manage NgRPC apps",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

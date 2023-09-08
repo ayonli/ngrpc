@@ -7,36 +7,9 @@ import * as tar from "tar";
 import { exists, isTsNode } from "../util";
 import { spawnSync } from "child_process";
 
-const nodeModulesDir = path.dirname(path.dirname(path.dirname(__dirname)));
-const hiddenDir = path.join(nodeModulesDir, ".ngrpc");
-const cmdPath = path.join(hiddenDir, process.platform === "win32" ? "ngrpc.exe" : "ngrpc");
-let zipName: string | undefined;
-
-if (process.platform === "darwin") {
-    if (process.arch === "arm64") {
-        zipName = `ngrpc-mac-arm64.tgz`;
-    } else if (process.arch === "x64") {
-        zipName = "ngrpc-mac-amd64.tgz";
-    }
-} else if (process.platform === "linux") {
-    if (process.arch === "arm64") {
-        zipName = `ngrpc-linux-arm64.tgz`;
-    } else if (process.arch === "x64") {
-        zipName = "ngrpc-linux-amd64.tgz";
-    }
-} else if (process.platform === "win32") {
-    if (process.arch === "arm64") {
-        zipName = `ngrpc-windows-arm64.tgz`;
-    } else if (process.arch === "x64") {
-        zipName = "ngrpc-windows-amd64.tgz";
-    }
-}
-
-async function ensureDir(dir: string) {
-    try {
-        await fs.mkdir(dir, { recursive: true });
-    } catch { }
-}
+const exePath = path.join(__dirname, process.platform === "win32" ? "ngrpc.exe" : "ngrpc");
+const os = process.platform === "win32" ? "windows" : process.platform;
+const zipName = `ngrpc-${os}-${process.arch}.tgz`;
 
 function reportImportFailure(err?: Error) {
     if (err) {
@@ -50,12 +23,11 @@ function reportImportFailure(err?: Error) {
 }
 
 (async function main() {
-    if (!(await exists(cmdPath))) {
+    if (!(await exists(exePath))) {
         if (!zipName) {
             reportImportFailure();
         }
 
-        await ensureDir(hiddenDir);
         const pkg = isTsNode ? await import("../package.json") : require("../../package.json");
         const url = `https://github.com/ayonli/ngrpc/releases/download/v${pkg.version}/${zipName}`;
         const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
@@ -69,9 +41,9 @@ function reportImportFailure(err?: Error) {
         }
 
         await new Promise<void>((resolve, reject) => {
-            const out = tar.extract({ cwd: hiddenDir });
+            const out = tar.extract({ cwd: __dirname });
             const handleError = async (err: Error) => {
-                try { await fs.unlink(cmdPath); } catch { }
+                try { await fs.unlink(exePath); } catch { }
                 reject(err);
             };
 
@@ -80,9 +52,9 @@ function reportImportFailure(err?: Error) {
             out.on("error", handleError).on("finish", resolve);
         });
 
-        spawnSync(cmdPath, process.argv.slice(2), { stdio: "inherit" });
+        spawnSync(exePath, process.argv.slice(2), { stdio: "inherit" });
     } else {
-        spawnSync(cmdPath, process.argv.slice(2), { stdio: "inherit" });
+        spawnSync(exePath, process.argv.slice(2), { stdio: "inherit" });
     }
 })().catch(err => {
     reportImportFailure(err);
