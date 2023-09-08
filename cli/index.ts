@@ -3,10 +3,9 @@ import * as http from "http";
 import { https } from "follow-redirects";
 import * as path from "path";
 import * as fs from "fs/promises";
-import * as unzip from "unzipper";
+import * as tar from "tar";
 import { exists, isTsNode } from "../util";
 import { spawnSync } from "child_process";
-import sleep from "@hyurl/utils/sleep";
 
 const nodeModulesDir = path.dirname(path.dirname(path.dirname(__dirname)));
 const hiddenDir = path.join(nodeModulesDir, ".ngrpc");
@@ -15,21 +14,21 @@ let zipName: string | undefined;
 
 if (process.platform === "darwin") {
     if (process.arch === "arm64") {
-        zipName = `ngrpc-mac-arm64.zip`;
+        zipName = `ngrpc-mac-arm64.tgz`;
     } else if (process.arch === "x64") {
-        zipName = "ngrpc-mac-amd64.zip";
+        zipName = "ngrpc-mac-amd64.tgz";
     }
 } else if (process.platform === "linux") {
     if (process.arch === "arm64") {
-        zipName = `ngrpc-linux-arm64.zip`;
+        zipName = `ngrpc-linux-arm64.tgz`;
     } else if (process.arch === "x64") {
-        zipName = "ngrpc-linux-amd64.zip";
+        zipName = "ngrpc-linux-amd64.tgz";
     }
 } else if (process.platform === "win32") {
     if (process.arch === "arm64") {
-        zipName = `ngrpc-linux-arm64.zip`;
+        zipName = `ngrpc-windows-arm64.tgz`;
     } else if (process.arch === "x64") {
-        zipName = "ngrpc-linux-amd64.zip";
+        zipName = "ngrpc-windows-amd64.tgz";
     }
 }
 
@@ -69,20 +68,17 @@ function reportImportFailure(err?: Error) {
             reportImportFailure(new Error(`unable to download ${zipName}`));
         }
 
-        res.pipe(unzip.Extract({ path: hiddenDir }));
-
         await new Promise<void>((resolve, reject) => {
-            res.on("error", (err) => {
+            const out = tar.extract({ cwd: hiddenDir });
+            const handleError = async (err: Error) => {
+                try { await fs.unlink(cmdPath); } catch { }
                 reject(err);
-            }).on("end", () => {
-                resolve();
-            });
-        });
+            };
 
-        if (process.platform !== "win32") {
-            spawnSync("chmod", ["+x", cmdPath], { stdio: "inherit" });
-            await sleep(100); // need to wait a while, don't know why
-        }
+            res.pipe(out);
+            res.on("error", handleError);
+            out.on("error", handleError).on("finish", resolve);
+        });
 
         spawnSync(cmdPath, process.argv.slice(2), { stdio: "inherit" });
     } else {
