@@ -1,6 +1,6 @@
 {
   "name": "@ayonli/ngrpc",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Make it easy to create clean and elegant gRPC based microservices.",
   "main": "dist/index.js",
   "types": "index.ts",

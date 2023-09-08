@@ -9,7 +9,8 @@ import { spawnSync } from "child_process";
 
 const exePath = path.join(__dirname, process.platform === "win32" ? "ngrpc.exe" : "ngrpc");
 const os = process.platform === "win32" ? "windows" : process.platform;
-const zipName = `ngrpc-${os}-${process.arch}.tgz`;
+const arch = process.arch === "x64" ? "amd64" : process.arch;
+const zipName = `ngrpc-${os}-${arch}.tgz`;
 
 function reportImportFailure(err?: Error) {
     if (err) {
