@@ -1,10 +1,12 @@
 {
   "name": "@ayonli/ngrpc",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Make it easy to create clean and elegant gRPC based microservices.",
   "main": "dist/index.js",
   "types": "index.ts",
-  "bin": "dist/cli/index.js",
+  "bin": {
+    "ngrpc": "dist/cli/index.js"
+  },
   "scripts": {
     "prepublishOnly": "tsc",
     "test": "mocha"

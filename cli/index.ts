@@ -9,7 +9,7 @@ import { spawnSync } from "child_process";
 
 const nodeModulesDir = path.dirname(path.dirname(path.dirname(__dirname)));
 const hiddenDir = path.join(nodeModulesDir, ".ngrpc");
-const cmdPath = path.join(hiddenDir, "ngrpc");
+const cmdPath = path.join(hiddenDir, process.platform === "win32" ? "ngrpc.exe" : "ngrpc");
 let zipName: string | undefined;
 
 if (process.platform === "darwin") {
