@@ -1,4 +1,3 @@
-import _try from "dotry";
 import { ServiceClient, LifecycleSupportInterface, service } from "@ayonli/ngrpc";
 import { Post, User } from "./struct";
 

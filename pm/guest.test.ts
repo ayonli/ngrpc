@@ -1,8 +1,8 @@
+import "@ayonli/jsext/function";
 import { test } from "mocha";
 import * as assert from "assert";
 import * as path from "path";
 import * as fs from "fs";
-import _try from "dotry";
 import { App } from "../app";
 import { exists } from "../util";
 import { Guest, ControlMessage, encodeMessage, decodeMessage, getSocketPath } from "./guest";
@@ -124,7 +124,7 @@ test("Guest join redundant socket file", async () => {
         onStopCommand: () => void 0,
         onReloadCommand: () => void 0,
     });
-    const [err] = await _try(() => guest["connect"]());
+    const [err] = await Function.try(() => guest["connect"]());
 
     assert.ok(!!err);
     assert.ok(!(await exists(sockFile)));
