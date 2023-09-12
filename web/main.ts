@@ -1,4 +1,4 @@
-import "@ayonli/jsext/function";
+import jsext from "@ayonli/jsext";
 import * as http from "http";
 import * as https from "https";
 import * as fs from "fs/promises";
@@ -59,7 +59,7 @@ type ApiResponse<T> = {
     route.get("/user/:id", async (req, res) => {
         type UserResponse = ApiResponse<User>;
         const userId = req.params.id;
-        const [err, user] = await Function.try(services.UserService.getUser({ id: userId }));
+        const [err, user] = await jsext.try(services.UserService.getUser({ id: userId }));
 
         if (err) {
             if (err.message.includes("not found")) {
@@ -88,7 +88,7 @@ type ApiResponse<T> = {
             return;
         }
 
-        const [err, result] = await Function.try(services.UserService.getUsers({ gender }));
+        const [err, result] = await jsext.try(services.UserService.getUsers({ gender }));
 
         if (err) {
             res.json({ code: 500, error: err.message } satisfies UsersResponse);
@@ -105,7 +105,7 @@ type ApiResponse<T> = {
             return;
         }
 
-        const [err, result] = await Function.try(services.UserService.getUsers({ minAge, maxAge }));
+        const [err, result] = await jsext.try(services.UserService.getUsers({ minAge, maxAge }));
 
         if (err) {
             res.json({ code: 500, error: err.message } satisfies UsersResponse);
@@ -115,7 +115,7 @@ type ApiResponse<T> = {
     }).get("/user/:id/posts", async (req, res) => {
         type PostsResponse = ApiResponse<Post[]>;
         const userId = req.params.id;
-        const [err, result] = await Function.try(services.UserService.getMyPosts({ id: userId }));
+        const [err, result] = await jsext.try(services.UserService.getMyPosts({ id: userId }));
 
         if (err) {
             res.json({ code: 500, error: err.message } satisfies PostsResponse);
@@ -131,7 +131,7 @@ type ApiResponse<T> = {
             return;
         }
 
-        const [err, post] = await Function.try(services.PostService.getPost({ id }));
+        const [err, post] = await jsext.try(services.PostService.getPost({ id }));
 
         if (err) {
             if (err.message.includes("not found")) {
@@ -144,7 +144,7 @@ type ApiResponse<T> = {
         }
     }).get("/posts/search/:keyword", async (req, res) => {
         type PostsResponse = ApiResponse<Post[]>;
-        const [err, result] = await Function.try(services.PostService.searchPosts({
+        const [err, result] = await jsext.try(services.PostService.searchPosts({
             keyword: req.params.keyword,
         }));
 
