@@ -30,6 +30,10 @@ func TestStart(t *testing.T) {
 
 func TestStartWithoutAppName(t *testing.T) {
 	goext.Ok(0, exec.Command("ngrpc", "start", "example-server").Run())
+	defer func() {
+		goext.Ok(0, exec.Command("ngrpc", "stop").Run())
+		time.Sleep(time.Millisecond * 10)
+	}()
 
 	app := goext.Ok(ngrpc.Start(""))
 	defer app.Stop()
@@ -37,9 +41,6 @@ func TestStartWithoutAppName(t *testing.T) {
 	srv := goext.Ok((&services.ExampleService{}).GetClient(""))
 	reply := goext.Ok(srv.SayHello(context.Background(), &proto.HelloRequest{Name: "World"}))
 	assert.Equal(t, "Hello, World", reply.Message)
-
-	goext.Ok(0, exec.Command("ngrpc", "stop").Run())
-	time.Sleep(time.Millisecond * 10)
 }
 
 func TestStartWithConfig(t *testing.T) {

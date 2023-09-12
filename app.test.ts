@@ -5,7 +5,7 @@ import { test } from "mocha";
 import * as assert from "assert";
 import * as fs from "fs/promises";
 import * as path from "path";
-import ngrpc, { RpcApp } from "./app";
+import ngrpc from "./app";
 import { spawnSync } from "child_process";
 
 test("ngrpc.loadConfig", async () => {
@@ -80,49 +80,43 @@ test("ngrpc.loadConfigForPM2", async () => {
     }
 });
 
-test("ngrpc.start", async () => {
+test("ngrpc.start", jsext.func(async (defer) => {
     const app = await ngrpc.start("example-server");
+    defer(() => app.stop());
+
     assert.strictEqual(app.name, "example-server");
 
     const reply = await services.ExampleService.sayHello({ name: "World" });
     assert.strictEqual(reply.message, "Hello, World");
+}));
 
-    await app.stop();
-});
-
-test("ngrpc.start without app name", async function () {
+test("ngrpc.start without app name", jsext.func(async function (defer) {
     this.timeout(5_000);
 
     spawnSync("ngrpc", ["start", "example-server"]);
-    let app: RpcApp | undefined;
-
-    try {
-        app = await ngrpc.start();
-
-        const reply = await services.ExampleService.sayHello({ name: "World" });
-        assert.strictEqual(reply.message, "Hello, World");
-
-        await app.stop();
-        spawnSync("ngrpc", ["stop"]);
-        await sleep(10); // Host.Stop waited a while for message flushing, we wait here too
-    } catch (err) {
-        await app?.stop();
+    defer(async () => {
         spawnSync("ngrpc", ["stop"]);
         await sleep(10);
-        throw err;
-    }
-});
+    });
+
+    const app = await ngrpc.start();
+    defer(() => app.stop());
+
+    const reply = await services.ExampleService.sayHello({ name: "World" });
+    assert.strictEqual(reply.message, "Hello, World");
+}));
 
 
-test("ngrpc.startWithConfig", async () => {
+test("ngrpc.startWithConfig", jsext.func(async (defer) => {
     const cfg = await ngrpc.loadConfig();
     const app = await ngrpc.startWithConfig("example-server", cfg);
+    defer(() => app.stop());
+
     assert.strictEqual(app.name, "example-server");
 
     const reply = await services.ExampleService.sayHello({ name: "World" });
     assert.strictEqual(reply.message, "Hello, World");
-    await app.stop();
-});
+}));
 
 test("ngrpc.startWithConfig with xds protocol", async () => {
     const cfg = await ngrpc.loadConfig();
@@ -166,18 +160,18 @@ test("ngrpc.startWithConfig with invalid URl", async () => {
     assert.strictEqual(err.message, `Invalid URL`);
 });
 
-test("ngrpc.start duplicated call", async () => {
+test("ngrpc.start duplicated call", jsext.func(async (defer) => {
     const app1 = await ngrpc.start("example-server");
     const [err, app2] = await jsext.try(ngrpc.start("post-server"));
+    defer(() => app1.stop());
 
     assert.ok(!app2);
     assert.strictEqual(err.message, "an app is already running");
+}));
 
-    app1.stop();
-});
-
-test("ngrpc.getServiceClient", async () => {
+test("ngrpc.getServiceClient", jsext.func(async (defer) => {
     const app = await ngrpc.start("post-server");
+    defer(() => app.stop());
 
     const ins1 = ngrpc.getServiceClient("services.PostService");
     const ins2 = ngrpc.getServiceClient("services.PostService", "post-server");
@@ -186,31 +180,25 @@ test("ngrpc.getServiceClient", async () => {
     assert.ok(!!ins1);
     assert.ok(!!ins2);
     assert.ok(!!ins3);
+}));
 
-    await app.stop();
-});
-
-test("ngrpc.runSnippet", async function () {
+test("ngrpc.runSnippet", jsext.func(async function (defer) {
     this.timeout(5_000);
 
     spawnSync("ngrpc", ["start", "example-server"]);
-    let message: string | undefined;
-
-    try {
-        await ngrpc.runSnippet(async () => {
-            const reply = await services.ExampleService.sayHello({ name: "World" });
-            message = reply.message;
-        });
-
-        assert.strictEqual(message, "Hello, World");
-        spawnSync("ngrpc", ["stop"]);
-        await sleep(10); // Host.Stop waited a while for message flushing, we wait here too
-    } catch (err) {
+    defer(async () => {
         spawnSync("ngrpc", ["stop"]);
         await sleep(10);
-        throw err;
-    }
-});
+    });
+
+    let message: string | undefined;
+    await ngrpc.runSnippet(async () => {
+        const reply = await services.ExampleService.sayHello({ name: "World" });
+        message = reply.message;
+    });
+
+    assert.strictEqual(message, "Hello, World");
+}));
 
 test("app.stop and app.onStop", async () => {
     const app = await ngrpc.start("example-server");
@@ -224,8 +212,10 @@ test("app.stop and app.onStop", async () => {
     assert.ok(stopped);
 });
 
-test("app.reload and app.onReload", async () => {
+test("app.reload and app.onReload", jsext.func(async (defer) => {
     const app = await ngrpc.start("example-server");
+    defer(() => app.stop());
+
     let reloaded = false;
 
     app.onReload(() => {
@@ -234,5 +224,4 @@ test("app.reload and app.onReload", async () => {
 
     await app.reload();
     assert.ok(reloaded);
-    await app.stop();
-});
+}));
