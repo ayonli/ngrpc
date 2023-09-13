@@ -29,7 +29,7 @@
   "homepage": "https://github.com/ayonli/ngrpc#readme",
   "dependencies": {
     "@ayonli/grpc-async": "^0.1.0",
-    "@ayonli/jsext": "^0.2.0",
+    "@ayonli/jsext": "^0.3.3",
     "@grpc/grpc-js": "^1.9.0",
     "@grpc/proto-loader": "^0.7.8",
     "@types/lodash": "^4.14.198",
