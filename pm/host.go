@@ -90,7 +90,7 @@ func NewHost(conf config.Config, standalone bool) *Host {
 		standalone:    standalone,
 		server:        nil,
 		clients:       []clientRecord{},
-		callbacks:     collections.NewMap[string, func(reply ControlMessage)](),
+		callbacks:     &collections.Map[string, func(reply ControlMessage)]{},
 		clientsLock:   sync.RWMutex{},
 		callbacksLock: sync.Mutex{},
 	}

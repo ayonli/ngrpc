@@ -26,8 +26,7 @@ import (
 
 var theApp *RpcApp
 
-// var locks = collections.NewMap[string, *sync.Mutex]()
-var serviceStore = collections.NewMap[string, any]()
+var serviceStore = &collections.Map[string, any]{}
 
 type remoteInstance struct {
 	app      string
@@ -360,10 +359,10 @@ func (self *RpcApp) initServer() error {
 // initClient initiates gRPC connections and binds client services for all the apps.
 func (self *RpcApp) initClient(apps []config.App) error {
 	_, err := goext.Try(func() int {
-		self.clients = collections.NewMap[string, *grpc.ClientConn]()
-		self.remoteServices = collections.NewMap[string, *remoteService]()
-		self.serviceDialers = collections.NewMap[string, []dialer]()
-		self.locks = collections.NewMap[string, *sync.Mutex]()
+		self.clients = &collections.Map[string, *grpc.ClientConn]{}
+		self.remoteServices = &collections.Map[string, *remoteService]{}
+		self.serviceDialers = &collections.Map[string, []dialer]{}
+		self.locks = &collections.Map[string, *sync.Mutex]{}
 
 		slicex.ForEach(apps, func(app config.App, idx int) {
 			urlObj := goext.Ok(url.Parse(app.Url))

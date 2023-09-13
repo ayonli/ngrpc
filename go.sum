@@ -2,6 +2,10 @@ github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migc
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
 github.com/ayonli/goext v0.3.4 h1:KiH0hstrcrR0eKPcZtqbt73bUpiKQlnb7wii5bB91GI=
 github.com/ayonli/goext v0.3.4/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
+github.com/ayonli/goext v0.3.5 h1:+NJky01wcmN17x2WhDhuCJr1U/g+lFjQmj7eMaWaQHk=
+github.com/ayonli/goext v0.3.5/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
+github.com/ayonli/goext v0.3.6 h1:cRBNd92UqTH/Tvg9KIg2gMM+VuIikdyAOd94BBi/pMs=
+github.com/ayonli/goext v0.3.6/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
 github.com/bytedance/sonic v1.5.0/go.mod h1:ED5hyg4y6t3/9Ku1R6dU/4KyJ48DZ4jPhfY1O2AihPM=
 github.com/bytedance/sonic v1.9.1 h1:6iJ6NqdoxCDr6mbY8h18oSO+cShGSMRGCEo7F2h0x8s=
 github.com/bytedance/sonic v1.9.1/go.mod h1:i736AoUSYt75HyZLoJW9ERYxcy6eaN6h4BZXU064P/U=
