@@ -28,7 +28,7 @@ test("ngrpc.loadConfig with failure", async () => {
     await fs.rename("ngrpc.jsonc", "ngrpc.json");
 
     const filename = path.join(process.cwd(), "ngrpc.json");
-    assert.strictEqual(err.message, `unable to load config file: ${filename}`);
+    assert.strictEqual(err?.message, `unable to load config file: ${filename}`);
     assert.ok(!config);
 });
 
@@ -132,7 +132,7 @@ test("ngrpc.startWithConfig with xds protocol", async () => {
     const [err, app] = await jsext.try(ngrpc.startWithConfig("example-server", cfg));
 
     assert.ok(!app);
-    assert.strictEqual(err.message,
+    assert.strictEqual(err?.message,
         `app [example-server] cannot be served since it uses 'xds:' protocol`);
 });
 
@@ -140,7 +140,7 @@ test("ngrpc.start invalid app", async () => {
     const [err, app] = await jsext.try(ngrpc.start("test-server"));
 
     assert.ok(!app);
-    assert.strictEqual(err.message, "app [test-server] is not configured");
+    assert.strictEqual(err?.message, "app [test-server] is not configured");
 });
 
 test("ngrpc.startWithConfig with invalid URl", async () => {
@@ -157,7 +157,7 @@ test("ngrpc.startWithConfig with invalid URl", async () => {
     const [err, app] = await jsext.try(ngrpc.startWithConfig("example-server", cfg));
 
     assert.ok(!app);
-    assert.strictEqual(err.message, `Invalid URL`);
+    assert.strictEqual(err?.message, `Invalid URL`);
 });
 
 test("ngrpc.start duplicated call", jsext.func(async (defer) => {
@@ -166,7 +166,7 @@ test("ngrpc.start duplicated call", jsext.func(async (defer) => {
     defer(() => app1.stop());
 
     assert.ok(!app2);
-    assert.strictEqual(err.message, "an app is already running");
+    assert.strictEqual(err?.message, "an app is already running");
 }));
 
 test("ngrpc.getServiceClient", jsext.func(async (defer) => {

@@ -29,13 +29,13 @@
   "homepage": "https://github.com/ayonli/ngrpc#readme",
   "dependencies": {
     "@ayonli/grpc-async": "^0.1.0",
-    "@ayonli/jsext": "^0.3.3",
+    "@ayonli/jsext": "^0.5.2",
     "@grpc/grpc-js": "^1.9.0",
     "@grpc/proto-loader": "^0.7.8",
     "@types/lodash": "^4.14.198",
     "@types/string-hash": "^1.1.1",
     "follow-redirects": "^1.15.2",
-    "js-magic": "^1.3.0",
+    "js-magic": "^1.4.1",
     "lodash": "^4.17.21",
     "require-chain": "^2.1.0",
     "string-hash": "^1.1.3",
@@ -53,7 +53,7 @@
     "mocha": "^10.2.0",
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.1",
-    "typescript": "^5.1.6"
+    "typescript": "^5.2.2"
   },
   "mocha": {
     "require": [
