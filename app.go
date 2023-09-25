@@ -183,6 +183,7 @@ func GetServiceClient[T any](service ConnectableService[T], route string) (T, er
 			panic(fmt.Errorf("service %s is not registered", serviceName))
 		} else {
 			lock.Lock()
+			defer lock.Unlock()
 		}
 
 		record, ok := theApp.remoteServices.Get(serviceName)
@@ -218,6 +219,7 @@ func GetServiceClient[T any](service ConnectableService[T], route string) (T, er
 
 					// Store the instance (service client) in the unified collection for future use.
 					theApp.remoteServices.Set(serviceName, record)
+					break
 				}
 			}
 		}
@@ -261,7 +263,6 @@ func GetServiceClient[T any](service ConnectableService[T], route string) (T, er
 			record.counter = 0
 		}
 
-		lock.Unlock()
 		return ins
 	})
 }
@@ -382,18 +383,20 @@ func (self *RpcApp) initClient(apps []config.App) error {
 			// Client connections are not established immediately, rather, they should be
 			// established on demand, so that to reduce the chance of connection failure if the
 			// server is not yet started.
-			dial := goext.Wrap(func(args ...any) *grpc.ClientConn {
-				conn, ok := self.clients.Get(app.Name)
+			dial := func(args ...any) (*grpc.ClientConn, error) {
+				return goext.Try(func() *grpc.ClientConn {
+					conn, ok := self.clients.Get(app.Name)
 
-				if ok {
+					if ok {
+						return conn
+					}
+
+					conn = goext.Ok(grpc.Dial(addr, grpc.WithTransportCredentials(cred)))
+					self.clients.Set(app.Name, conn)
+
 					return conn
-				}
-
-				conn = goext.Ok(grpc.Dial(addr, grpc.WithTransportCredentials(cred)))
-				self.clients.Set(app.Name, conn)
-
-				return conn
-			})
+				})
+			}
 
 			slicex.ForEach(app.Services, func(serviceName string, _ int) {
 				if !serviceStore.Has(serviceName) {

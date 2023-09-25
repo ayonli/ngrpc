@@ -1,11 +1,11 @@
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
-github.com/ayonli/goext v0.3.4 h1:KiH0hstrcrR0eKPcZtqbt73bUpiKQlnb7wii5bB91GI=
-github.com/ayonli/goext v0.3.4/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
-github.com/ayonli/goext v0.3.5 h1:+NJky01wcmN17x2WhDhuCJr1U/g+lFjQmj7eMaWaQHk=
-github.com/ayonli/goext v0.3.5/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
-github.com/ayonli/goext v0.3.6 h1:cRBNd92UqTH/Tvg9KIg2gMM+VuIikdyAOd94BBi/pMs=
-github.com/ayonli/goext v0.3.6/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
+github.com/ayonli/goext v0.4.0 h1:+9BgmgHmoyK941g2RMPFkSsdPu38w6Z2++rmXPt0jGs=
+github.com/ayonli/goext v0.4.0/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
+github.com/ayonli/goext v0.4.1 h1:7btY6HuFlU1Q/4A9FyDcpxehr4jjujSlmo6RiggqYvc=
+github.com/ayonli/goext v0.4.1/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
+github.com/ayonli/goext v0.4.2 h1:/OWg9YQ5f9R2DCzYO67JVWtsKB0eJgtYuW3m4hJQf7I=
+github.com/ayonli/goext v0.4.2/go.mod h1:mlLQ4krsB+F7OGLrrAD6njBKaTKeu0AJey5YgaLI0o0=
 github.com/bytedance/sonic v1.5.0/go.mod h1:ED5hyg4y6t3/9Ku1R6dU/4KyJ48DZ4jPhfY1O2AihPM=
 github.com/bytedance/sonic v1.9.1 h1:6iJ6NqdoxCDr6mbY8h18oSO+cShGSMRGCEo7F2h0x8s=
 github.com/bytedance/sonic v1.9.1/go.mod h1:i736AoUSYt75HyZLoJW9ERYxcy6eaN6h4BZXU064P/U=
@@ -48,9 +48,6 @@ github.com/klauspost/cpuid/v2 v2.2.4 h1:acbojRNwl3o09bUq+yDCtZFc1aiwaAAxtcn8YkZX
 github.com/klauspost/cpuid/v2 v2.2.4/go.mod h1:RVVoqg1df56z8g3pUjL/3lE5UfnlrJX8tyFgg4nqhuY=
 github.com/leodido/go-urn v1.2.4 h1:XlAE/cm/ms7TE/VMVoduSpNBoyc2dOxHs5MZSwAN63Q=
 github.com/leodido/go-urn v1.2.4/go.mod h1:7ZrI8mTSeBSHl/UaRyKQW1qZeMgak41ANeCNaVckg+4=
-github.com/matoous/go-nanoid v1.5.0/go.mod h1:zyD2a71IubI24efhpvkJz+ZwfwagzgSO6UNiFsZKN7U=
-github.com/matoous/go-nanoid/v2 v2.0.0 h1:d19kur2QuLeHmJBkvYkFdhFBzLoo1XVm2GgTpL+9Tj0=
-github.com/matoous/go-nanoid/v2 v2.0.0/go.mod h1:FtS4aGPVfEkxKxhdWPAspZpZSh1cOjtM7Ej/So3hR0g=
 github.com/mattn/go-isatty v0.0.19 h1:JITubQf0MOLdlGRuRq+jtsDlekdYPia9ZFsB8h/APPA=
 github.com/mattn/go-isatty v0.0.19/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-runewidth v0.0.9 h1:Lm995f3rfxdpd6TSmuVCHVb/QhupuXlYr8sCI/QdE+0=

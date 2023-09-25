@@ -14,7 +14,6 @@ import (
 	"github.com/ayonli/goext/slicex"
 	"github.com/ayonli/goext/stringx"
 	"github.com/ayonli/ngrpc/util"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -162,7 +161,7 @@ var certCmd = &cobra.Command{
 			ip = ips[0].String()
 		}
 
-		randId, _ := gonanoid.New()
+		randId := stringx.Random(4)
 		extCfgFile := path.Join(dir, randId+".cfg")
 		extCfgContent := fmt.Sprintf("subjectAltName=DNS:%s,IP:%s\n", hostname, ip)
 		os.WriteFile(extCfgFile, []byte(extCfgContent), 0644)

@@ -23,7 +23,6 @@ import (
 	"github.com/ayonli/ngrpc/config"
 	"github.com/ayonli/ngrpc/pm/socket"
 	"github.com/ayonli/ngrpc/util"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/rodaine/table"
 )
 
@@ -80,19 +79,17 @@ type Host struct {
 
 	isProcessKeeper bool
 	clientsLock     sync.RWMutex
-	callbacksLock   sync.Mutex
 }
 
 func NewHost(conf config.Config, standalone bool) *Host {
 	host := &Host{
-		apps:          conf.Apps,
-		state:         0,
-		standalone:    standalone,
-		server:        nil,
-		clients:       []clientRecord{},
-		callbacks:     &collections.Map[string, func(reply ControlMessage)]{},
-		clientsLock:   sync.RWMutex{},
-		callbacksLock: sync.Mutex{},
+		apps:        conf.Apps,
+		state:       0,
+		standalone:  standalone,
+		server:      nil,
+		clients:     []clientRecord{},
+		callbacks:   &collections.Map[string, func(reply ControlMessage)]{},
+		clientsLock: sync.RWMutex{},
 	}
 
 	tsCfg, err := config.LoadTsConfig(conf.Tsconfig)
@@ -209,24 +206,6 @@ func (self *Host) removeClient(test func(client clientRecord) bool) bool {
 	return ok
 }
 
-func (self *Host) setCallback(msgId string, fn func(reply ControlMessage)) {
-	self.callbacksLock.Lock()
-	self.callbacks.Set(msgId, fn)
-	self.callbacksLock.Unlock()
-}
-
-func (self *Host) runCallback(msgId string, reply ControlMessage) {
-	self.callbacksLock.Lock()
-	fn, ok := self.callbacks.Get(msgId)
-
-	if ok {
-		fn(reply)
-		self.callbacks.Delete(msgId)
-	}
-
-	self.callbacksLock.Unlock()
-}
-
 func (self *Host) handleGuestConnection(conn net.Conn) {
 	packet := []byte{}
 	buf := make([]byte, 256)
@@ -322,10 +301,10 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 			})
 
 			if exists {
-				msgId, _ := gonanoid.New()
+				msgId := stringx.Random(8)
 
 				client.conn.Write(EncodeMessage(ControlMessage{Cmd: msg.Cmd, MsgId: msgId}))
-				self.setCallback(msgId, func(reply ControlMessage) {
+				self.callbacks.Set(msgId, func(reply ControlMessage) {
 					reply.Fin = true
 					conn.Write(EncodeMessage(reply))
 				})
@@ -346,7 +325,7 @@ func (self *Host) handleMessage(conn net.Conn, msg ControlMessage) {
 				lock := sync.Mutex{}
 
 				slicex.ForEach(clients, func(client clientRecord, _ int) {
-					msgId, _ := gonanoid.New()
+					msgId := stringx.Random(8)
 
 					client.conn.Write(EncodeMessage(ControlMessage{Cmd: msg.Cmd, MsgId: msgId}))
 					self.callbacks.Set(msgId, func(reply ControlMessage) {
@@ -436,7 +415,11 @@ func (self *Host) handleReply(conn net.Conn, msg ControlMessage) {
 	// we use the `msgId` to retrieve the callback, run it and remove it.
 
 	if msg.MsgId != "" {
-		self.runCallback(msg.MsgId, msg)
+		fn, ok := self.callbacks.Pop(msg.MsgId)
+
+		if ok {
+			fn(msg)
+		}
 	}
 
 	if msg.Fin {

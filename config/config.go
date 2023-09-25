@@ -117,22 +117,24 @@ func GetAddress(urlObj *url.URL) string {
 
 func GetCredentials(app App, urlObj *url.URL) (credentials.TransportCredentials, error) {
 	// Create secure (SSL/TLS) credentials, use x509 standard.
-	var createSecure = goext.Wrap(func(args ...any) credentials.TransportCredentials {
-		cert := goext.Ok(tls.LoadX509KeyPair(app.Cert, app.Key))
-		var certPool *x509.CertPool
+	var createSecure = (func(args ...any) (credentials.TransportCredentials, error) {
+		return goext.Try(func() credentials.TransportCredentials {
+			cert := goext.Ok(tls.LoadX509KeyPair(app.Cert, app.Key))
+			var certPool *x509.CertPool
 
-		if app.Ca != "" {
-			certPool = x509.NewCertPool()
-			ca := goext.Ok(os.ReadFile(app.Ca))
+			if app.Ca != "" {
+				certPool = x509.NewCertPool()
+				ca := goext.Ok(os.ReadFile(app.Ca))
 
-			if ok := certPool.AppendCertsFromPEM(ca); !ok {
-				panic(fmt.Errorf("unable to create cert pool for CA: %v", app.Ca))
+				if ok := certPool.AppendCertsFromPEM(ca); !ok {
+					panic(fmt.Errorf("unable to create cert pool for CA: %v", app.Ca))
+				}
 			}
-		}
 
-		return credentials.NewTLS(&tls.Config{
-			Certificates: []tls.Certificate{cert},
-			RootCAs:      certPool,
+			return credentials.NewTLS(&tls.Config{
+				Certificates: []tls.Certificate{cert},
+				RootCAs:      certPool,
+			})
 		})
 	})
 
