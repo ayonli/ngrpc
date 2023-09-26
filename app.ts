@@ -507,7 +507,7 @@ export class RpcApp implements App {
                     filename = path.join(process.cwd(), filename);
                 }
 
-                const exports = await import(filename);
+                const exports = require(filename);
                 let classCtor: ServiceClass;
 
                 // The service class file must be implemented as a module that has a default export

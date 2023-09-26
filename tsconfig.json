@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "module": "commonjs",
+        "module": "NodeNext",
         "target": "es2018",
         "outDir": "./dist",
         "newLine": "LF",
@@ -16,7 +16,8 @@
         "noImplicitReturns": true,
         "noFallthroughCasesInSwitch": true,
         "noPropertyAccessFromIndexSignature": true,
-        "noUncheckedIndexedAccess": true
+        "noUncheckedIndexedAccess": true,
+        "skipLibCheck": true
     },
     "include": [
         "*.ts",

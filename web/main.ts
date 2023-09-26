@@ -2,7 +2,7 @@ import jsext from "@ayonli/jsext";
 import * as http from "http";
 import * as https from "https";
 import * as fs from "fs/promises";
-import * as express from "express";
+import express from "express";
 import ngrpc from "@ayonli/ngrpc";
 import { Gender, Post, User } from "../services/struct";
 
