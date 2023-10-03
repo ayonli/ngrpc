@@ -41,7 +41,7 @@
     "tar": "^6.2.0"
   },
   "devDependencies": {
-    "@ayonli/jsext": "^0.5.4",
+    "@ayonli/jsext": "^0.6.0",
     "@ayonli/ngrpc": "file:../ngrpc",
     "@types/express": "^4.17.17",
     "@types/follow-redirects": "^1.14.1",

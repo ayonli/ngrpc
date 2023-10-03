@@ -4,7 +4,7 @@ go 1.21.0
 
 require (
 	github.com/Microsoft/go-winio v0.6.1
-	github.com/ayonli/goext v0.4.2
+	github.com/ayonli/goext v0.4.3
 	github.com/gin-gonic/gin v1.9.1
 	github.com/rodaine/table v1.1.0
 	github.com/spf13/cobra v1.7.0
