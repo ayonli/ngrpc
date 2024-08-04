@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as http from "node:http";
 import { https } from "follow-redirects";
 import { exists, remove } from "@ayonli/jsext/fs";
-import runtime from "@ayonli/jsext/runtime";
+import { readAsJSON } from "@ayonli/jsext/reader";
 import * as tar from "tar";
 
 const exePath = path.join(__dirname, process.platform === "win32" ? "ngrpc.exe" : "ngrpc");
@@ -29,8 +29,19 @@ function reportImportFailure(err?: Error) {
             reportImportFailure();
         }
 
-        const pkg = runtime().tsSupport ? require("../package.json") : require("../../package.json");
-        const url = `https://github.com/ayonli/ngrpc/releases/download/v${pkg.version}/${zipName}`;
+        const version = await new Promise<string>((resolve, reject) => {
+            https.get("https://api.github.com/repos/ayonli/ngrpc/releases/latest", {
+                headers: {
+                    "User-Agent": "Node.js",
+                },
+            }, async res => {
+                const data = await readAsJSON(res) as {
+                    tag_name: string;
+                };
+                resolve(data.tag_name);
+            }).once("error", reject);
+        });
+        const url = `https://github.com/ayonli/ngrpc/releases/download/${version}/${zipName}`;
         const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
             https.get(url, res => {
                 resolve(res);
