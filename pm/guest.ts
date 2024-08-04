@@ -1,8 +1,8 @@
-import * as path from "path";
-import * as net from "net";
-import * as fs from "fs/promises";
+import * as path from "node:path";
+import * as net from "node:net";
+import { exists, remove } from "@ayonli/jsext/fs";
+import { absPath, timed } from "../util";
 import type { App } from "../app";
-import { absPath, exists, timed } from "../util";
 
 export interface ControlMessage {
     cmd: "handshake" | "goodbye" | "reply" | "stop" | "reload";
@@ -110,9 +110,7 @@ export class Guest {
 
         await new Promise<void>(async (handshake, reject) => {
             const connectFailureHandler = async (err: Error) => {
-                try {
-                    await fs.unlink(sockFile);
-                } catch {}
+                try { await remove(sockFile); } catch { }
                 reject(err);
             };
 

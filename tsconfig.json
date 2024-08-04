@@ -17,7 +17,12 @@
         "noFallthroughCasesInSwitch": true,
         "noPropertyAccessFromIndexSignature": true,
         "noUncheckedIndexedAccess": true,
-        "skipLibCheck": true
+        "skipLibCheck": true,
+        "paths": {
+            "@ayonli/ngrpc": [
+                "."
+            ]
+        },
     },
     "include": [
         "*.ts",

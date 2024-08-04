@@ -1,7 +1,8 @@
 import { test } from "mocha";
-import * as assert from "assert";
-import * as path from "path";
-import { absPath, exists, service, timed } from ".";
+import * as assert from "node:assert";
+import * as path from "node:path";
+import { exists } from "@ayonli/jsext/fs";
+import { absPath, service, timed } from ".";
 
 test("exists", async () => {
     const ok1 = await exists("ngrpc.json");

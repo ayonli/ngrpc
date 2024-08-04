@@ -1,10 +1,9 @@
-import jsext from "@ayonli/jsext";
+import * as assert from "node:assert";
+import * as path from "node:path";
+import _try from "@ayonli/jsext/try";
+import { writeFile, exists } from "@ayonli/jsext/fs";
 import { test } from "mocha";
-import * as assert from "assert";
-import * as path from "path";
-import * as fs from "fs";
 import { App } from "../app";
-import { exists } from "../util";
 import { Guest, ControlMessage, encodeMessage, decodeMessage, getSocketPath } from "./guest";
 
 function newMsg(msg: ControlMessage): ControlMessage {
@@ -112,7 +111,7 @@ test("new Guest", () => {
 
 test("Guest join redundant socket file", async () => {
     const { sockFile } = getSocketPath();
-    fs.writeFileSync(sockFile, Buffer.from([]), "binary");
+    await writeFile(sockFile, new Uint8Array([]));
 
     assert.ok(await exists(sockFile));
 
@@ -124,7 +123,7 @@ test("Guest join redundant socket file", async () => {
         onStopCommand: () => void 0,
         onReloadCommand: () => void 0,
     });
-    const [err] = await jsext.try(() => guest["connect"]());
+    const [err] = await _try(() => guest["connect"]());
 
     assert.ok(!!err);
     assert.ok(!(await exists(sockFile)));

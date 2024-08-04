@@ -1,12 +1,13 @@
 /// <reference path="./services/ExampleService.ts" />
-import jsext from "@ayonli/jsext";
-import { sleep } from "@ayonli/jsext/promise";
 import { test } from "mocha";
-import * as assert from "assert";
-import * as fs from "fs/promises";
-import * as path from "path";
-import ngrpc from "./app";
-import { spawnSync } from "child_process";
+import * as assert from "node:assert";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { spawnSync } from "node:child_process";
+import { sleep } from "@ayonli/jsext/async";
+import _try from "@ayonli/jsext/try";
+import func from "@ayonli/jsext/func";
+import ngrpc, { Config, RpcApp } from "./app";
 
 test("ngrpc.loadConfig", async () => {
     const config = await ngrpc.loadConfig();
@@ -15,7 +16,7 @@ test("ngrpc.loadConfig", async () => {
 
 test("ngrpc.localConfig with local config file", async () => {
     await fs.copyFile("ngrpc.json", "ngrpc.local.json");
-    const [err, config] = await jsext.try(ngrpc.loadConfig());
+    const [err, config] = await _try<Error, Config>(ngrpc.loadConfig());
     await fs.unlink("ngrpc.local.json");
 
     assert.ok(!err);
@@ -24,7 +25,7 @@ test("ngrpc.localConfig with local config file", async () => {
 
 test("ngrpc.loadConfig with failure", async () => {
     await fs.rename("ngrpc.json", "ngrpc.jsonc");
-    const [err, config] = await jsext.try(ngrpc.loadConfig());
+    const [err, config] = await _try<Error, Config>(ngrpc.loadConfig());
     await fs.rename("ngrpc.jsonc", "ngrpc.json");
 
     const filename = path.join(process.cwd(), "ngrpc.json");
@@ -80,7 +81,7 @@ test("ngrpc.loadConfigForPM2", async () => {
     }
 });
 
-test("ngrpc.start", jsext.func(async (defer) => {
+test("ngrpc.start", func(async (defer) => {
     const app = await ngrpc.start("example-server");
     defer(() => app.stop());
 
@@ -90,7 +91,7 @@ test("ngrpc.start", jsext.func(async (defer) => {
     assert.strictEqual(reply.message, "Hello, World");
 }));
 
-test("ngrpc.start without app name", jsext.func(async function (defer) {
+test("ngrpc.start without app name", func(async function (defer) {
     this.timeout(5_000);
 
     spawnSync("ngrpc", ["start", "example-server"]);
@@ -107,7 +108,7 @@ test("ngrpc.start without app name", jsext.func(async function (defer) {
 }));
 
 
-test("ngrpc.startWithConfig", jsext.func(async (defer) => {
+test("ngrpc.startWithConfig", func(async (defer) => {
     const cfg = await ngrpc.loadConfig();
     const app = await ngrpc.startWithConfig("example-server", cfg);
     defer(() => app.stop());
@@ -129,7 +130,7 @@ test("ngrpc.startWithConfig with xds protocol", async () => {
     cfgApp.entry = "entry/main.ts";
     cfgApp.url = "xds://localhost:4000";
 
-    const [err, app] = await jsext.try(ngrpc.startWithConfig("example-server", cfg));
+    const [err, app] = await _try<Error, RpcApp>(ngrpc.startWithConfig("example-server", cfg));
 
     assert.ok(!app);
     assert.strictEqual(err?.message,
@@ -137,7 +138,7 @@ test("ngrpc.startWithConfig with xds protocol", async () => {
 });
 
 test("ngrpc.start invalid app", async () => {
-    const [err, app] = await jsext.try(ngrpc.start("test-server"));
+    const [err, app] = await _try<Error, RpcApp>(ngrpc.start("test-server"));
 
     assert.ok(!app);
     assert.strictEqual(err?.message, "app [test-server] is not configured");
@@ -154,22 +155,22 @@ test("ngrpc.startWithConfig with invalid URl", async () => {
     cfgApp.entry = "entry/main.ts";
     cfgApp.url = "grpc://localhost:abc";
 
-    const [err, app] = await jsext.try(ngrpc.startWithConfig("example-server", cfg));
+    const [err, app] = await _try<Error, RpcApp>(ngrpc.startWithConfig("example-server", cfg));
 
     assert.ok(!app);
     assert.strictEqual(err?.message, `Invalid URL`);
 });
 
-test("ngrpc.start duplicated call", jsext.func(async (defer) => {
+test("ngrpc.start duplicated call", func(async (defer) => {
     const app1 = await ngrpc.start("example-server");
-    const [err, app2] = await jsext.try(ngrpc.start("post-server"));
+    const [err, app2] = await _try<Error, RpcApp>(ngrpc.start("post-server"));
     defer(() => app1.stop());
 
     assert.ok(!app2);
     assert.strictEqual(err?.message, "an app is already running");
 }));
 
-test("ngrpc.getServiceClient", jsext.func(async (defer) => {
+test("ngrpc.getServiceClient", func(async (defer) => {
     const app = await ngrpc.start("post-server");
     defer(() => app.stop());
 
@@ -182,7 +183,7 @@ test("ngrpc.getServiceClient", jsext.func(async (defer) => {
     assert.ok(!!ins3);
 }));
 
-test("ngrpc.runSnippet", jsext.func(async function (defer) {
+test("ngrpc.runSnippet", func(async function (defer) {
     this.timeout(5_000);
 
     spawnSync("ngrpc", ["start", "example-server"]);
@@ -212,7 +213,7 @@ test("app.stop and app.onStop", async () => {
     assert.ok(stopped);
 });
 
-test("app.reload and app.onReload", jsext.func(async (defer) => {
+test("app.reload and app.onReload", func(async (defer) => {
     const app = await ngrpc.start("example-server");
     defer(() => app.stop());
 

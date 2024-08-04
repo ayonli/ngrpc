@@ -1,9 +1,9 @@
-import jsext from "@ayonli/jsext";
-import * as http from "http";
-import * as https from "https";
-import * as fs from "fs/promises";
-import express from "express";
+import * as http from "node:http";
+import * as https from "node:https";
+import * as fs from "node:fs/promises";
+import _try from "@ayonli/jsext/try";
 import ngrpc from "@ayonli/ngrpc";
+import express from "express";
 import { Gender, Post, User } from "../services/struct";
 
 type ApiResponse<T> = {
@@ -59,9 +59,9 @@ type ApiResponse<T> = {
     route.get("/user/:id", async (req, res) => {
         type UserResponse = ApiResponse<User>;
         const userId = req.params.id;
-        const [err, user] = await jsext.try(services.UserService.getUser({ id: userId }));
+        const [err, user] = await _try(services.UserService.getUser({ id: userId }));
 
-        if (err) {
+        if (err instanceof Error) {
             if (err.message.includes("not found")) {
                 res.json({ code: 404, error: err.message } satisfies UserResponse);
             } else {
@@ -88,9 +88,9 @@ type ApiResponse<T> = {
             return;
         }
 
-        const [err, result] = await jsext.try(services.UserService.getUsers({ gender }));
+        const [err, result] = await _try(services.UserService.getUsers({ gender }));
 
-        if (err) {
+        if (err instanceof Error) {
             res.json({ code: 500, error: err.message } satisfies UsersResponse);
         } else {
             res.json({ code: 0, data: result.users } satisfies UsersResponse);
@@ -105,9 +105,9 @@ type ApiResponse<T> = {
             return;
         }
 
-        const [err, result] = await jsext.try(services.UserService.getUsers({ minAge, maxAge }));
+        const [err, result] = await _try(services.UserService.getUsers({ minAge, maxAge }));
 
-        if (err) {
+        if (err instanceof Error) {
             res.json({ code: 500, error: err.message } satisfies UsersResponse);
         } else {
             res.json({ code: 0, data: result.users } satisfies UsersResponse);
@@ -115,9 +115,9 @@ type ApiResponse<T> = {
     }).get("/user/:id/posts", async (req, res) => {
         type PostsResponse = ApiResponse<Post[]>;
         const userId = req.params.id;
-        const [err, result] = await jsext.try(services.UserService.getMyPosts({ id: userId }));
+        const [err, result] = await _try(services.UserService.getMyPosts({ id: userId }));
 
-        if (err) {
+        if (err instanceof Error) {
             res.json({ code: 500, error: err.message } satisfies PostsResponse);
         } else {
             res.json({ code: 0, data: result.posts } satisfies PostsResponse);
@@ -131,9 +131,9 @@ type ApiResponse<T> = {
             return;
         }
 
-        const [err, post] = await jsext.try(services.PostService.getPost({ id }));
+        const [err, post] = await _try(services.PostService.getPost({ id }));
 
-        if (err) {
+        if (err instanceof Error) {
             if (err.message.includes("not found")) {
                 res.json({ code: 404, error: err.message } satisfies PostResponse);
             } else {
@@ -144,11 +144,11 @@ type ApiResponse<T> = {
         }
     }).get("/posts/search/:keyword", async (req, res) => {
         type PostsResponse = ApiResponse<Post[]>;
-        const [err, result] = await jsext.try(services.PostService.searchPosts({
+        const [err, result] = await _try(services.PostService.searchPosts({
             keyword: req.params.keyword,
         }));
 
-        if (err) {
+        if (err instanceof Error) {
             res.json({ code: 500, error: err.message } satisfies PostsResponse);
         } else {
             res.json({ code: 0, data: result.posts } satisfies PostsResponse);

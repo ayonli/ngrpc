@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import * as http from "http";
+import { spawnSync } from "node:child_process";
+import * as path from "node:path";
+import * as http from "node:http";
 import { https } from "follow-redirects";
-import * as path from "path";
-import * as fs from "fs/promises";
+import { exists, remove } from "@ayonli/jsext/fs";
+import runtime from "@ayonli/jsext/runtime";
 import * as tar from "tar";
-import { exists, isTsNode } from "../util";
-import { spawnSync } from "child_process";
 
 const exePath = path.join(__dirname, process.platform === "win32" ? "ngrpc.exe" : "ngrpc");
 const os = process.platform === "win32" ? "windows" : process.platform;
@@ -29,7 +29,7 @@ function reportImportFailure(err?: Error) {
             reportImportFailure();
         }
 
-        const pkg = isTsNode ? require("../package.json") : require("../../package.json");
+        const pkg = runtime().tsSupport ? require("../package.json") : require("../../package.json");
         const url = `https://github.com/ayonli/ngrpc/releases/download/v${pkg.version}/${zipName}`;
         const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
             https.get(url, res => {
@@ -44,7 +44,7 @@ function reportImportFailure(err?: Error) {
         await new Promise<void>((resolve, reject) => {
             const out = tar.extract({ cwd: __dirname });
             const handleError = async (err: Error) => {
-                try { await fs.unlink(exePath); } catch { }
+                try { await remove(exePath); } catch { }
                 reject(err);
             };
 

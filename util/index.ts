@@ -1,28 +1,16 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as path from "node:path";
 
-// @ts-ignore
-export const isTsNode = !!process[Symbol.for("ts-node.register.instance")];
 export const sServiceName = Symbol.for("serviceName");
 
-export async function exists(filename: string) {
-    try {
-        await fs.promises.stat(filename);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
 export function absPath(filename: string, withPipe = false): string {
-    let isAbs = false
+    let isAbs = false;
 
     if (!/^\/|^[a-zA-Z]:[\\\/]/.test(filename)) {
         filename = path.resolve(process.cwd(), filename);
     } else {
-        isAbs = true
+        isAbs = true;
     }
-    
+
     if (!isAbs && path.sep) {
         filename = filename.replace(/\\|\//g, path.sep);
     }

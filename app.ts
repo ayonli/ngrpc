@@ -1,5 +1,3 @@
-import * as fs from "fs/promises";
-import * as path from "path";
 import { Options as ProtoOptions, loadSync } from "@grpc/proto-loader";
 import {
     ChannelCredentials,
@@ -13,22 +11,21 @@ import {
     loadPackageDefinition
 } from "@grpc/grpc-js";
 import { serve, unserve, connect, ServiceClient } from "@ayonli/grpc-async";
+import { exists, readDir } from "@ayonli/jsext/fs";
+import { readFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import { compare } from "@ayonli/jsext/bytes";
+import runtime, { addShutdownListener } from "@ayonli/jsext/runtime";
+import hash from "@ayonli/jsext/hash";
+import * as path from "node:path";
 import get = require("lodash/get");
 import set = require("lodash/set");
 import pick = require("lodash/pick");
 import isEqual = require("lodash/isEqual");
-import hash = require("string-hash");
-import {
-    absPath,
-    exists,
-    isTsNode,
-    sServiceName,
-    timed
-} from "./util";
-import { existsSync, readFileSync } from "fs";
 import { findDependencies } from "require-chain";
 import { applyMagic } from "js-magic";
 import { Guest } from "./pm/guest";
+import { absPath, sServiceName, timed } from "./util";
 
 export type { ServiceClient };
 
@@ -227,9 +224,9 @@ export class RpcApp implements App {
         let fileContent: string | undefined;
 
         if (await exists(localFile)) {
-            fileContent = await fs.readFile(localFile, "utf8");
+            fileContent = await readFile(localFile, "utf8");
         } else if (await exists(defaultFile)) {
-            fileContent = await fs.readFile(defaultFile, "utf8");
+            fileContent = await readFile(defaultFile, "utf8");
         } else {
             throw new Error(`unable to load config file: ${defaultFile}`);
         }
@@ -412,7 +409,7 @@ export class RpcApp implements App {
      * Returns the service client by the given service name.
      * @param route is used to route traffic by the client-side load balancer.
      */
-    static getServiceClient<T extends object>(serviceName: string, route: string = ""): ServiceClient<T> {
+    static getServiceClient<T extends object>(serviceName: string, route: any = null): ServiceClient<T> {
         if (!this.theApp) {
             throw new Error("no app is running");
         }
@@ -436,6 +433,20 @@ export class RpcApp implements App {
         let client: ServiceClient<object>;
 
         if (route) {
+            if (typeof route !== "string") {
+                if (typeof route === "object") {
+                    if ("route" in route) {
+                        route = (route as RoutableMessageStruct).route;
+                    } else if (!Array.isArray(route)) {
+                        route = String(Object.keys(route).sort());
+                    } else {
+                        route = "";
+                    }
+                } else {
+                    route = String(route);
+                }
+            }
+
             // First, try to match the route directly against the services' uris, if match any,
             // return it respectively.
             const item = instances.find(item => item.app === route || item.url === route);
@@ -458,32 +469,15 @@ export class RpcApp implements App {
     }
 
     protected async loadProtoFiles(dirs: string[], options?: ProtoOptions) {
-        // recursively scan for `.proto` files
-        const filenames: string[] = await (async function scan(dirs: string[]) {
-            const filenames: string[] = [];
+        const filenames: string[] = [];
 
-            for (const dir of dirs) {
-                const files = await fs.readdir(dir);
-                const subDirs: string[] = [];
-
-                for (const file of files) {
-                    const filename = path.join(dir, file);
-                    const stat = await fs.stat(filename);
-
-                    if (stat.isFile() && file.endsWith(".proto")) {
-                        filenames.push(filename);
-                    } else if (stat.isDirectory()) {
-                        subDirs.push(filename);
-                    }
-                }
-
-                if (subDirs.length) {
-                    filenames.push(...await scan(subDirs));
+        for (const dir of dirs) {
+            for await (const entry of readDir(dir, { recursive: true })) {
+                if (entry.kind === "file" && entry.name.endsWith(".proto")) {
+                    filenames.push(path.join(dir, entry.relativePath));
                 }
             }
-
-            return filenames;
-        })(dirs);
+        }
 
         // `load()` method is currently buggy, so we use `loadSync()` instead.
         const source = loadSync(filenames, options);
@@ -570,9 +564,9 @@ export class RpcApp implements App {
 
         const { address, useSSL } = RpcApp.getAddress(this, url);
         let newServer = !this.server;
+        let ca: Buffer | undefined;
         let cert: Buffer;
         let key: Buffer;
-        let ca: Buffer | undefined;
 
         if (oldApp) {
             if (this.sslOptions) {
@@ -580,15 +574,15 @@ export class RpcApp implements App {
                     this.sslOptions = null;
                     newServer = true;
                 } else {
-                    cert = await fs.readFile(this.cert as string);
-                    key = await fs.readFile(this.key as string);
+                    cert = await readFile(this.cert as string);
+                    key = await readFile(this.key as string);
 
                     if (this.ca) {
-                        ca = await fs.readFile(this.ca as string);
+                        ca = await readFile(this.ca as string);
                     }
 
-                    if (Buffer.compare(cert, this.sslOptions.cert) ||
-                        Buffer.compare(key, this.sslOptions.key) ||
+                    if (compare(cert, this.sslOptions.cert) ||
+                        compare(key, this.sslOptions.key) ||
                         (ca && this.sslOptions.ca && Buffer.compare(ca, this.sslOptions.ca)) ||
                         (!ca && this.sslOptions.ca) ||
                         (ca && !this.sslOptions.ca)
@@ -599,11 +593,11 @@ export class RpcApp implements App {
                     }
                 }
             } else if (useSSL) { // non-SSL to SSL
-                cert = await fs.readFile(this.cert as string);
-                key = await fs.readFile(this.key as string);
+                cert = await readFile(this.cert as string);
+                key = await readFile(this.key as string);
 
                 if (this.ca) {
-                    ca = await fs.readFile(this.ca as string);
+                    ca = await readFile(this.ca as string);
                 }
 
                 this.sslOptions = { cert, key, ca };
@@ -615,11 +609,11 @@ export class RpcApp implements App {
                 newServer = true;
             }
         } else if (useSSL) {
-            cert = await fs.readFile(this.cert as string);
-            key = await fs.readFile(this.key as string);
+            cert = await readFile(this.cert as string);
+            key = await readFile(this.key as string);
 
             if (this.ca) {
-                ca = await fs.readFile(this.ca as string);
+                ca = await readFile(this.ca as string);
             }
 
             this.sslOptions = { cert, key, ca };
@@ -676,7 +670,7 @@ export class RpcApp implements App {
                     if (err) {
                         reject(err);
                     } else {
-                        (this.server as Server).start();
+                        // (this.server as Server).start();
                         resolve();
                     }
                 });
@@ -709,19 +703,19 @@ export class RpcApp implements App {
         for (const app of apps) {
             if (app.cert) {
                 const filename = absPath(app.cert);
-                const cert = await fs.readFile(filename);
+                const cert = await readFile(filename);
                 certs.set(filename, cert);
             }
 
             if (app.key) {
                 const filename = absPath(app.key);
-                const key = await fs.readFile(filename);
+                const key = await readFile(filename);
                 keys.set(filename, key);
             }
 
             if (app.ca) {
                 const filename = absPath(app.ca);
-                const ca = await fs.readFile(filename);
+                const ca = await readFile(filename);
                 cas.set(filename, ca);
             }
         }
@@ -774,11 +768,7 @@ export class RpcApp implements App {
             if (app.cert && app.key) {
                 const cert = certs.get(absPath(app.cert));
                 const key = keys.get(absPath(app.key));
-                let ca: Buffer | undefined;
-
-                if (app.ca) {
-                    ca = cas.get(absPath(app.ca));
-                }
+                const ca = app.ca ? cas.get(absPath(app.ca)) : undefined;
 
                 cred = credentials.createSsl(ca, key, cert);
             } else {
@@ -886,7 +876,7 @@ export class RpcApp implements App {
 
                 const basename = serviceName.split(".").join(path.sep);
 
-                if (isTsNode) {
+                if (runtime().tsSupport) {
                     return path.join(process.cwd(), importRoot, basename + ".ts");
                 } else {
                     return path.join(process.cwd(), importRoot, basename + ".js");
@@ -954,16 +944,9 @@ export class RpcApp implements App {
      */
     waitForExit() {
         this.isProcessKeeper = true;
-        const close = () => {
-            this._stop("", true);
-        };
-
-        process.on("SIGINT", close).on("SIGTERM", close)
-            .on("message", (msg) => {
-                if (msg === "shutdown") { // for PM2 in Windows
-                    close();
-                }
-            });
+        addShutdownListener(async () => {
+            await this._stop("", true);
+        });
     }
 }
 
